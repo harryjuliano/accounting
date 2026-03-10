@@ -224,7 +224,7 @@ return new class extends Migration
             $table->foreign('currency_code')->references('code')->on('currencies');
             $table->unique(['company_id', 'journal_no']);
             $table->index(['company_id', 'status', 'posting_date']);
-            $table->index(['source_module', 'source_document_type', 'source_document_id']);
+            $table->index(['source_module', 'source_document_type', 'source_document_id'], 'journal_entries_source_doc_idx');
             $table->unique(['company_id', 'integration_key'], 'journal_entries_company_integration_unique');
         });
 
