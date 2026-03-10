@@ -499,7 +499,7 @@ return new class extends Migration
             $table->string('name');
             $table->foreignId('asset_account_id')->constrained('chart_of_accounts')->restrictOnDelete();
             $table->foreignId('depreciation_account_id')->constrained('chart_of_accounts')->restrictOnDelete();
-            $table->foreignId('accumulated_depreciation_account_id')->constrained('chart_of_accounts')->restrictOnDelete();
+            $table->foreignId('accumulated_depreciation_account_id')->constrained('chart_of_accounts', 'id', 'fixed_asset_cat_acc_dep_acc_fk')->restrictOnDelete();
             $table->unsignedInteger('useful_life_months');
             $table->enum('depreciation_method', ['straight_line', 'declining', 'custom'])->default('straight_line');
             $table->timestamps();
