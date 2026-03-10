@@ -1,70 +1,165 @@
 import { usePage } from '@inertiajs/react';
-import { IconCirclePlus, IconLayout2, IconTable, IconUserBolt, IconUserShield, IconUsers } from '@tabler/icons-react';
+import {
+    IconAdjustments,
+    IconArrowsTransferDown,
+    IconBook2,
+    IconBooks,
+    IconCalendarStats,
+    IconChartBar,
+    IconChecklist,
+    IconClipboardText,
+    IconCurrencyDollar,
+    IconGauge,
+    IconHierarchy3,
+    IconLock,
+    IconReportMoney,
+    IconSettings,
+    IconShieldCheck,
+} from '@tabler/icons-react';
 import hasAnyPermission from './Permissions';
-import React from 'react'
 
 export default function Menu() {
-
-    // define use page
     const { url } = usePage();
 
-    // define menu navigations
+    const accountingAccess = hasAnyPermission(['dashboard-access']);
+
     const menuNavigation = [
         {
-            title: 'Overview',
-            permissions: hasAnyPermission(['dashboard-access']),
+            title: 'Dashboard',
+            permissions: accountingAccess,
             details: [
                 {
-                    title : 'Dashboard',
-                    href : '/apps/dashboard',
-                    active: url.startsWith('/apps/dashboard') ? true : false,
-                    icon : <IconLayout2 size={20} strokeWidth={1.5}/>,
-                    permissions:  hasAnyPermission(['dashboard-access']),
+                    title: 'Finance Dashboard',
+                    href: '/apps/dashboard',
+                    active: url.startsWith('/apps/dashboard'),
+                    icon: <IconGauge size={20} strokeWidth={1.5} />,
+                    permissions: accountingAccess,
                 },
-            ]
+                {
+                    title: 'Closing Status',
+                    href: '#closing-status',
+                    active: false,
+                    icon: <IconChecklist size={20} strokeWidth={1.5} />,
+                    permissions: accountingAccess,
+                },
+            ],
         },
         {
-            title: 'User Management',
-            permissions: hasAnyPermission(['permissions-access']) || hasAnyPermission(['roles-access']) || hasAnyPermission(['users-access']),
-            details : [
+            title: 'Master Data',
+            permissions: accountingAccess,
+            details: [
                 {
-                    title : 'Hak Akses',
-                    href : '/apps/permissions',
-                    active: url.startsWith('/apps/permissions') ? true : false,
-                    icon : <IconUserBolt size={20} strokeWidth={1.5}/>,
-                    permissions: hasAnyPermission(['permissions-access']),
+                    title: 'Company & Fiscal Period',
+                    href: '#company-period',
+                    active: false,
+                    icon: <IconCalendarStats size={20} strokeWidth={1.5} />,
+                    permissions: accountingAccess,
                 },
                 {
-                    title : 'Akses Group',
-                    href : '/apps/roles',
-                    active: url.startsWith('/apps/roles') ? true : false,
-                    icon : <IconUserShield size={20} strokeWidth={1.5}/>,
-                    permissions:  hasAnyPermission(['roles-access']),
+                    title: 'Chart of Accounts',
+                    href: '#coa',
+                    active: false,
+                    icon: <IconBook2 size={20} strokeWidth={1.5} />,
+                    permissions: accountingAccess,
                 },
                 {
-                    title : 'Pengguna',
-                    icon : <IconUsers size={20} strokeWidth={1.5}/>,
-                    permissions: hasAnyPermission(['users-access']),
-                    subdetails: [
-                        {
-                            title: 'Data Pengguna',
-                            href: '/apps/users',
-                            icon: <IconTable size={20} strokeWidth={1.5}/>,
-                            active: url === '/apps/users' ? true : false,
-                            permissions: hasAnyPermission(['users-data']),
-                        },
-                        {
-                            title: 'Tambah Data Pengguna',
-                            href: '/apps/users/create',
-                            icon: <IconCirclePlus size={20} strokeWidth={1.5}/>,
-                            active: url === '/apps/users/create' ? true : false,
-                            permissions: hasAnyPermission(['users-create']),
-                        },
-                    ]
-                }
-            ]
-        }
-    ]
+                    title: 'Dimensions & Tax Codes',
+                    href: '#dimensions',
+                    active: false,
+                    icon: <IconHierarchy3 size={20} strokeWidth={1.5} />,
+                    permissions: accountingAccess,
+                },
+                {
+                    title: 'Currencies & Rates',
+                    href: '#currencies',
+                    active: false,
+                    icon: <IconCurrencyDollar size={20} strokeWidth={1.5} />,
+                    permissions: accountingAccess,
+                },
+            ],
+        },
+        {
+            title: 'Transactions',
+            permissions: accountingAccess,
+            details: [
+                {
+                    title: 'Manual Journal',
+                    href: '#manual-journal',
+                    active: false,
+                    icon: <IconClipboardText size={20} strokeWidth={1.5} />,
+                    permissions: accountingAccess,
+                },
+                {
+                    title: 'Recurring & Reversal',
+                    href: '#recurring-journal',
+                    active: false,
+                    icon: <IconArrowsTransferDown size={20} strokeWidth={1.5} />,
+                    permissions: accountingAccess,
+                },
+                {
+                    title: 'Subledger Integration',
+                    href: '#subledger-integration',
+                    active: false,
+                    icon: <IconAdjustments size={20} strokeWidth={1.5} />,
+                    permissions: accountingAccess,
+                },
+            ],
+        },
+        {
+            title: 'General Ledger & Closing',
+            permissions: accountingAccess,
+            details: [
+                {
+                    title: 'Journal Register',
+                    href: '#journal-register',
+                    active: false,
+                    icon: <IconBooks size={20} strokeWidth={1.5} />,
+                    permissions: accountingAccess,
+                },
+                {
+                    title: 'Trial Balance',
+                    href: '#trial-balance',
+                    active: false,
+                    icon: <IconChartBar size={20} strokeWidth={1.5} />,
+                    permissions: accountingAccess,
+                },
+                {
+                    title: 'Period Lock',
+                    href: '#period-lock',
+                    active: false,
+                    icon: <IconLock size={20} strokeWidth={1.5} />,
+                    permissions: accountingAccess,
+                },
+            ],
+        },
+        {
+            title: 'Reports & Governance',
+            permissions: accountingAccess,
+            details: [
+                {
+                    title: 'Financial Statements',
+                    href: '#financial-statements',
+                    active: false,
+                    icon: <IconReportMoney size={20} strokeWidth={1.5} />,
+                    permissions: accountingAccess,
+                },
+                {
+                    title: 'Audit Trail',
+                    href: '#audit-trail',
+                    active: false,
+                    icon: <IconShieldCheck size={20} strokeWidth={1.5} />,
+                    permissions: accountingAccess,
+                },
+                {
+                    title: 'Integration Settings',
+                    href: '#integration-settings',
+                    active: false,
+                    icon: <IconSettings size={20} strokeWidth={1.5} />,
+                    permissions: accountingAccess,
+                },
+            ],
+        },
+    ];
 
     return menuNavigation;
 }
