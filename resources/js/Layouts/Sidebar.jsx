@@ -1,9 +1,9 @@
-import React from "react";
+import React, { useMemo, useState } from "react";
 import Menu from "@/Utils/Menu"
 import LinkItem from "@/Components/LinkItem";
 import LinkItemDropdown from "@/Components/LinkItemDropdown";
 import { usePage } from "@inertiajs/react";
-import { IconBuildingBank } from "@tabler/icons-react";
+import { IconBuildingBank, IconChevronDown, IconChevronUp } from "@tabler/icons-react";
 import { clsx } from "clsx";
 export default function Sidebar({ sidebarOpen }) {
 
@@ -12,6 +12,22 @@ export default function Sidebar({ sidebarOpen }) {
 
     // get menu from utils
     const menuNavigation = Menu();
+
+    const allowedGroups = useMemo(
+        () => menuNavigation.filter((item) => item.permissions),
+        [menuNavigation],
+    );
+
+    const [expandedGroups, setExpandedGroups] = useState(() =>
+        Object.fromEntries(allowedGroups.map((item) => [item.title, true])),
+    );
+
+    const toggleGroup = (groupTitle) => {
+        setExpandedGroups((prev) => ({
+            ...prev,
+            [groupTitle]: !prev[groupTitle],
+        }));
+    };
 
     return (
         <div
@@ -41,11 +57,16 @@ export default function Sidebar({ sidebarOpen }) {
                         {menuNavigation.map((item, index) => (
                             <div key={index}>
                                 {item.permissions &&
-                                    <div className="text-gray-500 text-xs py-3 px-4 font-bold uppercase">
-                                        {item.title}
-                                    </div>
+                                    <button
+                                        type="button"
+                                        className="w-full flex items-center justify-between gap-2 text-gray-500 text-xs py-3 px-4 font-bold uppercase hover:text-gray-700 dark:hover:text-gray-300"
+                                        onClick={() => toggleGroup(item.title)}
+                                    >
+                                        <span className="text-left whitespace-normal break-words leading-snug">{item.title}</span>
+                                        {expandedGroups[item.title] ? <IconChevronUp size={14} strokeWidth={1.5} /> : <IconChevronDown size={14} strokeWidth={1.5} />}
+                                    </button>
                                 }
-                                {item.details.map((detail, indexDetail) => (
+                                {item.permissions && expandedGroups[item.title] && item.details.map((detail, indexDetail) => (
                                     detail.hasOwnProperty('subdetails') ?
                                         <LinkItemDropdown
                                             key={indexDetail}
