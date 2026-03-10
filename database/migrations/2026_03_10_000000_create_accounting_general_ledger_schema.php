@@ -224,7 +224,7 @@ return new class extends Migration
             $table->foreign('currency_code')->references('code')->on('currencies');
             $table->unique(['company_id', 'journal_no']);
             $table->index(['company_id', 'status', 'posting_date']);
-            $table->index(['source_module', 'source_document_type', 'source_document_id']);
+            $table->index(['source_module', 'source_document_type', 'source_document_id'], 'journal_entries_source_doc_idx');
             $table->unique(['company_id', 'integration_key'], 'journal_entries_company_integration_unique');
         });
 
@@ -499,7 +499,7 @@ return new class extends Migration
             $table->string('name');
             $table->foreignId('asset_account_id')->constrained('chart_of_accounts')->restrictOnDelete();
             $table->foreignId('depreciation_account_id')->constrained('chart_of_accounts')->restrictOnDelete();
-            $table->foreignId('accumulated_depreciation_account_id')->constrained('chart_of_accounts')->restrictOnDelete();
+            $table->foreignId('accumulated_depreciation_account_id')->constrained('chart_of_accounts', 'id', 'fixed_asset_cat_acc_dep_acc_fk')->restrictOnDelete();
             $table->unsignedInteger('useful_life_months');
             $table->enum('depreciation_method', ['straight_line', 'declining', 'custom'])->default('straight_line');
             $table->timestamps();
