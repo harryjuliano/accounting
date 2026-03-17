@@ -12,6 +12,7 @@ import {
     IconGauge,
     IconHierarchy3,
     IconLock,
+    IconPercentage,
     IconReportMoney,
     IconSettings,
     IconShieldCheck,
@@ -70,10 +71,17 @@ export default function Menu() {
                     permissions: accountingAccess,
                 },
                 {
-                    title: 'Dimensions & Tax Codes',
-                    href: '#dimensions',
-                    active: false,
+                    title: 'Dimensions',
+                    href: '/apps/dimensions',
+                    active: url.startsWith('/apps/dimensions'),
                     icon: <IconHierarchy3 size={20} strokeWidth={1.5} />,
+                    permissions: accountingAccess,
+                },
+                {
+                    title: 'Tax Codes',
+                    href: '/apps/tax-codes',
+                    active: url.startsWith('/apps/tax-codes'),
+                    icon: <IconPercentage size={20} strokeWidth={1.5} />,
                     permissions: accountingAccess,
                 },
                 {
