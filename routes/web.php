@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\Controllers\Apps\CompanyController;
 use App\Http\Controllers\Apps\DashboardController;
+use App\Http\Controllers\Apps\FiscalPeriodController;
 use App\Http\Controllers\Apps\PermissionController;
 use App\Http\Controllers\Apps\RoleController;
 use App\Http\Controllers\Apps\UserController;
@@ -33,6 +35,10 @@ Route::group(['prefix' => 'apps', 'as' => 'apps.' , 'middleware' => ['auth']], f
     Route::resource('/roles', RoleController::class)->except(['create', 'edit', 'show']);
     // users route
     Route::resource('/users', UserController::class)->except('show');
+    // companies route
+    Route::resource('/companies', CompanyController::class)->except(['create', 'edit', 'show']);
+    // fiscal periods route
+    Route::resource('/fiscal-periods', FiscalPeriodController::class)->except(['create', 'edit', 'show'])->parameters(['fiscal-periods' => 'fiscal_period']);
 });
 
 require __DIR__.'/auth.php';

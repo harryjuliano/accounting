@@ -50,8 +50,15 @@ export default function Menu() {
             details: [
                 {
                     title: 'Company & Fiscal Period',
-                    href: '#company-period',
-                    active: false,
+                    href: '/apps/companies',
+                    active: url.startsWith('/apps/companies'),
+                    icon: <IconCalendarStats size={20} strokeWidth={1.5} />,
+                    permissions: accountingAccess,
+                },
+                {
+                    title: 'Fiscal Period',
+                    href: '/apps/fiscal-periods',
+                    active: url.startsWith('/apps/fiscal-periods'),
                     icon: <IconCalendarStats size={20} strokeWidth={1.5} />,
                     permissions: accountingAccess,
                 },
