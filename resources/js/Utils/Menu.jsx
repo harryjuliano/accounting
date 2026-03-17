@@ -64,8 +64,8 @@ export default function Menu() {
                 },
                 {
                     title: 'Chart of Accounts',
-                    href: '#coa',
-                    active: false,
+                    href: '/apps/chart-of-accounts',
+                    active: url.startsWith('/apps/chart-of-accounts'),
                     icon: <IconBook2 size={20} strokeWidth={1.5} />,
                     permissions: accountingAccess,
                 },
