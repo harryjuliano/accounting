@@ -158,7 +158,7 @@ export default function Index() {
                 <div className='w-full md:w-4/12'><Search url={route('apps.manual-journals.index')} placeholder='Cari manual jurnal...' /></div>
             </div>
             <Modal
-                show={data.isOpen}
+                show={data.isOpen && !dimensionEditor.open}
                 maxWidth='6xl'
                 closeable={!dimensionEditor.open}
                 onClose={resetForm}
