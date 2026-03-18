@@ -7,6 +7,7 @@ use App\Http\Requests\DimensionRequest;
 use App\Models\Company;
 use App\Models\Dimension;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class DimensionController extends Controller
 {
@@ -36,14 +37,14 @@ class DimensionController extends Controller
 
     public function store(DimensionRequest $request)
     {
-        Dimension::create($request->validated());
+        Dimension::create($this->validatedPayload($request));
 
         return back();
     }
 
     public function update(DimensionRequest $request, Dimension $dimension)
     {
-        $dimension->update($request->validated());
+        $dimension->update($this->validatedPayload($request));
 
         return back();
     }
@@ -53,5 +54,16 @@ class DimensionController extends Controller
         $dimension->delete();
 
         return back();
+    }
+
+    private function validatedPayload(DimensionRequest $request): array
+    {
+        $payload = $request->validated();
+
+        if (! Schema::hasColumn('dimensions', 'attribute_schema_json')) {
+            unset($payload['attribute_schema_json']);
+        }
+
+        return $payload;
     }
 }
