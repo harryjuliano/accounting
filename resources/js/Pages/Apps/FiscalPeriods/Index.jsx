@@ -114,11 +114,11 @@ export default function Index() {
                         {fiscalPeriods.data.length ? fiscalPeriods.data.map((period, i) => (
                             <React.Fragment key={period.id}>
                                 <tr className='hover:bg-gray-100 dark:hover:bg-gray-900'>
-                                    <Table.Td>{i + 1 + ((fiscalPeriods.current_page - 1) * fiscalPeriods.per_page)}</Table.Td>
-                                    <Table.Td>{period.company?.name}</Table.Td>
-                                    <Table.Td>{period.year_label}</Table.Td>
-                                    <Table.Td>{period.start_date} s/d {period.end_date}</Table.Td>
-                                    <Table.Td className='capitalize'>{period.status}</Table.Td>
+                                    <Table.Td className='text-gray-800 dark:text-gray-100'>{i + 1 + ((fiscalPeriods.current_page - 1) * fiscalPeriods.per_page)}</Table.Td>
+                                    <Table.Td className='text-gray-800 dark:text-gray-100'>{period.company?.name}</Table.Td>
+                                    <Table.Td className='text-gray-800 dark:text-gray-100'>{period.year_label}</Table.Td>
+                                    <Table.Td className='text-gray-800 dark:text-gray-100'>{period.start_date} s/d {period.end_date}</Table.Td>
+                                    <Table.Td className='capitalize text-gray-800 dark:text-gray-100'>{period.status}</Table.Td>
                                     <Table.Td>
                                         <div className='flex gap-2'>
                                             <button
@@ -137,9 +137,9 @@ export default function Index() {
                                 <tr className='bg-gray-50 dark:bg-gray-950'>
                                     <td colSpan={6} className='px-4 py-3'>
                                         <div className='overflow-x-auto'>
-                                            <table className='w-full text-xs md:text-sm'>
+                                            <table className='w-full text-xs md:text-sm text-gray-700 dark:text-gray-200'>
                                                 <thead>
-                                                    <tr className='text-left text-gray-500'>
+                                                    <tr className='text-left text-gray-600 dark:text-gray-300'>
                                                         <th className='py-2'>Periode Bulan</th>
                                                         <th className='py-2'>Tanggal</th>
                                                         <th className='py-2'>Status Close</th>
@@ -149,15 +149,15 @@ export default function Index() {
                                                 <tbody>
                                                     {(period.accounting_periods ?? []).sort((a, b) => a.period_no - b.period_no).map((month) => (
                                                         <tr key={month.id} className='border-t border-gray-200 dark:border-gray-800'>
-                                                            <td className='py-2'>{month.period_name}</td>
-                                                            <td className='py-2'>{month.start_date} s/d {month.end_date}</td>
-                                                            <td className='py-2 capitalize'>{month.status}</td>
+                                                            <td className='py-2 text-gray-700 dark:text-gray-100'>{month.period_name}</td>
+                                                            <td className='py-2 text-gray-700 dark:text-gray-100'>{month.start_date} s/d {month.end_date}</td>
+                                                            <td className='py-2 capitalize text-gray-700 dark:text-gray-100'>{month.status}</td>
                                                             <td className='py-2 text-right'>
                                                                 <button
                                                                     type='button'
                                                                     disabled={!['open', 'soft_closed'].includes(month.status)}
                                                                     onClick={() => toggleMonthlyClose(period.id, month.id)}
-                                                                    className='px-3 py-1 rounded-md border text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed dark:hover:bg-gray-900'
+                                                                    className='px-3 py-1 rounded-md border text-xs font-semibold text-gray-700 dark:text-gray-100 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed dark:hover:bg-gray-900'
                                                                 >
                                                                     {month.status === 'open' ? 'Soft Close' : 'Reopen'}
                                                                 </button>

@@ -67,7 +67,8 @@ class FiscalPeriodController extends Controller
                 'accountingPeriods:id,company_id,fiscal_year_id,period_no,period_name,start_date,end_date,status,closed_at',
             ])
             ->when($request->search, fn ($query) => $query->where('year_label', 'like', '%' . $request->search . '%'))
-            ->latest()
+            ->orderByDesc('year_label')
+            ->orderByDesc('id')
             ->paginate(10)
             ->withQueryString();
 
