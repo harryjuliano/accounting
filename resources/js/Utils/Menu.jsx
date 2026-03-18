@@ -99,8 +99,8 @@ export default function Menu() {
             details: [
                 {
                     title: 'Manual Journal',
-                    href: '#manual-journal',
-                    active: false,
+                    href: '/apps/manual-journals',
+                    active: url.startsWith('/apps/manual-journals'),
                     icon: <IconClipboardText size={20} strokeWidth={1.5} />,
                     permissions: accountingAccess,
                 },
