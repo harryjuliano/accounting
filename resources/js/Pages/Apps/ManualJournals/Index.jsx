@@ -157,7 +157,14 @@ export default function Index() {
                 <Button type='button' icon={<IconCirclePlus size={20} strokeWidth={1.5} />} variant='gray' label='Tambah Manual Jurnal' onClick={() => setData('isOpen', true)} />
                 <div className='w-full md:w-4/12'><Search url={route('apps.manual-journals.index')} placeholder='Cari manual jurnal...' /></div>
             </div>
-            <Modal show={data.isOpen} maxWidth='6xl' onClose={resetForm} title={data.isUpdate ? 'Ubah Manual Jurnal' : 'Tambah Manual Jurnal'} icon={<IconNotes size={20} strokeWidth={1.5} />}>
+            <Modal
+                show={data.isOpen}
+                maxWidth='6xl'
+                closeable={!dimensionEditor.open}
+                onClose={resetForm}
+                title={data.isUpdate ? 'Ubah Manual Jurnal' : 'Tambah Manual Jurnal'}
+                icon={<IconNotes size={20} strokeWidth={1.5} />}
+            >
                 <form onSubmit={submit} className='space-y-4'>
                     <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
                         <div className='flex flex-col gap-2'>
@@ -251,6 +258,7 @@ export default function Index() {
             <Modal
                 show={dimensionEditor.open}
                 maxWidth='4xl'
+                closeable={false}
                 onClose={closeDimensionEditor}
                 title={currentAccount ? `Detail Dimensi - ${currentAccount.code} ${currentAccount.name}` : 'Detail Dimensi'}
             >
