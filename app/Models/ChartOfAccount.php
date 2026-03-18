@@ -42,4 +42,10 @@ class ChartOfAccount extends Model
     {
         return $this->belongsTo(self::class, 'parent_id');
     }
+
+    public function dimensions()
+    {
+        return $this->belongsToMany(Dimension::class, 'chart_of_account_dimension')
+            ->withTimestamps();
+    }
 }
