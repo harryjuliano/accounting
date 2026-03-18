@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\ChartOfAccount;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -39,6 +40,9 @@ class ManualJournalRequest extends FormRequest
             'lines.*.description' => ['nullable', 'string'],
             'lines.*.debit' => ['required', 'numeric', 'min:0'],
             'lines.*.credit' => ['required', 'numeric', 'min:0'],
+            'lines.*.dimension_details' => ['nullable', 'array'],
+            'lines.*.dimension_details.*.dimension_id' => ['required_with:lines.*.dimension_details', 'integer', 'exists:dimensions,id'],
+            'lines.*.dimension_details.*.attributes' => ['nullable', 'array'],
         ];
     }
 
@@ -47,8 +51,15 @@ class ManualJournalRequest extends FormRequest
         $validator->after(function ($validator) {
             $totalDebit = 0;
             $totalCredit = 0;
+            $lines = $this->input('lines', []);
+            $accountIds = collect($lines)->pluck('account_id')->filter()->unique()->values();
+            $accounts = ChartOfAccount::query()
+                ->with(['dimensions:id,name,type,attribute_schema_json'])
+                ->whereIn('id', $accountIds)
+                ->get()
+                ->keyBy('id');
 
-            foreach ($this->input('lines', []) as $index => $line) {
+            foreach ($lines as $index => $line) {
                 $debit = (float) ($line['debit'] ?? 0);
                 $credit = (float) ($line['credit'] ?? 0);
 
@@ -58,6 +69,44 @@ class ManualJournalRequest extends FormRequest
 
                 $totalDebit += $debit;
                 $totalCredit += $credit;
+
+                $account = $accounts->get((int) ($line['account_id'] ?? 0));
+                if (! $account || ! $account->requires_dimension) {
+                    continue;
+                }
+
+                $dimensionDetails = collect($line['dimension_details'] ?? []);
+
+                foreach ($account->dimensions as $dimension) {
+                    $detail = $dimensionDetails->first(fn ($item) => (int) ($item['dimension_id'] ?? 0) === (int) $dimension->id);
+
+                    if (! $detail) {
+                        $validator->errors()->add("lines.$index.dimension_details", "Dimensi {$dimension->name} wajib diisi untuk akun {$account->code} - {$account->name}.");
+                        continue;
+                    }
+
+                    $attributes = collect($detail['attributes'] ?? []);
+                    $attributeSchema = collect($dimension->attribute_schema_json ?? []);
+
+                    foreach ($attributeSchema as $attribute) {
+                        if (! ($attribute['is_required'] ?? false)) {
+                            continue;
+                        }
+
+                        $key = $attribute['key'] ?? null;
+                        if (! $key) {
+                            continue;
+                        }
+
+                        $value = $attributes->get($key);
+                        $isBlankString = is_string($value) && trim($value) === '';
+
+                        if ($value === null || $value === '' || $isBlankString) {
+                            $label = $attribute['label'] ?? $key;
+                            $validator->errors()->add("lines.$index.dimension_details", "Atribut {$label} pada dimensi {$dimension->name} wajib diisi.");
+                        }
+                    }
+                }
             }
 
             if ($totalDebit <= 0 || $totalCredit <= 0) {

@@ -9,7 +9,7 @@ import Search from '@/Components/Search';
 import Pagination from '@/Components/Pagination';
 import { IconCirclePlus, IconDatabaseOff, IconNotes, IconPencilCheck, IconPencilCog, IconPlus, IconTrash } from '@tabler/icons-react';
 
-const emptyLine = { account_id: '', description: '', debit: 0, credit: 0 };
+const emptyLine = { account_id: '', description: '', debit: 0, credit: 0, dimension_details: [] };
 const amountFormatter = new Intl.NumberFormat('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const getTodayDate = () => new Date().toISOString().split('T')[0];
@@ -26,6 +26,17 @@ const parseAmountInput = (value) => {
 
 const formatAmount = (value) => amountFormatter.format(Number(value || 0));
 
+const normalizeDimensionDetails = (details = []) => {
+    if (!Array.isArray(details)) {
+        return [];
+    }
+
+    return details.map((detail) => ({
+        dimension_id: Number(detail?.dimension_id) || '',
+        attributes: detail?.attributes && typeof detail.attributes === 'object' ? detail.attributes : {},
+    }));
+};
+
 export default function Index() {
     const { manualJournals, companies, accountingPeriods, currencies, accounts, defaultEntryDate, errors } = usePage().props;
     const fallbackEntryDate = defaultEntryDate || getTodayDate();
@@ -35,12 +46,17 @@ export default function Index() {
         currency_code: currencies[0]?.code ?? 'IDR', exchange_rate: 1, status: 'draft', lines: [{ ...emptyLine }, { ...emptyLine }], isUpdate: false, isOpen: false,
     });
 
+    const [dimensionEditor, setDimensionEditor] = React.useState({ open: false, lineIndex: null, details: [] });
+
     transform((formData) => ({ ...formData, _method: formData.isUpdate ? 'put' : 'post' }));
 
-    const resetForm = () => setData({
-        id: '', company_id: companies[0]?.id ?? '', accounting_period_id: '', journal_no: '', entry_date: fallbackEntryDate, posting_date: '', reference_no: '', description: '',
-        currency_code: currencies[0]?.code ?? 'IDR', exchange_rate: 1, status: 'draft', lines: [{ ...emptyLine }, { ...emptyLine }], isUpdate: false, isOpen: false,
-    });
+    const resetForm = () => {
+        setData({
+            id: '', company_id: companies[0]?.id ?? '', accounting_period_id: '', journal_no: '', entry_date: fallbackEntryDate, posting_date: '', reference_no: '', description: '',
+            currency_code: currencies[0]?.code ?? 'IDR', exchange_rate: 1, status: 'draft', lines: [{ ...emptyLine }, { ...emptyLine }], isUpdate: false, isOpen: false,
+        });
+        setDimensionEditor({ open: false, lineIndex: null, details: [] });
+    };
 
     const submit = (e) => {
         e.preventDefault();
@@ -73,6 +89,63 @@ export default function Index() {
 
     const addLine = () => setData('lines', [...data.lines, { ...emptyLine }]);
     const removeLine = (index) => data.lines.length > 2 && setData('lines', data.lines.filter((_, i) => i !== index));
+
+    const openDimensionEditor = (lineIndex) => {
+        const line = data.lines[lineIndex] ?? {};
+        setDimensionEditor({
+            open: true,
+            lineIndex,
+            details: normalizeDimensionDetails(line.dimension_details),
+        });
+    };
+
+    const closeDimensionEditor = () => setDimensionEditor({ open: false, lineIndex: null, details: [] });
+
+    const currentLine = dimensionEditor.lineIndex !== null ? data.lines[dimensionEditor.lineIndex] : null;
+    const currentAccount = currentLine ? selectedAccountsById[Number(currentLine.account_id)] : null;
+    const requiredDimensions = currentAccount?.requires_dimension ? (currentAccount.dimensions || []) : [];
+
+    const upsertDimensionDetail = (dimensionId, patch) => {
+        setDimensionEditor((prev) => {
+            const nextDetails = [...prev.details];
+            const index = nextDetails.findIndex((item) => Number(item.dimension_id) === Number(dimensionId));
+
+            if (index === -1) {
+                nextDetails.push({ dimension_id: Number(dimensionId), attributes: {}, ...patch });
+            } else {
+                nextDetails[index] = {
+                    ...nextDetails[index],
+                    ...patch,
+                    attributes: {
+                        ...(nextDetails[index].attributes || {}),
+                        ...(patch.attributes || {}),
+                    },
+                };
+            }
+
+            return { ...prev, details: nextDetails };
+        });
+    };
+
+    const updateDimensionAttribute = (dimensionId, key, value) => {
+        const existing = dimensionEditor.details.find((item) => Number(item.dimension_id) === Number(dimensionId));
+        upsertDimensionDetail(dimensionId, {
+            attributes: {
+                ...(existing?.attributes || {}),
+                [key]: value,
+            },
+        });
+    };
+
+    const saveDimensionEditor = () => {
+        if (dimensionEditor.lineIndex === null) {
+            closeDimensionEditor();
+            return;
+        }
+
+        updateLine(dimensionEditor.lineIndex, 'dimension_details', dimensionEditor.details);
+        closeDimensionEditor();
+    };
 
     const totalDebit = data.lines.reduce((sum, line) => sum + Number(line.debit || 0), 0);
     const totalCredit = data.lines.reduce((sum, line) => sum + Number(line.credit || 0), 0);
@@ -124,39 +197,152 @@ export default function Index() {
                             <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>Baris Jurnal</h4>
                             <Button type='button' variant='blue' icon={<IconPlus size={16} strokeWidth={1.5} />} label='Tambah Baris' onClick={addLine} />
                         </div>
-                        {data.lines.map((line, index) => (
-                            <div key={index} className='grid grid-cols-1 md:grid-cols-12 gap-2 items-end'>
-                                <div className='md:col-span-3'>
-                                    <label className='text-gray-600 text-sm'>Akun</label>
-                                    <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={line.account_id} onChange={(e) => updateLine(index, 'account_id', Number(e.target.value))}>
-                                        <option value=''>Pilih akun</option>
-                                        {filteredAccounts.map((account) => <option key={account.id} value={account.id}>{account.code} - {account.name}</option>)}
-                                    </select>
+                        {data.lines.map((line, index) => {
+                            const lineAccount = selectedAccountsById[Number(line.account_id)];
+                            const lineRequiresDimension = Boolean(lineAccount?.requires_dimension);
+                            const lineRequiredDimensions = lineRequiresDimension ? (lineAccount.dimensions || []) : [];
+                            const filledDimensions = normalizeDimensionDetails(line.dimension_details).length;
+
+                            return (
+                                <div key={index} className='grid grid-cols-1 md:grid-cols-12 gap-2 items-end'>
+                                    <div className='md:col-span-3'>
+                                        <label className='text-gray-600 text-sm'>Akun</label>
+                                        <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={line.account_id} onChange={(e) => updateLine(index, 'account_id', Number(e.target.value))}>
+                                            <option value=''>Pilih akun</option>
+                                            {filteredAccounts.map((account) => <option key={account.id} value={account.id}>{account.code} - {account.name}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className='md:col-span-2'>
+                                        <label className='text-gray-600 text-sm'>Informasi Dimensi</label>
+                                        {lineRequiresDimension ? (
+                                            <Button
+                                                type='button'
+                                                variant='gray'
+                                                label={`${filledDimensions}/${lineRequiredDimensions.length} dimensi terisi`}
+                                                onClick={() => openDimensionEditor(index)}
+                                            />
+                                        ) : (
+                                            <input
+                                                type='text'
+                                                readOnly
+                                                value='-'
+                                                className='w-full px-3 py-1.5 border text-sm rounded-md bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800 cursor-not-allowed'
+                                            />
+                                        )}
+                                    </div>
+                                    <div className='md:col-span-2'><Input label='Deskripsi' type='text' value={line.description} onChange={(e) => updateLine(index, 'description', e.target.value)} /></div>
+                                    <div className='md:col-span-2'>
+                                        <Input label='Debit' type='number' min='0' step='0.01' value={line.debit} onChange={(e) => updateLine(index, 'debit', parseAmountInput(e.target.value))} />
+                                    </div>
+                                    <div className='md:col-span-2'>
+                                        <Input label='Kredit' type='number' min='0' step='0.01' value={line.credit} onChange={(e) => updateLine(index, 'credit', parseAmountInput(e.target.value))} />
+                                    </div>
+                                    <div className='md:col-span-1 pb-1'><Button type='button' variant='rose' icon={<IconTrash size={16} strokeWidth={1.5} />} onClick={() => removeLine(index)} /></div>
                                 </div>
-                                <div className='md:col-span-2'>
-                                    <label className='text-gray-600 text-sm'>Informasi Dimensi</label>
-                                    <input
-                                        type='text'
-                                        readOnly
-                                        value={selectedAccountsById[Number(line.account_id)]?.requires_dimension ? 'Wajib isi dimensi' : '-'}
-                                        className='w-full px-3 py-1.5 border text-sm rounded-md bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800 cursor-not-allowed'
-                                    />
-                                </div>
-                                <div className='md:col-span-2'><Input label='Deskripsi' type='text' value={line.description} onChange={(e) => updateLine(index, 'description', e.target.value)} /></div>
-                                <div className='md:col-span-2'>
-                                    <Input label='Debit' type='number' min='0' step='0.01' value={line.debit} onChange={(e) => updateLine(index, 'debit', parseAmountInput(e.target.value))} />
-                                </div>
-                                <div className='md:col-span-2'>
-                                    <Input label='Kredit' type='number' min='0' step='0.01' value={line.credit} onChange={(e) => updateLine(index, 'credit', parseAmountInput(e.target.value))} />
-                                </div>
-                                <div className='md:col-span-1 pb-1'><Button type='button' variant='rose' icon={<IconTrash size={16} strokeWidth={1.5} />} onClick={() => removeLine(index)} /></div>
-                            </div>
-                        ))}
+                            );
+                        })}
                         {(errors.lines || errors['lines.0.debit']) && <small className='text-xs text-red-500'>{errors.lines || errors['lines.0.debit']}</small>}
                         <div className='text-sm text-gray-600 dark:text-gray-300'>Total Debit: <b>{formatAmount(totalDebit)}</b> | Total Kredit: <b>{formatAmount(totalCredit)}</b></div>
                     </div>
                     <Button type='submit' variant='gray' icon={<IconPencilCheck size={20} strokeWidth={1.5} />} label='Simpan' />
                 </form>
+            </Modal>
+
+            <Modal
+                show={dimensionEditor.open}
+                maxWidth='4xl'
+                onClose={closeDimensionEditor}
+                title={currentAccount ? `Detail Dimensi - ${currentAccount.code} ${currentAccount.name}` : 'Detail Dimensi'}
+            >
+                <div className='space-y-4'>
+                    {requiredDimensions.length === 0 && (
+                        <div className='text-sm text-gray-500'>Akun pada baris ini tidak memiliki dimensi wajib.</div>
+                    )}
+
+                    {requiredDimensions.map((dimension) => {
+                        const detail = dimensionEditor.details.find((item) => Number(item.dimension_id) === Number(dimension.id)) || { dimension_id: dimension.id, attributes: {} };
+                        const attributes = Array.isArray(dimension.attribute_schema_json) ? dimension.attribute_schema_json : [];
+
+                        return (
+                            <div key={dimension.id} className='border border-gray-200 dark:border-gray-800 rounded-md p-3 space-y-2'>
+                                <div className='font-medium text-sm text-gray-700 dark:text-gray-300'>
+                                    {dimension.name} <span className='text-xs text-gray-500'>({dimension.type})</span>
+                                </div>
+                                {attributes.length === 0 && <div className='text-xs text-gray-500'>Dimensi ini belum memiliki atribut custom.</div>}
+                                <div className='grid grid-cols-1 md:grid-cols-2 gap-2'>
+                                    {attributes.map((attribute) => {
+                                        const key = attribute?.key;
+                                        const label = attribute?.label || key;
+                                        const type = attribute?.type || 'text';
+                                        const value = detail.attributes?.[key] ?? '';
+
+                                        if (!key) {
+                                            return null;
+                                        }
+
+                                        if (type === 'boolean') {
+                                            return (
+                                                <div key={`${dimension.id}-${key}`} className='flex flex-col gap-2'>
+                                                    <label className='text-gray-600 text-sm'>
+                                                        {label} {attribute?.is_required ? <span className='text-red-500'>*</span> : null}
+                                                    </label>
+                                                    <select
+                                                        className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800'
+                                                        value={value === '' ? '' : (value ? '1' : '0')}
+                                                        onChange={(e) => updateDimensionAttribute(dimension.id, key, e.target.value === '' ? '' : e.target.value === '1')}
+                                                    >
+                                                        <option value=''>-</option>
+                                                        <option value='1'>Ya</option>
+                                                        <option value='0'>Tidak</option>
+                                                    </select>
+                                                </div>
+                                            );
+                                        }
+
+                                        if (type === 'select') {
+                                            const options = Array.isArray(attribute?.options) ? attribute.options : [];
+
+                                            return (
+                                                <div key={`${dimension.id}-${key}`} className='flex flex-col gap-2'>
+                                                    <label className='text-gray-600 text-sm'>
+                                                        {label} {attribute?.is_required ? <span className='text-red-500'>*</span> : null}
+                                                    </label>
+                                                    <select
+                                                        className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800'
+                                                        value={value}
+                                                        onChange={(e) => updateDimensionAttribute(dimension.id, key, e.target.value)}
+                                                    >
+                                                        <option value=''>Pilih</option>
+                                                        {options.map((option) => <option key={`${dimension.id}-${key}-${option}`} value={option}>{option}</option>)}
+                                                    </select>
+                                                </div>
+                                            );
+                                        }
+
+                                        return (
+                                            <Input
+                                                key={`${dimension.id}-${key}`}
+                                                label={(
+                                                    <>
+                                                        {label} {attribute?.is_required ? <span className='text-red-500'>*</span> : null}
+                                                    </>
+                                                )}
+                                                type={type === 'number' || type === 'date' ? type : 'text'}
+                                                value={value}
+                                                onChange={(e) => updateDimensionAttribute(dimension.id, key, type === 'number' ? parseAmountInput(e.target.value) : e.target.value)}
+                                            />
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        );
+                    })}
+
+                    <div className='flex justify-end gap-2'>
+                        <Button type='button' variant='blue' label='Simpan Dimensi' onClick={saveDimensionEditor} />
+                        <Button type='button' variant='gray' label='Batal' onClick={closeDimensionEditor} />
+                    </div>
+                </div>
             </Modal>
 
             <Table.Card title='Data Manual Jurnal'>
@@ -172,7 +358,7 @@ export default function Index() {
                                 <Table.Td>{journal.description}</Table.Td>
                                 <Table.Td>{Number(journal.total_debit).toLocaleString()}</Table.Td>
                                 <Table.Td className='capitalize'>{journal.status.replace('_', ' ')}</Table.Td>
-                                <Table.Td><div className='flex gap-2'><Button type='modal' variant='orange' icon={<IconPencilCog size={16} strokeWidth={1.5} />} onClick={() => setData({ ...journal, company_id: journal.company_id, accounting_period_id: journal.accounting_period_id, exchange_rate: Number(journal.exchange_rate), lines: journal.lines.map((line) => ({ account_id: line.account_id, description: line.description ?? '', debit: Number(line.debit), credit: Number(line.credit) })), isUpdate: true, isOpen: true })} /><Button type='delete' variant='rose' icon={<IconTrash size={16} strokeWidth={1.5} />} url={route('apps.manual-journals.destroy', journal.id)} /></div></Table.Td>
+                                <Table.Td><div className='flex gap-2'><Button type='modal' variant='orange' icon={<IconPencilCog size={16} strokeWidth={1.5} />} onClick={() => setData({ ...journal, company_id: journal.company_id, accounting_period_id: journal.accounting_period_id, exchange_rate: Number(journal.exchange_rate), lines: journal.lines.map((line) => ({ account_id: line.account_id, description: line.description ?? '', debit: Number(line.debit), credit: Number(line.credit), dimension_details: normalizeDimensionDetails(line.dimension_details_json ?? line.dimension_details) })), isUpdate: true, isOpen: true })} /><Button type='delete' variant='rose' icon={<IconTrash size={16} strokeWidth={1.5} />} url={route('apps.manual-journals.destroy', journal.id)} /></div></Table.Td>
                             </tr>
                         )) : <Table.Empty colSpan={8} message={<><div className='flex justify-center mb-2'><IconDatabaseOff size={24} /></div><span>Data manual jurnal tidak ditemukan.</span></>} />}
                     </Table.Tbody>

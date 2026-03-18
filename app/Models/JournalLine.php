@@ -18,6 +18,7 @@ class JournalLine extends Model
         'credit',
         'base_currency_debit',
         'base_currency_credit',
+        'dimension_details_json',
     ];
 
     protected $casts = [
@@ -25,6 +26,7 @@ class JournalLine extends Model
         'credit' => 'decimal:2',
         'base_currency_debit' => 'decimal:2',
         'base_currency_credit' => 'decimal:2',
+        'dimension_details_json' => 'array',
     ];
 
     public function account()
