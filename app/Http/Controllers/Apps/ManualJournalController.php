@@ -12,20 +12,17 @@ use App\Models\JournalEntry;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 
 class ManualJournalController extends Controller
 {
-    private function resolveAccountingPeriodId(int $companyId, string $postingDate): int
+    private function resolveAccountingPeriodId(int $companyId, string $postingDate): ?int
     {
-        $period = AccountingPeriod::query()
+        return AccountingPeriod::query()
             ->where('company_id', $companyId)
             ->whereDate('start_date', '<=', $postingDate)
             ->whereDate('end_date', '>=', $postingDate)
-            ->first();
-
-        abort_unless($period, 422, 'Periode fiskal untuk tanggal posting tidak ditemukan.');
-
-        return $period->id;
+            ->value('id');
     }
 
     public function index(Request $request)
@@ -61,6 +58,13 @@ class ManualJournalController extends Controller
 
         DB::transaction(function () use ($validated, $request) {
             $accountingPeriodId = $this->resolveAccountingPeriodId((int) $validated['company_id'], $validated['posting_date']);
+
+            if (! $accountingPeriodId) {
+                throw ValidationException::withMessages([
+                    'posting_date' => 'Periode fiskal untuk tanggal posting tidak ditemukan.',
+                ]);
+            }
+
             $totalDebit = collect($validated['lines'])->sum(fn ($line) => (float) $line['debit']);
             $totalCredit = collect($validated['lines'])->sum(fn ($line) => (float) $line['credit']);
 
@@ -103,6 +107,13 @@ class ManualJournalController extends Controller
 
         DB::transaction(function () use ($validated, $manual_journal) {
             $accountingPeriodId = $this->resolveAccountingPeriodId((int) $validated['company_id'], $validated['posting_date']);
+
+            if (! $accountingPeriodId) {
+                throw ValidationException::withMessages([
+                    'posting_date' => 'Periode fiskal untuk tanggal posting tidak ditemukan.',
+                ]);
+            }
+
             $totalDebit = collect($validated['lines'])->sum(fn ($line) => (float) $line['debit']);
             $totalCredit = collect($validated['lines'])->sum(fn ($line) => (float) $line['credit']);
 
