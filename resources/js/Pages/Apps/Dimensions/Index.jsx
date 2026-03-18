@@ -16,6 +16,37 @@ const normalizeAttributeKey = (value = '') => value
     .replace(/[\s-]+/g, '_')
     .replace(/[^a-z0-9_]/g, '')
     .replace(/_+/g, '_');
+const normalizeAttributesForForm = (attributes) => {
+    let parsedAttributes = attributes;
+
+    if (typeof parsedAttributes === 'string') {
+        try {
+            parsedAttributes = JSON.parse(parsedAttributes);
+        } catch {
+            parsedAttributes = [];
+        }
+    }
+
+    if (!Array.isArray(parsedAttributes)) {
+        parsedAttributes = parsedAttributes && typeof parsedAttributes === 'object' ? Object.values(parsedAttributes) : [];
+    }
+
+    return parsedAttributes.map((attribute) => {
+        const fieldType = attribute?.type ?? 'text';
+
+        return {
+            ...emptyAttribute,
+            ...attribute,
+            key: attribute?.key ?? '',
+            label: attribute?.label ?? '',
+            type: fieldType,
+            is_required: Boolean(attribute?.is_required),
+            options: fieldType === 'select'
+                ? (Array.isArray(attribute?.options) ? attribute.options : [])
+                : [],
+        };
+    });
+};
 
 export default function Index() {
     const { dimensions, companies } = usePage().props;
@@ -225,7 +256,17 @@ export default function Index() {
                                 <Table.Td>{dimension.company?.name}</Table.Td><Table.Td>{dimension.code}</Table.Td><Table.Td>{dimension.name}</Table.Td>
                                 <Table.Td className='capitalize'>{dimension.type}</Table.Td><Table.Td>{dimension.is_active ? 'Aktif' : 'Nonaktif'}</Table.Td>
                                 <Table.Td><div className='flex gap-2'>
-                                    <Button type='modal' variant='orange' icon={<IconPencilCog size={16} strokeWidth={1.5} />} onClick={() => setData({ ...dimension, attribute_schema_json: dimension.attribute_schema_json ?? [], isUpdate: true, isOpen: true })} />
+                                    <Button
+                                        type='modal'
+                                        variant='orange'
+                                        icon={<IconPencilCog size={16} strokeWidth={1.5} />}
+                                        onClick={() => setData({
+                                            ...dimension,
+                                            attribute_schema_json: normalizeAttributesForForm(dimension.attribute_schema_json),
+                                            isUpdate: true,
+                                            isOpen: true,
+                                        })}
+                                    />
                                     <Button type='delete' variant='rose' icon={<IconTrash size={16} strokeWidth={1.5} />} url={route('apps.dimensions.destroy', dimension.id)} />
                                 </div></Table.Td>
                             </tr>

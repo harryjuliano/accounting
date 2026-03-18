@@ -8,6 +8,7 @@ use App\Models\Company;
 use App\Models\Dimension;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\ValidationException;
 
 class DimensionController extends Controller
 {
@@ -61,7 +62,9 @@ class DimensionController extends Controller
         $payload = $request->validated();
 
         if (! Schema::hasColumn('dimensions', 'attribute_schema_json')) {
-            unset($payload['attribute_schema_json']);
+            throw ValidationException::withMessages([
+                'attribute_schema_json' => 'Custom atribut belum dapat disimpan karena kolom database `attribute_schema_json` belum tersedia. Jalankan migrasi terbaru terlebih dahulu.',
+            ]);
         }
 
         return $payload;
