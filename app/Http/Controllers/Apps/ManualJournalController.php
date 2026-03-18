@@ -16,13 +16,29 @@ use Illuminate\Validation\ValidationException;
 
 class ManualJournalController extends Controller
 {
-    private function resolveAccountingPeriodId(int $companyId, string $postingDate): ?int
+    private function resolveAccountingPeriod(int $companyId, string $postingDate): ?AccountingPeriod
     {
         return AccountingPeriod::query()
+            ->with('fiscalYear:id,status')
             ->where('company_id', $companyId)
             ->whereDate('start_date', '<=', $postingDate)
             ->whereDate('end_date', '>=', $postingDate)
-            ->value('id');
+            ->first();
+    }
+
+    private function ensurePeriodAllowsPosting(AccountingPeriod $accountingPeriod): void
+    {
+        if ($accountingPeriod->fiscalYear?->status === 'closed') {
+            throw ValidationException::withMessages([
+                'posting_date' => 'Tahun fiskal sudah hard close. Posting jurnal untuk tahun ini tidak diizinkan.',
+            ]);
+        }
+
+        if ($accountingPeriod->status !== 'open') {
+            throw ValidationException::withMessages([
+                'posting_date' => 'Periode bulanan sudah soft/hard close. Posting jurnal pada periode ini tidak diizinkan.',
+            ]);
+        }
     }
 
     public function index(Request $request)
@@ -57,20 +73,21 @@ class ManualJournalController extends Controller
         $validated = $request->validated();
 
         DB::transaction(function () use ($validated, $request) {
-            $accountingPeriodId = $this->resolveAccountingPeriodId((int) $validated['company_id'], $validated['posting_date']);
+            $accountingPeriod = $this->resolveAccountingPeriod((int) $validated['company_id'], $validated['posting_date']);
 
-            if (! $accountingPeriodId) {
+            if (! $accountingPeriod) {
                 throw ValidationException::withMessages([
                     'posting_date' => 'Periode fiskal untuk tanggal posting tidak ditemukan.',
                 ]);
             }
+            $this->ensurePeriodAllowsPosting($accountingPeriod);
 
             $totalDebit = collect($validated['lines'])->sum(fn ($line) => (float) $line['debit']);
             $totalCredit = collect($validated['lines'])->sum(fn ($line) => (float) $line['credit']);
 
             $journalEntry = JournalEntry::create([
                 'company_id' => $validated['company_id'],
-                'accounting_period_id' => $accountingPeriodId,
+                'accounting_period_id' => $accountingPeriod->id,
                 'journal_no' => $validated['journal_no'],
                 'journal_type' => 'manual',
                 'entry_date' => $validated['entry_date'],
@@ -106,20 +123,21 @@ class ManualJournalController extends Controller
         $validated = $request->validated();
 
         DB::transaction(function () use ($validated, $manual_journal) {
-            $accountingPeriodId = $this->resolveAccountingPeriodId((int) $validated['company_id'], $validated['posting_date']);
+            $accountingPeriod = $this->resolveAccountingPeriod((int) $validated['company_id'], $validated['posting_date']);
 
-            if (! $accountingPeriodId) {
+            if (! $accountingPeriod) {
                 throw ValidationException::withMessages([
                     'posting_date' => 'Periode fiskal untuk tanggal posting tidak ditemukan.',
                 ]);
             }
+            $this->ensurePeriodAllowsPosting($accountingPeriod);
 
             $totalDebit = collect($validated['lines'])->sum(fn ($line) => (float) $line['debit']);
             $totalCredit = collect($validated['lines'])->sum(fn ($line) => (float) $line['credit']);
 
             $manual_journal->update([
                 'company_id' => $validated['company_id'],
-                'accounting_period_id' => $accountingPeriodId,
+                'accounting_period_id' => $accountingPeriod->id,
                 'journal_no' => $validated['journal_no'],
                 'entry_date' => $validated['entry_date'],
                 'posting_date' => $validated['posting_date'],
