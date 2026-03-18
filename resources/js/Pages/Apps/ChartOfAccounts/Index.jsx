@@ -10,7 +10,7 @@ import Pagination from '@/Components/Pagination';
 import { IconBook2, IconCirclePlus, IconDatabaseOff, IconPencilCheck, IconPencilCog, IconTrash } from '@tabler/icons-react';
 
 export default function Index() {
-    const { chartOfAccounts, companies, accountGroups, parentAccounts, errors } = usePage().props;
+    const { chartOfAccounts, companies, accountGroups, parentAccounts, dimensions, errors } = usePage().props;
 
     const { data, setData, post, transform } = useForm({
         id: '',
@@ -28,6 +28,7 @@ export default function Index() {
         allow_manual_posting: true,
         allow_reconciliation: false,
         requires_dimension: false,
+        dimension_ids: [],
         is_control_account: false,
         is_active: true,
         isUpdate: false,
@@ -39,6 +40,7 @@ export default function Index() {
         account_group_id: formData.account_group_id || null,
         parent_id: formData.parent_id || null,
         _method: formData.isUpdate ? 'put' : 'post',
+        dimension_ids: formData.dimension_ids || [],
     }));
 
     const resetForm = () => {
@@ -58,6 +60,7 @@ export default function Index() {
             allow_manual_posting: true,
             allow_reconciliation: false,
             requires_dimension: false,
+            dimension_ids: [],
             is_control_account: false,
             is_active: true,
             isUpdate: false,
@@ -170,6 +173,33 @@ export default function Index() {
                         </div>
                     </div>
 
+                    <div className='grid grid-cols-2 gap-3'>
+                        <div className='flex flex-col gap-2'>
+                            <label className='text-gray-600 text-sm'>Wajib Dimension</label>
+                            <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={data.requires_dimension ? '1' : '0'} onChange={(e) => setData('requires_dimension', e.target.value === '1')}>
+                                <option value='0'>Tidak</option>
+                                <option value='1'>Ya</option>
+                            </select>
+                        </div>
+                        <div className='flex flex-col gap-2'>
+                            <label className='text-gray-600 text-sm'>Dimension COA</label>
+                            <select
+                                multiple
+                                className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800 min-h-[96px]'
+                                value={(data.dimension_ids || []).map(String)}
+                                onChange={(e) => setData('dimension_ids', Array.from(e.target.selectedOptions).map((option) => Number(option.value)))}
+                            >
+                                {dimensions
+                                    .filter((dimension) => String(dimension.company_id) === String(data.company_id))
+                                    .map((dimension) => (
+                                        <option key={dimension.id} value={dimension.id}>{dimension.name}</option>
+                                    ))}
+                            </select>
+                            <small className='text-xs text-gray-500'>Pilih satu/lebih dimension untuk akun ini (Ctrl/Cmd + klik).</small>
+                            {errors.dimension_ids && <small className='text-xs text-red-500'>{errors.dimension_ids}</small>}
+                        </div>
+                    </div>
+
                     <Button type='submit' variant='gray' icon={<IconPencilCheck size={20} strokeWidth={1.5} />} label='Simpan' />
                 </form>
             </Modal>
@@ -198,7 +228,20 @@ export default function Index() {
                                 <Table.Td>{account.is_active ? 'Aktif' : 'Nonaktif'}</Table.Td>
                                 <Table.Td>
                                     <div className='flex gap-2'>
-                                        <Button type='modal' variant='orange' icon={<IconPencilCog size={16} strokeWidth={1.5} />} onClick={() => setData({ ...account, account_group_id: account.account_group_id ?? '', parent_id: account.parent_id ?? '', isUpdate: true, isOpen: true })} />
+                                        <Button
+                                            type='modal'
+                                            variant='orange'
+                                            icon={<IconPencilCog size={16} strokeWidth={1.5} />}
+                                            onClick={() => setData({
+                                                ...account,
+                                                account_group_id: account.account_group_id ?? '',
+                                                parent_id: account.parent_id ?? '',
+                                                requires_dimension: Boolean(account.requires_dimension),
+                                                dimension_ids: account.dimensions?.map((dimension) => dimension.id) ?? [],
+                                                isUpdate: true,
+                                                isOpen: true,
+                                            })}
+                                        />
                                         <Button type='delete' variant='rose' icon={<IconTrash size={16} strokeWidth={1.5} />} url={route('apps.chart-of-accounts.destroy', account.id)} />
                                     </div>
                                 </Table.Td>

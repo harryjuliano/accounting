@@ -38,6 +38,8 @@ class ChartOfAccountRequest extends FormRequest
             'allow_manual_posting' => 'required|boolean',
             'allow_reconciliation' => 'required|boolean',
             'requires_dimension' => 'required|boolean',
+            'dimension_ids' => 'nullable|array',
+            'dimension_ids.*' => 'integer|exists:dimensions,id',
             'is_control_account' => 'required|boolean',
             'is_active' => 'required|boolean',
         ];
