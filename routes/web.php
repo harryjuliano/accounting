@@ -2,7 +2,9 @@
 
 use App\Http\Controllers\Apps\CompanyController;
 use App\Http\Controllers\Apps\ChartOfAccountController;
+use App\Http\Controllers\Apps\CurrencyController;
 use App\Http\Controllers\Apps\DashboardController;
+use App\Http\Controllers\Apps\ExchangeRateController;
 use App\Http\Controllers\Apps\DimensionController;
 use App\Http\Controllers\Apps\FiscalPeriodController;
 use App\Http\Controllers\Apps\PermissionController;
@@ -48,6 +50,10 @@ Route::group(['prefix' => 'apps', 'as' => 'apps.' , 'middleware' => ['auth']], f
     Route::resource('/dimensions', DimensionController::class)->except(['create', 'edit', 'show']);
     // tax codes route
     Route::resource('/tax-codes', TaxCodeController::class)->except(['create', 'edit', 'show'])->parameters(['tax-codes' => 'tax_code']);
+    // currencies route
+    Route::resource('/currencies', CurrencyController::class)->except(['create', 'edit', 'show']);
+    // exchange rates route
+    Route::resource('/exchange-rates', ExchangeRateController::class)->except(['index', 'create', 'edit', 'show']);
 });
 
 require __DIR__.'/auth.php';

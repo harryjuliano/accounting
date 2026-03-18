@@ -86,8 +86,8 @@ export default function Menu() {
                 },
                 {
                     title: 'Currencies & Rates',
-                    href: '#currencies',
-                    active: false,
+                    href: '/apps/currencies',
+                    active: url.startsWith('/apps/currencies'),
                     icon: <IconCurrencyDollar size={20} strokeWidth={1.5} />,
                     permissions: accountingAccess,
                 },
