@@ -44,7 +44,7 @@ class ManualJournalController extends Controller
     public function index(Request $request)
     {
         $manualJournals = JournalEntry::query()
-            ->with(['company:id,name', 'accountingPeriod:id,period_name', 'lines.account:id,code,name'])
+            ->with(['company:id,name', 'accountingPeriod:id,period_name', 'lines.account:id,company_id,code,name,requires_dimension'])
             ->where('journal_type', 'manual')
             ->when($request->search, function ($query) use ($request) {
                 $query->where(function ($subQuery) use ($request) {
@@ -63,7 +63,12 @@ class ManualJournalController extends Controller
             'companies' => Company::query()->select('id', 'name')->orderBy('name')->get(),
             'accountingPeriods' => AccountingPeriod::query()->select('id', 'company_id', 'period_name', 'start_date', 'end_date')->orderByDesc('start_date')->get(),
             'currencies' => Currency::query()->select('code', 'name')->where('is_active', true)->orderBy('code')->get(),
-            'accounts' => ChartOfAccount::query()->select('id', 'company_id', 'code', 'name', 'requires_dimension')->where('is_active', true)->orderBy('code')->get(),
+            'accounts' => ChartOfAccount::query()
+                ->select('id', 'company_id', 'code', 'name', 'requires_dimension')
+                ->with(['dimensions:id,company_id,name,type,attribute_schema_json'])
+                ->where('is_active', true)
+                ->orderBy('code')
+                ->get(),
             'defaultEntryDate' => Carbon::now()->toDateString(),
         ]);
     }
@@ -111,6 +116,7 @@ class ManualJournalController extends Controller
                     'credit' => $line['credit'],
                     'base_currency_debit' => $line['debit'],
                     'base_currency_credit' => $line['credit'],
+                    'dimension_details_json' => $line['dimension_details'] ?? null,
                 ]);
             }
         });
@@ -161,6 +167,7 @@ class ManualJournalController extends Controller
                     'credit' => $line['credit'],
                     'base_currency_debit' => $line['debit'],
                     'base_currency_credit' => $line['credit'],
+                    'dimension_details_json' => $line['dimension_details'] ?? null,
                 ]);
             }
         });
