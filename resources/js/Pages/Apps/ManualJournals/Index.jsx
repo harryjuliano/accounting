@@ -15,7 +15,10 @@ const amountFormatter = new Intl.NumberFormat('id-ID', { minimumFractionDigits: 
 const getTodayDate = () => new Date().toISOString().split('T')[0];
 
 const parseAmountInput = (value) => {
-    const normalized = `${value ?? ''}`.replace(/[^0-9.,-]/g, '').replace(',', '.');
+    const sanitized = `${value ?? ''}`.replace(/[^0-9.,-]/g, '');
+    const normalized = sanitized.includes(',')
+        ? sanitized.replace(/\./g, '').replace(',', '.')
+        : sanitized.replace(/,/g, '');
     const parsed = Number.parseFloat(normalized);
 
     return Number.isNaN(parsed) ? 0 : parsed;
@@ -141,10 +144,10 @@ export default function Index() {
                                 </div>
                                 <div className='md:col-span-2'><Input label='Deskripsi' type='text' value={line.description} onChange={(e) => updateLine(index, 'description', e.target.value)} /></div>
                                 <div className='md:col-span-2'>
-                                    <Input label='Debit' type='text' inputMode='decimal' value={formatAmount(line.debit)} onChange={(e) => updateLine(index, 'debit', parseAmountInput(e.target.value))} />
+                                    <Input label='Debit' type='number' min='0' step='0.01' value={line.debit} onChange={(e) => updateLine(index, 'debit', parseAmountInput(e.target.value))} />
                                 </div>
                                 <div className='md:col-span-2'>
-                                    <Input label='Kredit' type='text' inputMode='decimal' value={formatAmount(line.credit)} onChange={(e) => updateLine(index, 'credit', parseAmountInput(e.target.value))} />
+                                    <Input label='Kredit' type='number' min='0' step='0.01' value={line.credit} onChange={(e) => updateLine(index, 'credit', parseAmountInput(e.target.value))} />
                                 </div>
                                 <div className='md:col-span-1 pb-1'><Button type='button' variant='rose' icon={<IconTrash size={16} strokeWidth={1.5} />} onClick={() => removeLine(index)} /></div>
                             </div>
