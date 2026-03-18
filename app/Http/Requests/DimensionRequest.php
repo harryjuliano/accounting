@@ -14,7 +14,8 @@ class DimensionRequest extends FormRequest
 
     public function rules(): array
     {
-        $dimensionId = $this->dimension?->id;
+        $dimension = $this->route('dimension');
+        $dimensionId = is_object($dimension) ? $dimension->id : $dimension;
 
         return [
             'company_id' => 'required|exists:companies,id',

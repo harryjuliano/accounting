@@ -18,9 +18,9 @@ const normalizeAttributeKey = (value = '') => value
     .replace(/_+/g, '_');
 
 export default function Index() {
-    const { dimensions, companies, errors } = usePage().props;
+    const { dimensions, companies } = usePage().props;
 
-    const { data, setData, post, transform } = useForm({
+    const { data, setData, post, transform, errors, processing } = useForm({
         id: '',
         company_id: companies[0]?.id ?? '',
         code: '',
@@ -211,7 +211,7 @@ export default function Index() {
                             <option value='1'>Aktif</option><option value='0'>Nonaktif</option>
                         </select>
                     </div>
-                    <Button type='submit' variant='gray' icon={<IconPencilCheck size={20} strokeWidth={1.5} />} label='Simpan' />
+                    <Button type='submit' variant='gray' icon={<IconPencilCheck size={20} strokeWidth={1.5} />} label={processing ? 'Menyimpan...' : 'Simpan'} disabled={processing} />
                 </form>
             </Modal>
 
