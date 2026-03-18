@@ -7,7 +7,9 @@ import Input from '@/Components/Input';
 import Table from '@/Components/Table';
 import Search from '@/Components/Search';
 import Pagination from '@/Components/Pagination';
-import { IconCirclePlus, IconDatabaseOff, IconHierarchy3, IconPencilCheck, IconPencilCog, IconTrash } from '@tabler/icons-react';
+import { IconCirclePlus, IconDatabaseOff, IconHierarchy3, IconPencilCheck, IconPencilCog, IconPlus, IconTrash, IconX } from '@tabler/icons-react';
+
+const emptyAttribute = { key: '', label: '', type: 'text', is_required: false, options: [] };
 
 export default function Index() {
     const { dimensions, companies, errors } = usePage().props;
@@ -19,6 +21,7 @@ export default function Index() {
         name: '',
         type: 'department',
         is_mandatory: false,
+        attribute_schema_json: [],
         is_active: true,
         isUpdate: false,
         isOpen: false,
@@ -29,13 +32,49 @@ export default function Index() {
     const resetForm = () => {
         setData({
             id: '', company_id: companies[0]?.id ?? '', code: '', name: '', type: 'department',
-            is_mandatory: false, is_active: true, isUpdate: false, isOpen: false,
+            is_mandatory: false, attribute_schema_json: [], is_active: true, isUpdate: false, isOpen: false,
         });
     };
 
     const submit = (e) => {
         e.preventDefault();
         post(data.isUpdate ? route('apps.dimensions.update', data.id) : route('apps.dimensions.store'), { onSuccess: resetForm });
+    };
+
+    const addAttribute = () => {
+        setData('attribute_schema_json', [...(data.attribute_schema_json || []), { ...emptyAttribute }]);
+    };
+
+    const removeAttribute = (index) => {
+        setData('attribute_schema_json', (data.attribute_schema_json || []).filter((_, itemIndex) => itemIndex !== index));
+    };
+
+    const updateAttribute = (index, field, value) => {
+        const nextAttributes = [...(data.attribute_schema_json || [])];
+        nextAttributes[index] = { ...nextAttributes[index], [field]: value };
+        setData('attribute_schema_json', nextAttributes);
+    };
+
+    const updateAttributeOption = (attributeIndex, optionIndex, value) => {
+        const nextAttributes = [...(data.attribute_schema_json || [])];
+        const options = [...(nextAttributes[attributeIndex]?.options || [])];
+        options[optionIndex] = value;
+        nextAttributes[attributeIndex] = { ...nextAttributes[attributeIndex], options };
+        setData('attribute_schema_json', nextAttributes);
+    };
+
+    const addAttributeOption = (attributeIndex) => {
+        const nextAttributes = [...(data.attribute_schema_json || [])];
+        const options = [...(nextAttributes[attributeIndex]?.options || []), ''];
+        nextAttributes[attributeIndex] = { ...nextAttributes[attributeIndex], options };
+        setData('attribute_schema_json', nextAttributes);
+    };
+
+    const removeAttributeOption = (attributeIndex, optionIndex) => {
+        const nextAttributes = [...(data.attribute_schema_json || [])];
+        const options = (nextAttributes[attributeIndex]?.options || []).filter((_, itemIndex) => itemIndex !== optionIndex);
+        nextAttributes[attributeIndex] = { ...nextAttributes[attributeIndex], options };
+        setData('attribute_schema_json', nextAttributes);
     };
 
     return (
@@ -75,6 +114,62 @@ export default function Index() {
                             </select>
                         </div>
                     </div>
+                    <div className='space-y-3'>
+                        <div className='flex justify-between items-center'>
+                            <label className='text-gray-600 text-sm'>Custom Atribut per Dimension</label>
+                            <Button type='button' variant='blue' icon={<IconPlus size={16} strokeWidth={1.5} />} label='Tambah Atribut' onClick={addAttribute} />
+                        </div>
+                        <div className='space-y-3'>
+                            {(data.attribute_schema_json || []).length === 0 && (
+                                <div className='text-xs text-gray-500'>Belum ada atribut custom. Klik Tambah Atribut untuk menambahkan.</div>
+                            )}
+                            {(data.attribute_schema_json || []).map((attribute, attributeIndex) => (
+                                <div key={attributeIndex} className='border border-gray-200 dark:border-gray-800 rounded-md p-3 space-y-2'>
+                                    <div className='grid grid-cols-1 md:grid-cols-12 gap-2 items-end'>
+                                        <div className='md:col-span-3'>
+                                            <Input label='Field Key' type='text' value={attribute.key ?? ''} onChange={(e) => updateAttribute(attributeIndex, 'key', e.target.value)} />
+                                        </div>
+                                        <div className='md:col-span-4'>
+                                            <Input label='Label' type='text' value={attribute.label ?? ''} onChange={(e) => updateAttribute(attributeIndex, 'label', e.target.value)} />
+                                        </div>
+                                        <div className='md:col-span-3'>
+                                            <label className='text-gray-600 text-sm'>Tipe Field</label>
+                                            <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={attribute.type ?? 'text'} onChange={(e) => updateAttribute(attributeIndex, 'type', e.target.value)}>
+                                                {['text', 'number', 'date', 'boolean', 'select'].map((fieldType) => <option key={fieldType} value={fieldType}>{fieldType}</option>)}
+                                            </select>
+                                        </div>
+                                        <div className='md:col-span-1'>
+                                            <label className='text-gray-600 text-sm'>Wajib</label>
+                                            <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={attribute.is_required ? '1' : '0'} onChange={(e) => updateAttribute(attributeIndex, 'is_required', e.target.value === '1')}>
+                                                <option value='0'>Tidak</option>
+                                                <option value='1'>Ya</option>
+                                            </select>
+                                        </div>
+                                        <div className='md:col-span-1 pb-1'>
+                                            <Button type='button' variant='rose' icon={<IconTrash size={16} strokeWidth={1.5} />} onClick={() => removeAttribute(attributeIndex)} />
+                                        </div>
+                                    </div>
+                                    {attribute.type === 'select' && (
+                                        <div className='space-y-2'>
+                                            <div className='flex justify-between items-center'>
+                                                <small className='text-xs text-gray-500'>Pilihan (options)</small>
+                                                <Button type='button' variant='gray' icon={<IconPlus size={14} strokeWidth={1.5} />} label='Tambah Opsi' onClick={() => addAttributeOption(attributeIndex)} />
+                                            </div>
+                                            <div className='space-y-2'>
+                                                {(attribute.options || []).map((option, optionIndex) => (
+                                                    <div key={optionIndex} className='flex gap-2 items-center'>
+                                                        <input type='text' className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={option} onChange={(e) => updateAttributeOption(attributeIndex, optionIndex, e.target.value)} placeholder='Contoh: Retail / Corporate' />
+                                                        <Button type='button' variant='rose' icon={<IconX size={14} strokeWidth={1.5} />} onClick={() => removeAttributeOption(attributeIndex, optionIndex)} />
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                        {errors.attribute_schema_json && <small className='text-xs text-red-500'>{errors.attribute_schema_json}</small>}
+                    </div>
                     <div className='flex flex-col gap-2'>
                         <label className='text-gray-600 text-sm'>Status</label>
                         <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={data.is_active ? '1' : '0'} onChange={(e) => setData('is_active', e.target.value === '1')}>
@@ -95,7 +190,7 @@ export default function Index() {
                                 <Table.Td>{dimension.company?.name}</Table.Td><Table.Td>{dimension.code}</Table.Td><Table.Td>{dimension.name}</Table.Td>
                                 <Table.Td className='capitalize'>{dimension.type}</Table.Td><Table.Td>{dimension.is_active ? 'Aktif' : 'Nonaktif'}</Table.Td>
                                 <Table.Td><div className='flex gap-2'>
-                                    <Button type='modal' variant='orange' icon={<IconPencilCog size={16} strokeWidth={1.5} />} onClick={() => setData({ ...dimension, isUpdate: true, isOpen: true })} />
+                                    <Button type='modal' variant='orange' icon={<IconPencilCog size={16} strokeWidth={1.5} />} onClick={() => setData({ ...dimension, attribute_schema_json: dimension.attribute_schema_json ?? [], isUpdate: true, isOpen: true })} />
                                     <Button type='delete' variant='rose' icon={<IconTrash size={16} strokeWidth={1.5} />} url={route('apps.dimensions.destroy', dimension.id)} />
                                 </div></Table.Td>
                             </tr>
