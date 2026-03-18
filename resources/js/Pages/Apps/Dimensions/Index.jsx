@@ -10,6 +10,12 @@ import Pagination from '@/Components/Pagination';
 import { IconCirclePlus, IconDatabaseOff, IconHierarchy3, IconPencilCheck, IconPencilCog, IconPlus, IconTrash, IconX } from '@tabler/icons-react';
 
 const emptyAttribute = { key: '', label: '', type: 'text', is_required: false, options: [] };
+const normalizeAttributeKey = (value = '') => value
+    .toLowerCase()
+    .trim()
+    .replace(/[\s-]+/g, '_')
+    .replace(/[^a-z0-9_]/g, '')
+    .replace(/_+/g, '_');
 
 export default function Index() {
     const { dimensions, companies, errors } = usePage().props;
@@ -27,7 +33,18 @@ export default function Index() {
         isOpen: false,
     });
 
-    transform((formData) => ({ ...formData, _method: formData.isUpdate ? 'put' : 'post' }));
+    transform((formData) => ({
+        ...formData,
+        attribute_schema_json: (formData.attribute_schema_json || []).map((attribute) => ({
+            ...attribute,
+            key: normalizeAttributeKey(attribute?.key),
+            label: attribute?.label?.trim() ?? '',
+            options: attribute?.type === 'select'
+                ? (attribute?.options || []).map((option) => option?.trim() ?? '').filter(Boolean)
+                : [],
+        })),
+        _method: formData.isUpdate ? 'put' : 'post',
+    }));
 
     const resetForm = () => {
         setData({
@@ -127,16 +144,29 @@ export default function Index() {
                                 <div key={attributeIndex} className='border border-gray-200 dark:border-gray-800 rounded-md p-3 space-y-2'>
                                     <div className='grid grid-cols-1 md:grid-cols-12 gap-2 items-end'>
                                         <div className='md:col-span-3'>
-                                            <Input label='Field Key' type='text' value={attribute.key ?? ''} onChange={(e) => updateAttribute(attributeIndex, 'key', e.target.value)} />
+                                            <Input
+                                                label='Field Key'
+                                                type='text'
+                                                value={attribute.key ?? ''}
+                                                onChange={(e) => updateAttribute(attributeIndex, 'key', e.target.value)}
+                                                errors={errors[`attribute_schema_json.${attributeIndex}.key`]}
+                                            />
                                         </div>
                                         <div className='md:col-span-4'>
-                                            <Input label='Label' type='text' value={attribute.label ?? ''} onChange={(e) => updateAttribute(attributeIndex, 'label', e.target.value)} />
+                                            <Input
+                                                label='Label'
+                                                type='text'
+                                                value={attribute.label ?? ''}
+                                                onChange={(e) => updateAttribute(attributeIndex, 'label', e.target.value)}
+                                                errors={errors[`attribute_schema_json.${attributeIndex}.label`]}
+                                            />
                                         </div>
                                         <div className='md:col-span-3'>
                                             <label className='text-gray-600 text-sm'>Tipe Field</label>
                                             <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={attribute.type ?? 'text'} onChange={(e) => updateAttribute(attributeIndex, 'type', e.target.value)}>
                                                 {['text', 'number', 'date', 'boolean', 'select'].map((fieldType) => <option key={fieldType} value={fieldType}>{fieldType}</option>)}
                                             </select>
+                                            {errors[`attribute_schema_json.${attributeIndex}.type`] && <small className='text-xs text-red-500'>{errors[`attribute_schema_json.${attributeIndex}.type`]}</small>}
                                         </div>
                                         <div className='md:col-span-1'>
                                             <label className='text-gray-600 text-sm'>Wajib</label>
@@ -158,7 +188,12 @@ export default function Index() {
                                             <div className='space-y-2'>
                                                 {(attribute.options || []).map((option, optionIndex) => (
                                                     <div key={optionIndex} className='flex gap-2 items-center'>
-                                                        <input type='text' className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={option} onChange={(e) => updateAttributeOption(attributeIndex, optionIndex, e.target.value)} placeholder='Contoh: Retail / Corporate' />
+                                                        <div className='w-full space-y-1'>
+                                                            <input type='text' className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={option} onChange={(e) => updateAttributeOption(attributeIndex, optionIndex, e.target.value)} placeholder='Contoh: Retail / Corporate' />
+                                                            {errors[`attribute_schema_json.${attributeIndex}.options.${optionIndex}`] && (
+                                                                <small className='text-xs text-red-500'>{errors[`attribute_schema_json.${attributeIndex}.options.${optionIndex}`]}</small>
+                                                            )}
+                                                        </div>
                                                         <Button type='button' variant='rose' icon={<IconX size={14} strokeWidth={1.5} />} onClick={() => removeAttributeOption(attributeIndex, optionIndex)} />
                                                     </div>
                                                 ))}

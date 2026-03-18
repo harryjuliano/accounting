@@ -54,7 +54,7 @@ export default function Button({className, icon, label, type, href, url, id, var
                 </Link>
             }
             {type === 'button' &&
-                <button className={clsx(styleButton, className, variants)} {...props}>
+                <button type='button' className={clsx(styleButton, className, variants)} {...props}>
                     {icon} <span className="hidden md:block">{label}</span>
                 </button>
             }
@@ -64,12 +64,12 @@ export default function Button({className, icon, label, type, href, url, id, var
                 </button>
             }
             {type === 'delete' &&
-                <button onClick={() => deleteData(url)} className={clsx(styleActionButton, className, variants)} {...props}>
+                <button type='button' onClick={() => deleteData(url)} className={clsx(styleActionButton, className, variants)} {...props}>
                     {icon}
                 </button>
             }
             {type === 'modal' &&
-                <button className={clsx(styleActionButton, className, variants)} {...props}>{icon}</button>
+                <button type='button' className={clsx(styleActionButton, className, variants)} {...props}>{icon}</button>
             }
             {type === 'edit' &&
                 <Link href={href} className={clsx(styleActionButton, className, variants)} {...props}>
@@ -77,7 +77,7 @@ export default function Button({className, icon, label, type, href, url, id, var
                 </Link>
             }
             {type === 'bulk' &&
-                <button {...props} className={clsx(styleActionButton, className, variants)}>
+                <button type='button' {...props} className={clsx(styleActionButton, className, variants)}>
                     {icon} <span className="hidden lg:block">{label}</span>
                 </button>
             }
