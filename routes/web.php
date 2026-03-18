@@ -7,6 +7,7 @@ use App\Http\Controllers\Apps\DashboardController;
 use App\Http\Controllers\Apps\ExchangeRateController;
 use App\Http\Controllers\Apps\DimensionController;
 use App\Http\Controllers\Apps\FiscalPeriodController;
+use App\Http\Controllers\Apps\ManualJournalController;
 use App\Http\Controllers\Apps\PermissionController;
 use App\Http\Controllers\Apps\RoleController;
 use App\Http\Controllers\Apps\TaxCodeController;
@@ -54,6 +55,8 @@ Route::group(['prefix' => 'apps', 'as' => 'apps.' , 'middleware' => ['auth']], f
     Route::resource('/currencies', CurrencyController::class)->except(['create', 'edit', 'show']);
     // exchange rates route
     Route::resource('/exchange-rates', ExchangeRateController::class)->except(['index', 'create', 'edit', 'show']);
+    // manual journals route
+    Route::resource('/manual-journals', ManualJournalController::class)->except(['create', 'edit', 'show'])->parameters(['manual-journals' => 'manual_journal']);
 });
 
 require __DIR__.'/auth.php';
