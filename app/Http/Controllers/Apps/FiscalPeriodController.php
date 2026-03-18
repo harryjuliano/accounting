@@ -11,6 +11,7 @@ use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Auth;
 
 class FiscalPeriodController extends Controller
 {
@@ -61,7 +62,10 @@ class FiscalPeriodController extends Controller
     public function index(Request $request)
     {
         $fiscalPeriods = FiscalYear::query()
-            ->with('company:id,name')
+            ->with([
+                'company:id,name',
+                'accountingPeriods:id,company_id,fiscal_year_id,period_no,period_name,start_date,end_date,status,closed_at',
+            ])
             ->when($request->search, fn ($query) => $query->where('year_label', 'like', '%' . $request->search . '%'))
             ->latest()
             ->paginate(10)
@@ -101,6 +105,45 @@ class FiscalPeriodController extends Controller
     public function destroy(FiscalYear $fiscal_period)
     {
         $fiscal_period->delete();
+
+        return back();
+    }
+
+    public function toggleMonthlyClose(FiscalYear $fiscal_period, AccountingPeriod $accounting_period)
+    {
+        abort_unless($accounting_period->fiscal_year_id === $fiscal_period->id, 404);
+
+        if (! in_array($accounting_period->status, ['open', 'soft_closed'], true)) {
+            return back()->withErrors([
+                'period' => 'Periode dengan status hard/audit close tidak dapat diubah dari menu monthly close.',
+            ]);
+        }
+
+        $isSoftClosed = $accounting_period->status === 'soft_closed';
+
+        $accounting_period->update([
+            'status' => $isSoftClosed ? 'open' : 'soft_closed',
+            'closed_at' => $isSoftClosed ? null : now(),
+            'closed_by' => $isSoftClosed ? null : Auth::id(),
+        ]);
+
+        return back();
+    }
+
+    public function hardCloseYear(FiscalYear $fiscal_period)
+    {
+        DB::transaction(function () use ($fiscal_period) {
+            $fiscal_period->update(['status' => 'closed']);
+
+            AccountingPeriod::query()
+                ->where('fiscal_year_id', $fiscal_period->id)
+                ->update([
+                    'status' => 'hard_closed',
+                    'closed_at' => now(),
+                    'closed_by' => Auth::id(),
+                    'updated_at' => now(),
+                ]);
+        });
 
         return back();
     }

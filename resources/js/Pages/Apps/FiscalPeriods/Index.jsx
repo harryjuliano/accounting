@@ -11,6 +11,7 @@ import { IconCalendarStats, IconCirclePlus, IconDatabaseOff, IconPencilCheck, Ic
 
 export default function Index() {
     const { fiscalPeriods, companies, errors } = usePage().props;
+    const { post: postAction } = useForm({});
 
     const { data, setData, post, transform } = useForm({
         id: '',
@@ -42,6 +43,14 @@ export default function Index() {
 
         const targetRoute = data.isUpdate ? route('apps.fiscal-periods.update', data.id) : route('apps.fiscal-periods.store');
         post(targetRoute, { onSuccess: resetForm });
+    };
+
+    const toggleMonthlyClose = (fiscalYearId, accountingPeriodId) => {
+        postAction(route('apps.fiscal-periods.accounting-periods.toggle-close', [fiscalYearId, accountingPeriodId]));
+    };
+
+    const hardCloseYear = (fiscalYearId) => {
+        postAction(route('apps.fiscal-periods.hard-close', fiscalYearId));
     };
 
     return (
@@ -87,6 +96,9 @@ export default function Index() {
             </Modal>
 
             <Table.Card title='Data Fiscal Period'>
+                <p className='text-xs text-gray-500 dark:text-gray-400 mb-4'>
+                    Tabel di bawah menampilkan level tahun fiskal. Gunakan <strong>Soft Close</strong> per bulan untuk monthly close, lalu <strong>Hard Close Year</strong> di akhir tahun untuk penutupan tahunan.
+                </p>
                 <Table>
                     <Table.Thead>
                         <tr>
@@ -100,19 +112,64 @@ export default function Index() {
                     </Table.Thead>
                     <Table.Tbody>
                         {fiscalPeriods.data.length ? fiscalPeriods.data.map((period, i) => (
-                            <tr key={period.id} className='hover:bg-gray-100 dark:hover:bg-gray-900'>
-                                <Table.Td>{i + 1 + ((fiscalPeriods.current_page - 1) * fiscalPeriods.per_page)}</Table.Td>
-                                <Table.Td>{period.company?.name}</Table.Td>
-                                <Table.Td>{period.year_label}</Table.Td>
-                                <Table.Td>{period.start_date} s/d {period.end_date}</Table.Td>
-                                <Table.Td className='capitalize'>{period.status}</Table.Td>
-                                <Table.Td>
-                                    <div className='flex gap-2'>
-                                        <Button type='modal' variant='orange' icon={<IconPencilCog size={16} strokeWidth={1.5} />} onClick={() => setData({ ...period, company_id: period.company_id, isUpdate: true, isOpen: true })} />
-                                        <Button type='delete' variant='rose' icon={<IconTrash size={16} strokeWidth={1.5} />} url={route('apps.fiscal-periods.destroy', period.id)} />
-                                    </div>
-                                </Table.Td>
-                            </tr>
+                            <React.Fragment key={period.id}>
+                                <tr className='hover:bg-gray-100 dark:hover:bg-gray-900'>
+                                    <Table.Td>{i + 1 + ((fiscalPeriods.current_page - 1) * fiscalPeriods.per_page)}</Table.Td>
+                                    <Table.Td>{period.company?.name}</Table.Td>
+                                    <Table.Td>{period.year_label}</Table.Td>
+                                    <Table.Td>{period.start_date} s/d {period.end_date}</Table.Td>
+                                    <Table.Td className='capitalize'>{period.status}</Table.Td>
+                                    <Table.Td>
+                                        <div className='flex gap-2'>
+                                            <button
+                                                type='button'
+                                                onClick={() => hardCloseYear(period.id)}
+                                                disabled={period.status === 'closed'}
+                                                className='px-3 py-2 rounded-lg text-xs font-semibold border bg-white text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-900 dark:text-gray-200 dark:border-gray-800'
+                                            >
+                                                Hard Close Year
+                                            </button>
+                                            <Button type='modal' variant='orange' icon={<IconPencilCog size={16} strokeWidth={1.5} />} onClick={() => setData({ ...period, company_id: period.company_id, isUpdate: true, isOpen: true })} />
+                                            <Button type='delete' variant='rose' icon={<IconTrash size={16} strokeWidth={1.5} />} url={route('apps.fiscal-periods.destroy', period.id)} />
+                                        </div>
+                                    </Table.Td>
+                                </tr>
+                                <tr className='bg-gray-50 dark:bg-gray-950'>
+                                    <td colSpan={6} className='px-4 py-3'>
+                                        <div className='overflow-x-auto'>
+                                            <table className='w-full text-xs md:text-sm'>
+                                                <thead>
+                                                    <tr className='text-left text-gray-500'>
+                                                        <th className='py-2'>Periode Bulan</th>
+                                                        <th className='py-2'>Tanggal</th>
+                                                        <th className='py-2'>Status Close</th>
+                                                        <th className='py-2 text-right'>Aksi</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {(period.accounting_periods ?? []).sort((a, b) => a.period_no - b.period_no).map((month) => (
+                                                        <tr key={month.id} className='border-t border-gray-200 dark:border-gray-800'>
+                                                            <td className='py-2'>{month.period_name}</td>
+                                                            <td className='py-2'>{month.start_date} s/d {month.end_date}</td>
+                                                            <td className='py-2 capitalize'>{month.status}</td>
+                                                            <td className='py-2 text-right'>
+                                                                <button
+                                                                    type='button'
+                                                                    disabled={!['open', 'soft_closed'].includes(month.status)}
+                                                                    onClick={() => toggleMonthlyClose(period.id, month.id)}
+                                                                    className='px-3 py-1 rounded-md border text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed dark:hover:bg-gray-900'
+                                                                >
+                                                                    {month.status === 'open' ? 'Soft Close' : 'Reopen'}
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </React.Fragment>
                         )) : (
                             <Table.Empty colSpan={6} message={<><div className='flex justify-center mb-2'><IconDatabaseOff size={24} /></div><span>Data fiscal period tidak ditemukan.</span></>} />
                         )}

@@ -45,6 +45,8 @@ Route::group(['prefix' => 'apps', 'as' => 'apps.' , 'middleware' => ['auth']], f
     Route::resource('/companies', CompanyController::class)->except(['create', 'edit', 'show']);
     // fiscal periods route
     Route::resource('/fiscal-periods', FiscalPeriodController::class)->except(['create', 'edit', 'show'])->parameters(['fiscal-periods' => 'fiscal_period']);
+    Route::post('/fiscal-periods/{fiscal_period}/accounting-periods/{accounting_period}/toggle-close', [FiscalPeriodController::class, 'toggleMonthlyClose'])->name('fiscal-periods.accounting-periods.toggle-close');
+    Route::post('/fiscal-periods/{fiscal_period}/hard-close', [FiscalPeriodController::class, 'hardCloseYear'])->name('fiscal-periods.hard-close');
     // chart of accounts route
     Route::resource('/chart-of-accounts', ChartOfAccountController::class)->except(['create', 'edit', 'show'])->parameters(['chart-of-accounts' => 'chart_of_account']);
     // dimensions route

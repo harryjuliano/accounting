@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class AccountingPeriod extends Model
 {
@@ -26,4 +27,9 @@ class AccountingPeriod extends Model
         'end_date' => 'date',
         'closed_at' => 'datetime',
     ];
+
+    public function fiscalYear(): BelongsTo
+    {
+        return $this->belongsTo(FiscalYear::class);
+    }
 }
