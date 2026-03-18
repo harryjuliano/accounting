@@ -9,11 +9,25 @@ use App\Models\ChartOfAccount;
 use App\Models\Company;
 use App\Models\Currency;
 use App\Models\JournalEntry;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class ManualJournalController extends Controller
 {
+    private function resolveAccountingPeriodId(int $companyId, string $postingDate): int
+    {
+        $period = AccountingPeriod::query()
+            ->where('company_id', $companyId)
+            ->whereDate('start_date', '<=', $postingDate)
+            ->whereDate('end_date', '>=', $postingDate)
+            ->first();
+
+        abort_unless($period, 422, 'Periode fiskal untuk tanggal posting tidak ditemukan.');
+
+        return $period->id;
+    }
+
     public function index(Request $request)
     {
         $manualJournals = JournalEntry::query()
@@ -36,7 +50,8 @@ class ManualJournalController extends Controller
             'companies' => Company::query()->select('id', 'name')->orderBy('name')->get(),
             'accountingPeriods' => AccountingPeriod::query()->select('id', 'company_id', 'period_name', 'start_date', 'end_date')->orderByDesc('start_date')->get(),
             'currencies' => Currency::query()->select('code', 'name')->where('is_active', true)->orderBy('code')->get(),
-            'accounts' => ChartOfAccount::query()->select('id', 'company_id', 'code', 'name')->where('is_active', true)->orderBy('code')->get(),
+            'accounts' => ChartOfAccount::query()->select('id', 'company_id', 'code', 'name', 'requires_dimension')->where('is_active', true)->orderBy('code')->get(),
+            'defaultEntryDate' => Carbon::now()->toDateString(),
         ]);
     }
 
@@ -45,12 +60,13 @@ class ManualJournalController extends Controller
         $validated = $request->validated();
 
         DB::transaction(function () use ($validated, $request) {
+            $accountingPeriodId = $this->resolveAccountingPeriodId((int) $validated['company_id'], $validated['posting_date']);
             $totalDebit = collect($validated['lines'])->sum(fn ($line) => (float) $line['debit']);
             $totalCredit = collect($validated['lines'])->sum(fn ($line) => (float) $line['credit']);
 
             $journalEntry = JournalEntry::create([
                 'company_id' => $validated['company_id'],
-                'accounting_period_id' => $validated['accounting_period_id'],
+                'accounting_period_id' => $accountingPeriodId,
                 'journal_no' => $validated['journal_no'],
                 'journal_type' => 'manual',
                 'entry_date' => $validated['entry_date'],
@@ -86,12 +102,13 @@ class ManualJournalController extends Controller
         $validated = $request->validated();
 
         DB::transaction(function () use ($validated, $manual_journal) {
+            $accountingPeriodId = $this->resolveAccountingPeriodId((int) $validated['company_id'], $validated['posting_date']);
             $totalDebit = collect($validated['lines'])->sum(fn ($line) => (float) $line['debit']);
             $totalCredit = collect($validated['lines'])->sum(fn ($line) => (float) $line['credit']);
 
             $manual_journal->update([
                 'company_id' => $validated['company_id'],
-                'accounting_period_id' => $validated['accounting_period_id'],
+                'accounting_period_id' => $accountingPeriodId,
                 'journal_no' => $validated['journal_no'],
                 'entry_date' => $validated['entry_date'],
                 'posting_date' => $validated['posting_date'],

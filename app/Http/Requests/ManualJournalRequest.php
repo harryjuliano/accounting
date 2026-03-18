@@ -18,7 +18,7 @@ class ManualJournalRequest extends FormRequest
 
         return [
             'company_id' => ['required', 'exists:companies,id'],
-            'accounting_period_id' => ['required', 'exists:accounting_periods,id'],
+            'accounting_period_id' => ['nullable', 'exists:accounting_periods,id'],
             'journal_no' => [
                 'required',
                 'string',
