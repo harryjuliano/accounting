@@ -16,8 +16,6 @@ export default function Index() {
         id: '',
         company_id: companies[0]?.id ?? '',
         year_label: '',
-        start_date: '',
-        end_date: '',
         status: 'draft',
         isUpdate: false,
         isOpen: false,
@@ -33,8 +31,6 @@ export default function Index() {
             id: '',
             company_id: companies[0]?.id ?? '',
             year_label: '',
-            start_date: '',
-            end_date: '',
             status: 'draft',
             isUpdate: false,
             isOpen: false,
@@ -75,11 +71,8 @@ export default function Index() {
                         </select>
                         {errors.company_id && <small className='text-xs text-red-500'>{errors.company_id}</small>}
                     </div>
-                    <Input label='Label Tahun' type='text' value={data.year_label} onChange={(e) => setData('year_label', e.target.value)} errors={errors.year_label} />
-                    <div className='grid grid-cols-2 gap-3'>
-                        <Input label='Tanggal Mulai' type='date' value={data.start_date} onChange={(e) => setData('start_date', e.target.value)} errors={errors.start_date} />
-                        <Input label='Tanggal Selesai' type='date' value={data.end_date} onChange={(e) => setData('end_date', e.target.value)} errors={errors.end_date} />
-                    </div>
+                    <Input label='Tahun Fiskal' type='number' min='1900' max='2200' value={data.year_label} onChange={(e) => setData('year_label', e.target.value)} errors={errors.year_label} />
+                    <p className='text-xs text-gray-500 dark:text-gray-400'>Saat disimpan, sistem otomatis membuat 12 periode bulanan berdasarkan tahun fiskal yang diinput.</p>
                     <div className='flex flex-col gap-2'>
                         <label className='text-gray-600 text-sm'>Status</label>
                         <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={data.status} onChange={(e) => setData('status', e.target.value)}>
