@@ -10,19 +10,32 @@ import Pagination from '@/Components/Pagination';
 import { IconCirclePlus, IconDatabaseOff, IconNotes, IconPencilCheck, IconPencilCog, IconPlus, IconTrash } from '@tabler/icons-react';
 
 const emptyLine = { account_id: '', description: '', debit: 0, credit: 0 };
+const amountFormatter = new Intl.NumberFormat('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const getTodayDate = () => new Date().toISOString().split('T')[0];
+
+const parseAmountInput = (value) => {
+    const normalized = `${value ?? ''}`.replace(/[^0-9.,-]/g, '').replace(',', '.');
+    const parsed = Number.parseFloat(normalized);
+
+    return Number.isNaN(parsed) ? 0 : parsed;
+};
+
+const formatAmount = (value) => amountFormatter.format(Number(value || 0));
 
 export default function Index() {
-    const { manualJournals, companies, accountingPeriods, currencies, accounts, errors } = usePage().props;
+    const { manualJournals, companies, accountingPeriods, currencies, accounts, defaultEntryDate, errors } = usePage().props;
+    const fallbackEntryDate = defaultEntryDate || getTodayDate();
 
     const { data, setData, post, transform } = useForm({
-        id: '', company_id: companies[0]?.id ?? '', accounting_period_id: '', journal_no: '', entry_date: '', posting_date: '', reference_no: '', description: '',
+        id: '', company_id: companies[0]?.id ?? '', accounting_period_id: '', journal_no: '', entry_date: fallbackEntryDate, posting_date: '', reference_no: '', description: '',
         currency_code: currencies[0]?.code ?? 'IDR', exchange_rate: 1, status: 'draft', lines: [{ ...emptyLine }, { ...emptyLine }], isUpdate: false, isOpen: false,
     });
 
     transform((formData) => ({ ...formData, _method: formData.isUpdate ? 'put' : 'post' }));
 
     const resetForm = () => setData({
-        id: '', company_id: companies[0]?.id ?? '', accounting_period_id: '', journal_no: '', entry_date: '', posting_date: '', reference_no: '', description: '',
+        id: '', company_id: companies[0]?.id ?? '', accounting_period_id: '', journal_no: '', entry_date: fallbackEntryDate, posting_date: '', reference_no: '', description: '',
         currency_code: currencies[0]?.code ?? 'IDR', exchange_rate: 1, status: 'draft', lines: [{ ...emptyLine }, { ...emptyLine }], isUpdate: false, isOpen: false,
     });
 
@@ -33,11 +46,26 @@ export default function Index() {
 
     const filteredPeriods = accountingPeriods.filter((period) => period.company_id === Number(data.company_id));
     const filteredAccounts = accounts.filter((account) => account.company_id === Number(data.company_id));
+    const selectedPeriod = filteredPeriods.find((period) => {
+        if (!data.posting_date) return false;
+
+        return data.posting_date >= period.start_date && data.posting_date <= period.end_date;
+    });
+    const selectedAccountsById = Object.fromEntries(filteredAccounts.map((account) => [Number(account.id), account]));
 
     const updateLine = (index, field, value) => {
         const newLines = [...data.lines];
         newLines[index] = { ...newLines[index], [field]: value };
         setData('lines', newLines);
+    };
+
+    const updatePostingDate = (postingDate) => {
+        const period = filteredPeriods.find((item) => postingDate >= item.start_date && postingDate <= item.end_date);
+        setData({
+            ...data,
+            posting_date: postingDate,
+            accounting_period_id: period?.id ?? '',
+        });
     };
 
     const addLine = () => setData('lines', [...data.lines, { ...emptyLine }]);
@@ -53,32 +81,29 @@ export default function Index() {
                 <Button type='button' icon={<IconCirclePlus size={20} strokeWidth={1.5} />} variant='gray' label='Tambah Manual Jurnal' onClick={() => setData('isOpen', true)} />
                 <div className='w-full md:w-4/12'><Search url={route('apps.manual-journals.index')} placeholder='Cari manual jurnal...' /></div>
             </div>
-            <Modal show={data.isOpen} onClose={resetForm} title={data.isUpdate ? 'Ubah Manual Jurnal' : 'Tambah Manual Jurnal'} icon={<IconNotes size={20} strokeWidth={1.5} />}>
+            <Modal show={data.isOpen} maxWidth='6xl' onClose={resetForm} title={data.isUpdate ? 'Ubah Manual Jurnal' : 'Tambah Manual Jurnal'} icon={<IconNotes size={20} strokeWidth={1.5} />}>
                 <form onSubmit={submit} className='space-y-4'>
-                    <div className='grid grid-cols-2 gap-3'>
+                    <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
                         <div className='flex flex-col gap-2'>
                             <label className='text-gray-600 text-sm'>Company</label>
-                            <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={data.company_id} onChange={(e) => setData({ ...data, company_id: Number(e.target.value), accounting_period_id: '', lines: [{ ...emptyLine }, { ...emptyLine }] })}>{companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}</select>
+                            <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={data.company_id} onChange={(e) => setData({ ...data, company_id: Number(e.target.value), accounting_period_id: '', posting_date: '', lines: [{ ...emptyLine }, { ...emptyLine }] })}>{companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}</select>
                             {errors.company_id && <small className='text-xs text-red-500'>{errors.company_id}</small>}
                         </div>
                         <div className='flex flex-col gap-2'>
                             <label className='text-gray-600 text-sm'>Periode</label>
-                            <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={data.accounting_period_id} onChange={(e) => setData('accounting_period_id', Number(e.target.value))}>
-                                <option value=''>Pilih periode</option>
-                                {filteredPeriods.map((period) => <option key={period.id} value={period.id}>{period.period_name}</option>)}
-                            </select>
+                            <input type='text' readOnly value={selectedPeriod ? `${selectedPeriod.period_name} (${selectedPeriod.start_date} s/d ${selectedPeriod.end_date})` : 'Pilih tanggal posting terlebih dahulu'} className='w-full px-3 py-1.5 border text-sm rounded-md bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800 cursor-not-allowed' />
                             {errors.accounting_period_id && <small className='text-xs text-red-500'>{errors.accounting_period_id}</small>}
                         </div>
                     </div>
-                    <div className='grid grid-cols-2 gap-3'>
+                    <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
                         <Input label='Nomor Jurnal' type='text' value={data.journal_no} onChange={(e) => setData('journal_no', e.target.value)} errors={errors.journal_no} />
                         <Input label='Referensi' type='text' value={data.reference_no} onChange={(e) => setData('reference_no', e.target.value)} errors={errors.reference_no} />
                     </div>
-                    <div className='grid grid-cols-2 gap-3'>
-                        <Input label='Tanggal Entry' type='date' value={data.entry_date} onChange={(e) => setData('entry_date', e.target.value)} errors={errors.entry_date} />
-                        <Input label='Tanggal Posting' type='date' value={data.posting_date} onChange={(e) => setData('posting_date', e.target.value)} errors={errors.posting_date} />
+                    <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
+                        <Input label='Tanggal Entry' type='date' value={data.entry_date} readOnly disabled onChange={(e) => setData('entry_date', e.target.value)} errors={errors.entry_date} />
+                        <Input label='Tanggal Posting' type='date' value={data.posting_date} onChange={(e) => updatePostingDate(e.target.value)} errors={errors.posting_date} />
                     </div>
-                    <div className='grid grid-cols-3 gap-3'>
+                    <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
                         <div className='flex flex-col gap-2'>
                             <label className='text-gray-600 text-sm'>Currency</label>
                             <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={data.currency_code} onChange={(e) => setData('currency_code', e.target.value)}>{currencies.map((currency) => <option key={currency.code} value={currency.code}>{currency.code} - {currency.name}</option>)}</select>
@@ -97,22 +122,35 @@ export default function Index() {
                             <Button type='button' variant='blue' icon={<IconPlus size={16} strokeWidth={1.5} />} label='Tambah Baris' onClick={addLine} />
                         </div>
                         {data.lines.map((line, index) => (
-                            <div key={index} className='grid grid-cols-12 gap-2 items-end'>
-                                <div className='col-span-4'>
+                            <div key={index} className='grid grid-cols-1 md:grid-cols-12 gap-2 items-end'>
+                                <div className='md:col-span-3'>
                                     <label className='text-gray-600 text-sm'>Akun</label>
                                     <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={line.account_id} onChange={(e) => updateLine(index, 'account_id', Number(e.target.value))}>
                                         <option value=''>Pilih akun</option>
                                         {filteredAccounts.map((account) => <option key={account.id} value={account.id}>{account.code} - {account.name}</option>)}
                                     </select>
                                 </div>
-                                <div className='col-span-3'><Input label='Deskripsi' type='text' value={line.description} onChange={(e) => updateLine(index, 'description', e.target.value)} /></div>
-                                <div className='col-span-2'><Input label='Debit' type='number' min='0' step='0.01' value={line.debit} onChange={(e) => updateLine(index, 'debit', e.target.value)} /></div>
-                                <div className='col-span-2'><Input label='Kredit' type='number' min='0' step='0.01' value={line.credit} onChange={(e) => updateLine(index, 'credit', e.target.value)} /></div>
-                                <div className='col-span-1 pb-1'><Button type='button' variant='rose' icon={<IconTrash size={16} strokeWidth={1.5} />} onClick={() => removeLine(index)} /></div>
+                                <div className='md:col-span-2'>
+                                    <label className='text-gray-600 text-sm'>Informasi Dimensi</label>
+                                    <input
+                                        type='text'
+                                        readOnly
+                                        value={selectedAccountsById[Number(line.account_id)]?.requires_dimension ? 'Wajib isi dimensi' : '-'}
+                                        className='w-full px-3 py-1.5 border text-sm rounded-md bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800 cursor-not-allowed'
+                                    />
+                                </div>
+                                <div className='md:col-span-2'><Input label='Deskripsi' type='text' value={line.description} onChange={(e) => updateLine(index, 'description', e.target.value)} /></div>
+                                <div className='md:col-span-2'>
+                                    <Input label='Debit' type='text' inputMode='decimal' value={formatAmount(line.debit)} onChange={(e) => updateLine(index, 'debit', parseAmountInput(e.target.value))} />
+                                </div>
+                                <div className='md:col-span-2'>
+                                    <Input label='Kredit' type='text' inputMode='decimal' value={formatAmount(line.credit)} onChange={(e) => updateLine(index, 'credit', parseAmountInput(e.target.value))} />
+                                </div>
+                                <div className='md:col-span-1 pb-1'><Button type='button' variant='rose' icon={<IconTrash size={16} strokeWidth={1.5} />} onClick={() => removeLine(index)} /></div>
                             </div>
                         ))}
                         {(errors.lines || errors['lines.0.debit']) && <small className='text-xs text-red-500'>{errors.lines || errors['lines.0.debit']}</small>}
-                        <div className='text-sm text-gray-600 dark:text-gray-300'>Total Debit: <b>{totalDebit.toFixed(2)}</b> | Total Kredit: <b>{totalCredit.toFixed(2)}</b></div>
+                        <div className='text-sm text-gray-600 dark:text-gray-300'>Total Debit: <b>{formatAmount(totalDebit)}</b> | Total Kredit: <b>{formatAmount(totalCredit)}</b></div>
                     </div>
                     <Button type='submit' variant='gray' icon={<IconPencilCheck size={20} strokeWidth={1.5} />} label='Simpan' />
                 </form>
