@@ -14,8 +14,15 @@ class Dimension extends Model
         'code',
         'name',
         'type',
+        'attribute_schema_json',
         'is_mandatory',
         'is_active',
+    ];
+
+    protected $casts = [
+        'attribute_schema_json' => 'array',
+        'is_mandatory' => 'boolean',
+        'is_active' => 'boolean',
     ];
 
     public function company()
