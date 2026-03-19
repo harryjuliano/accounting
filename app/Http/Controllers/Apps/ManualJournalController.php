@@ -64,9 +64,10 @@ class ManualJournalController extends Controller
             'accountingPeriods' => AccountingPeriod::query()->select('id', 'company_id', 'period_name', 'start_date', 'end_date')->orderByDesc('start_date')->get(),
             'currencies' => Currency::query()->select('code', 'name')->where('is_active', true)->orderBy('code')->get(),
             'accounts' => ChartOfAccount::query()
-                ->select('id', 'company_id', 'code', 'name', 'requires_dimension')
+                ->select('id', 'company_id', 'code', 'name', 'level', 'requires_dimension')
                 ->with(['dimensions:id,company_id,name,type,attribute_schema_json'])
                 ->where('is_active', true)
+                ->where('level', 4)
                 ->orderBy('code')
                 ->get(),
             'defaultEntryDate' => Carbon::now()->toDateString(),
