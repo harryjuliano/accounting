@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Apps;
 
+use App\Http\Controllers\Concerns\InteractsWithCompanyScope;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\TaxCodeRequest;
 use App\Models\Company;
@@ -10,10 +11,13 @@ use Illuminate\Http\Request;
 
 class TaxCodeController extends Controller
 {
+    use InteractsWithCompanyScope;
+
     public function index(Request $request)
     {
         $taxCodes = TaxCode::query()
             ->with('company:id,name')
+            ->when($this->isCompanyAdmin(), fn ($query) => $query->where('company_id', $request->user()->company_id))
             ->when($request->search, function ($query) use ($request) {
                 $query->where(function ($subQuery) use ($request) {
                     $subQuery->where('code', 'like', '%' . $request->search . '%')
@@ -26,7 +30,7 @@ class TaxCodeController extends Controller
             ->paginate(10)
             ->withQueryString();
 
-        $companies = Company::query()->select('id', 'name')->orderBy('name')->get();
+        $companies = $this->getAccessibleCompanies();
 
         return inertia('Apps/TaxCodes/Index', [
             'taxCodes' => $taxCodes,
@@ -43,6 +47,7 @@ class TaxCodeController extends Controller
 
     public function update(TaxCodeRequest $request, TaxCode $tax_code)
     {
+        $this->enforceCompanyAccess((int) $tax_code->company_id);
         $tax_code->update($request->validated());
 
         return back();
@@ -50,6 +55,7 @@ class TaxCodeController extends Controller
 
     public function destroy(TaxCode $tax_code)
     {
+        $this->enforceCompanyAccess((int) $tax_code->company_id);
         $tax_code->delete();
 
         return back();

@@ -57,6 +57,8 @@ class RoleController extends Controller implements HasMiddleware
      */
     public function store(RoleRequest $request)
     {
+        abort_unless($request->user()->isSuperAdmin(), 403, 'Role hanya dapat dikelola oleh super admin.');
+
         // create new role data
         $role = Role::create(['name' => $request->name]);
 
@@ -72,6 +74,8 @@ class RoleController extends Controller implements HasMiddleware
      */
     public function update(RoleRequest $request, Role $role)
     {
+        abort_unless($request->user()->isSuperAdmin(), 403, 'Role hanya dapat dikelola oleh super admin.');
+
         // update role data
         $role->update(['name' => $request->name]);
 
@@ -87,6 +91,8 @@ class RoleController extends Controller implements HasMiddleware
      */
     public function destroy(Role $role)
     {
+        abort_unless(request()->user()?->isSuperAdmin(), 403, 'Role hanya dapat dikelola oleh super admin.');
+
         // delete role data
         $role->delete();
 

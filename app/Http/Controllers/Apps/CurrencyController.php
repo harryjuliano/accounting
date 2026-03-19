@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Apps;
 
+use App\Http\Controllers\Concerns\InteractsWithCompanyScope;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CurrencyRequest;
 use App\Models\Company;
@@ -11,6 +12,8 @@ use Illuminate\Http\Request;
 
 class CurrencyController extends Controller
 {
+    use InteractsWithCompanyScope;
+
     public function index(Request $request)
     {
         $search = $request->search;
@@ -29,6 +32,7 @@ class CurrencyController extends Controller
 
         $exchangeRates = ExchangeRate::query()
             ->with(['company:id,name', 'fromCurrency:code,name', 'toCurrency:code,name'])
+            ->when($this->isCompanyAdmin(), fn ($query) => $query->where('company_id', $request->user()->company_id))
             ->when($search, function ($query) use ($search) {
                 $query->where(function ($subQuery) use ($search) {
                     $subQuery->where('rate_type', 'like', '%' . $search . '%')
@@ -50,7 +54,7 @@ class CurrencyController extends Controller
         return inertia('Apps/CurrenciesRates/Index', [
             'currencies' => $currencies,
             'exchangeRates' => $exchangeRates,
-            'companies' => Company::query()->select('id', 'name')->orderBy('name')->get(),
+            'companies' => $this->getAccessibleCompanies(),
             'currencyOptions' => Currency::query()->select('code', 'name')->where('is_active', true)->orderBy('code')->get(),
         ]);
     }

@@ -18,7 +18,15 @@ class DimensionRequest extends FormRequest
         $dimensionId = is_object($dimension) ? $dimension->id : $dimension;
 
         return [
-            'company_id' => 'required|exists:companies,id',
+            'company_id' => [
+                'required',
+                'exists:companies,id',
+                function (string $attribute, mixed $value, \Closure $fail) {
+                    if ($this->user()?->hasRole('company-admin') && (int) $this->user()->company_id !== (int) $value) {
+                        $fail('Anda tidak memiliki akses ke company ini.');
+                    }
+                },
+            ],
             'code' => [
                 'required',
                 'string',

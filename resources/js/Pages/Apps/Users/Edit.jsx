@@ -11,7 +11,7 @@ import toast from 'react-hot-toast'
 export default function Edit() {
 
     // destruct props roles from use page
-    const { roles, user } = usePage().props;
+    const { roles, user, companies, auth } = usePage().props;
 
     const {data, setData, post, errors} = useForm({
         name: user.name,
@@ -19,6 +19,7 @@ export default function Edit() {
         password: '',
         password_confirmation: '',
         selectedRoles: user.roles.map(role => role.name),
+        company_id: user.company_id ?? '',
         _method: 'PUT',
     });
 
@@ -107,6 +108,14 @@ export default function Edit() {
                         />
                     </div>
                 </div>
+                <div className='mb-4'>
+                    <label className='text-sm font-medium text-gray-700 dark:text-gray-300'>Company (Opsional, wajib untuk company-admin)</label>
+                    <select className='mt-1 w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={data.company_id} onChange={e => setData('company_id', e.target.value ? Number(e.target.value) : '')}>
+                        <option value=''>- Pilih Company -</option>
+                        {companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
+                    </select>
+                    {errors.company_id && <div className='text-xs text-red-500 mt-1'>{errors.company_id}</div>}
+                </div>
                 <div className={`p-4 rounded-t-lg border bg-white dark:bg-gray-950 dark:border-gray-900`}>
                     <div className='flex items-center gap-2 font-semibold text-sm text-gray-700 dark:text-gray-400'>
                         Akses Group
@@ -114,13 +123,13 @@ export default function Edit() {
                 </div>
                 <div className='p-4 rounded-b-lg border border-t-0 bg-gray-100 dark:bg-gray-900 dark:border-gray-900'>
                     <div className='flex flex-row flex-wrap gap-4'>
-                        {roles.map((role, i) => (
+                        {roles.filter((role) => auth?.super || role.name !== 'company-admin').map((role, i) => (
                             <Checkbox
                                 key={i}
                                 label={role.name}
                                 value={role.name}
                                 onChange={setSelectedRoles}
-                                defaultChecked={data.selectedRoles.some((name) => name === role.name ?? true)}
+                                defaultChecked={data.selectedRoles.some((name) => name === role.name)}
                             />
                         ))}
                     </div>

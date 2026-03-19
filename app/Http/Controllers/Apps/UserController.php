@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Apps;
 
 use App\Models\User;
+use App\Models\Company;
 use App\Http\Requests\UserRequest;
 use Spatie\Permission\Models\Role;
 use App\Http\Controllers\Controller;
@@ -55,9 +56,15 @@ class UserController extends Controller implements HasMiddleware
             ->orderBy('name')
             ->get();
 
+        $companies = Company::query()
+            ->select('id', 'name')
+            ->orderBy('name')
+            ->get();
+
         // render view
         return inertia('Apps/Users/Create', [
-            'roles' => $roles
+            'roles' => $roles,
+            'companies' => $companies,
         ]);
     }
 
@@ -66,11 +73,16 @@ class UserController extends Controller implements HasMiddleware
      */
     public function store(UserRequest $request)
     {
+        if (in_array('company-admin', $request->selectedRoles, true) && ! $request->user()->isSuperAdmin()) {
+            abort(403, 'Role company-admin hanya dapat di-assign oleh super admin.');
+        }
+
         // create new user data
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => bcrypt($request->password),
+            'company_id' => $request->company_id,
         ]);
 
         // assign role to user
@@ -91,12 +103,18 @@ class UserController extends Controller implements HasMiddleware
             ->orderBy('name')
             ->get();
 
+        $companies = Company::query()
+            ->select('id', 'name')
+            ->orderBy('name')
+            ->get();
+
         // load relationship
         $user->load(['roles' => fn($query) => $query->select('id', 'name'), 'roles.permissions' => fn($query) => $query->select('id', 'name')]);
 
         // render view
         return inertia('Apps/Users/Edit', [
             'roles' => $roles,
+            'companies' => $companies,
             'user' => $user
         ]);
     }
@@ -106,6 +124,10 @@ class UserController extends Controller implements HasMiddleware
      */
     public function update(UserRequest $request, User $user)
     {
+        if (in_array('company-admin', $request->selectedRoles, true) && ! $request->user()->isSuperAdmin()) {
+            abort(403, 'Role company-admin hanya dapat di-assign oleh super admin.');
+        }
+
         // check if user send request password
         if($request->password)
             // update user data password
@@ -116,6 +138,7 @@ class UserController extends Controller implements HasMiddleware
         // update user data name
         $user->update([
             'name' => $request->name,
+            'company_id' => $request->company_id,
         ]);
 
         // assign role to user

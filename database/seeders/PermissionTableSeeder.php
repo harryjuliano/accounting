@@ -15,6 +15,7 @@ class PermissionTableSeeder extends Seeder
     {
         // dashboard permissions
         Permission::create(['name' => 'dashboard-access']);
+        Permission::create(['name' => 'company-admin-access']);
 
          // users permissions
          Permission::create(['name' => 'users-access']);
