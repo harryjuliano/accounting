@@ -47,6 +47,7 @@ export default function Index() {
     });
 
     const [dimensionEditor, setDimensionEditor] = React.useState({ open: false, lineIndex: null, details: [] });
+    const [accountSearchTerms, setAccountSearchTerms] = React.useState(['', '']);
 
     transform((formData) => ({ ...formData, _method: formData.isUpdate ? 'put' : 'post' }));
 
@@ -56,6 +57,7 @@ export default function Index() {
             currency_code: currencies[0]?.code ?? 'IDR', exchange_rate: 1, status: 'draft', lines: [{ ...emptyLine }, { ...emptyLine }], isUpdate: false, isOpen: false,
         });
         setDimensionEditor({ open: false, lineIndex: null, details: [] });
+        setAccountSearchTerms(['', '']);
     };
 
     const submit = (e) => {
@@ -64,7 +66,7 @@ export default function Index() {
     };
 
     const filteredPeriods = accountingPeriods.filter((period) => period.company_id === Number(data.company_id));
-    const filteredAccounts = accounts.filter((account) => account.company_id === Number(data.company_id));
+    const filteredAccounts = accounts.filter((account) => account.company_id === Number(data.company_id) && Number(account.level) === 4);
     const selectedPeriod = filteredPeriods.find((period) => {
         if (!data.posting_date) return false;
 
@@ -87,8 +89,18 @@ export default function Index() {
         });
     };
 
-    const addLine = () => setData('lines', [...data.lines, { ...emptyLine }]);
-    const removeLine = (index) => data.lines.length > 2 && setData('lines', data.lines.filter((_, i) => i !== index));
+    const addLine = () => {
+        setData('lines', [...data.lines, { ...emptyLine }]);
+        setAccountSearchTerms((prev) => [...prev, '']);
+    };
+    const removeLine = (index) => {
+        if (data.lines.length <= 2) {
+            return;
+        }
+
+        setData('lines', data.lines.filter((_, i) => i !== index));
+        setAccountSearchTerms((prev) => prev.filter((_, i) => i !== index));
+    };
 
     const openDimensionEditor = (lineIndex) => {
         const line = data.lines[lineIndex] ?? {};
@@ -169,7 +181,10 @@ export default function Index() {
                     <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
                         <div className='flex flex-col gap-2'>
                             <label className='text-gray-600 text-sm'>Company</label>
-                            <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={data.company_id} onChange={(e) => setData({ ...data, company_id: Number(e.target.value), accounting_period_id: '', posting_date: '', lines: [{ ...emptyLine }, { ...emptyLine }] })}>{companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}</select>
+                            <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={data.company_id} onChange={(e) => {
+                                setData({ ...data, company_id: Number(e.target.value), accounting_period_id: '', posting_date: '', lines: [{ ...emptyLine }, { ...emptyLine }] });
+                                setAccountSearchTerms(['', '']);
+                            }}>{companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}</select>
                             {errors.company_id && <small className='text-xs text-red-500'>{errors.company_id}</small>}
                         </div>
                         <div className='flex flex-col gap-2'>
@@ -214,9 +229,29 @@ export default function Index() {
                                 <div key={index} className='grid grid-cols-1 md:grid-cols-12 gap-2 items-end'>
                                     <div className='md:col-span-3'>
                                         <label className='text-gray-600 text-sm'>Akun</label>
+                                        <input
+                                            type='text'
+                                            placeholder='Cari COA level 4...'
+                                            value={accountSearchTerms[index] ?? ''}
+                                            onChange={(e) => {
+                                                const newTerms = [...accountSearchTerms];
+                                                newTerms[index] = e.target.value;
+                                                setAccountSearchTerms(newTerms);
+                                            }}
+                                            className='w-full mb-1 px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800'
+                                        />
                                         <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={line.account_id} onChange={(e) => updateLine(index, 'account_id', Number(e.target.value))}>
                                             <option value=''>Pilih akun</option>
-                                            {filteredAccounts.map((account) => <option key={account.id} value={account.id}>{account.code} - {account.name}</option>)}
+                                            {filteredAccounts
+                                                .filter((account) => {
+                                                    const searchTerm = (accountSearchTerms[index] ?? '').trim().toLowerCase();
+                                                    if (!searchTerm) {
+                                                        return true;
+                                                    }
+
+                                                    return `${account.code} ${account.name}`.toLowerCase().includes(searchTerm);
+                                                })
+                                                .map((account) => <option key={account.id} value={account.id}>{account.code} - {account.name}</option>)}
                                         </select>
                                     </div>
                                     <div className='md:col-span-2'>
@@ -366,7 +401,11 @@ export default function Index() {
                                 <Table.Td>{journal.description}</Table.Td>
                                 <Table.Td>{Number(journal.total_debit).toLocaleString()}</Table.Td>
                                 <Table.Td className='capitalize'>{journal.status.replace('_', ' ')}</Table.Td>
-                                <Table.Td><div className='flex gap-2'><Button type='modal' variant='orange' icon={<IconPencilCog size={16} strokeWidth={1.5} />} onClick={() => setData({ ...journal, company_id: journal.company_id, accounting_period_id: journal.accounting_period_id, exchange_rate: Number(journal.exchange_rate), lines: journal.lines.map((line) => ({ account_id: line.account_id, description: line.description ?? '', debit: Number(line.debit), credit: Number(line.credit), dimension_details: normalizeDimensionDetails(line.dimension_details_json ?? line.dimension_details) })), isUpdate: true, isOpen: true })} /><Button type='delete' variant='rose' icon={<IconTrash size={16} strokeWidth={1.5} />} url={route('apps.manual-journals.destroy', journal.id)} /></div></Table.Td>
+                                <Table.Td><div className='flex gap-2'><Button type='modal' variant='orange' icon={<IconPencilCog size={16} strokeWidth={1.5} />} onClick={() => {
+                                    const lines = journal.lines.map((line) => ({ account_id: line.account_id, description: line.description ?? '', debit: Number(line.debit), credit: Number(line.credit), dimension_details: normalizeDimensionDetails(line.dimension_details_json ?? line.dimension_details) }));
+                                    setData({ ...journal, company_id: journal.company_id, accounting_period_id: journal.accounting_period_id, exchange_rate: Number(journal.exchange_rate), lines, isUpdate: true, isOpen: true });
+                                    setAccountSearchTerms(lines.map(() => ''));
+                                }} /><Button type='delete' variant='rose' icon={<IconTrash size={16} strokeWidth={1.5} />} url={route('apps.manual-journals.destroy', journal.id)} /></div></Table.Td>
                             </tr>
                         )) : <Table.Empty colSpan={8} message={<><div className='flex justify-center mb-2'><IconDatabaseOff size={24} /></div><span>Data manual jurnal tidak ditemukan.</span></>} />}
                     </Table.Tbody>
