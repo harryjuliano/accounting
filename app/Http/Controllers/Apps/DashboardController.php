@@ -15,7 +15,7 @@ class DashboardController extends Controller implements HasMiddleware
     public static function middleware()
     {
         return [
-            new Middleware('permission:dashboard-data')
+            new Middleware('permission:dashboard-access|dashboard-data')
         ];
     }
 
