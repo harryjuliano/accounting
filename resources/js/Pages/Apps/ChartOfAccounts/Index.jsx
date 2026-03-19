@@ -7,7 +7,7 @@ import Input from '@/Components/Input';
 import Table from '@/Components/Table';
 import Search from '@/Components/Search';
 import Pagination from '@/Components/Pagination';
-import { IconBook2, IconCirclePlus, IconDatabaseOff, IconPencilCheck, IconPencilCog, IconTrash } from '@tabler/icons-react';
+import { IconBook2, IconCirclePlus, IconDatabaseImport, IconDatabaseOff, IconPencilCheck, IconPencilCog, IconTrash } from '@tabler/icons-react';
 
 const INITIAL_FORM = {
     id: '',
@@ -46,6 +46,9 @@ export default function Index() {
 
     const { data, setData, post, transform } = useForm({
         ...INITIAL_FORM,
+        company_id: companies[0]?.id ?? '',
+    });
+    const { data: importData, setData: setImportData, post: postImport } = useForm({
         company_id: companies[0]?.id ?? '',
     });
 
@@ -108,6 +111,10 @@ export default function Index() {
         post(targetRoute, { onSuccess: resetForm });
     };
 
+    const importDefaultTemplate = () => {
+        postImport(route('apps.chart-of-accounts.import-default-template'));
+    };
+
     return (
         <>
             <Head title='Chart Of Accounts' />
@@ -119,6 +126,13 @@ export default function Index() {
                         variant='gray'
                         label='Tambah Master COA'
                         onClick={() => openModal('master')}
+                    />
+                    <Button
+                        type='button'
+                        icon={<IconDatabaseImport size={20} strokeWidth={1.5} />}
+                        variant='gray'
+                        label='Import Template COA Transaksi'
+                        onClick={importDefaultTemplate}
                     />
                     <Button
                         type='button'
@@ -135,10 +149,40 @@ export default function Index() {
 
             <Modal show={data.isOpen} onClose={resetForm} title={data.isUpdate ? `Ubah ${data.form_type === 'transaction' ? 'COA Transaksi' : 'Master COA'}` : `Tambah ${data.form_type === 'transaction' ? 'COA Transaksi' : 'Master COA'}`} icon={<IconBook2 size={20} strokeWidth={1.5} />}>
                 <form onSubmit={submit} className='space-y-4'>
+                    {!data.isUpdate && data.form_type === 'transaction' && (
+                        <div className='flex flex-col gap-2'>
+                            <label className='text-gray-600 text-sm'>Template Import (Opsional)</label>
+                            <div className='flex gap-2 items-center'>
+                                <select
+                                    className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800'
+                                    value={importData.company_id}
+                                    onChange={(e) => {
+                                        const companyId = Number(e.target.value);
+                                        setImportData('company_id', companyId);
+                                        setData('company_id', companyId);
+                                    }}
+                                >
+                                    {companies.map((company) => (
+                                        <option key={company.id} value={company.id}>{company.name}</option>
+                                    ))}
+                                </select>
+                                <Button type='button' variant='gray' label='Use Default Template' onClick={importDefaultTemplate} />
+                            </div>
+                            <small className='text-xs text-gray-500'>Klik "Use Default Template" untuk auto-import COA transaksi. Atau lanjutkan isi form untuk input manual custom.</small>
+                        </div>
+                    )}
                     <div className='grid grid-cols-2 gap-3'>
                         <div className='flex flex-col gap-2'>
                             <label className='text-gray-600 text-sm'>Company</label>
-                            <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={data.company_id} onChange={(e) => setData('company_id', Number(e.target.value))}>
+                            <select
+                                className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800'
+                                value={data.company_id}
+                                onChange={(e) => {
+                                    const companyId = Number(e.target.value);
+                                    setData('company_id', companyId);
+                                    setImportData('company_id', companyId);
+                                }}
+                            >
                                 {companies.map((company) => (
                                     <option key={company.id} value={company.id}>{company.name}</option>
                                 ))}

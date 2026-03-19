@@ -49,6 +49,7 @@ Route::group(['prefix' => 'apps', 'as' => 'apps.' , 'middleware' => ['auth']], f
     Route::post('/fiscal-periods/{fiscal_period}/hard-close', [FiscalPeriodController::class, 'hardCloseYear'])->name('fiscal-periods.hard-close');
     // chart of accounts route
     Route::resource('/chart-of-accounts', ChartOfAccountController::class)->except(['create', 'edit', 'show'])->parameters(['chart-of-accounts' => 'chart_of_account']);
+    Route::post('/chart-of-accounts/import-default-template', [ChartOfAccountController::class, 'importDefaultTemplate'])->name('chart-of-accounts.import-default-template');
     // dimensions route
     Route::resource('/dimensions', DimensionController::class)->except(['create', 'edit', 'show']);
     // tax codes route
