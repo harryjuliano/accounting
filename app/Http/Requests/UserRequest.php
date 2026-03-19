@@ -22,6 +22,7 @@ class UserRequest extends FormRequest
     public function rules(): array
     {
         $method = $this->method();
+        $isCompanyAdminRoleSelected = collect($this->selectedRoles)->contains('company-admin');
 
         if($method === 'POST')
             return [
@@ -29,6 +30,7 @@ class UserRequest extends FormRequest
                 'email' => 'required|email|unique:users',
                 'password' => 'required|min:4|confirmed',
                 'selectedRoles' => 'required|array|min:1',
+                'company_id' => $isCompanyAdminRoleSelected ? 'required|exists:companies,id' : 'nullable|exists:companies,id',
             ];
         elseif($method === 'PUT')
             return [
@@ -36,6 +38,7 @@ class UserRequest extends FormRequest
                 'email' => 'required|email|unique:users,email,'. $this->user->id,
                 'password' => 'nullable|min:4|confirmed',
                 'selectedRoles' => 'required|array|min:1',
+                'company_id' => $isCompanyAdminRoleSelected ? 'required|exists:companies,id' : 'nullable|exists:companies,id',
             ];
     }
 
@@ -51,6 +54,7 @@ class UserRequest extends FormRequest
 
             'selectedRoles.required' => 'kolom akses group tidak boleh kosong.',
             'selectedRoles.min' => 'kolom akses group minimal harus 1 data',
+            'company_id.required' => 'company wajib dipilih untuk role company-admin.',
 
         ];
     }

@@ -17,7 +17,15 @@ class TaxCodeRequest extends FormRequest
         $taxCodeId = $this->tax_code?->id;
 
         return [
-            'company_id' => 'required|exists:companies,id',
+            'company_id' => [
+                'required',
+                'exists:companies,id',
+                function (string $attribute, mixed $value, \Closure $fail) {
+                    if ($this->user()?->hasRole('company-admin') && (int) $this->user()->company_id !== (int) $value) {
+                        $fail('Anda tidak memiliki akses ke company ini.');
+                    }
+                },
+            ],
             'code' => [
                 'required',
                 'string',

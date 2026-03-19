@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Apps;
 
+use App\Http\Controllers\Concerns\InteractsWithCompanyScope;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ChartOfAccountRequest;
 use App\Models\AccountGroup;
@@ -14,10 +15,13 @@ use Illuminate\Validation\ValidationException;
 
 class ChartOfAccountController extends Controller
 {
+    use InteractsWithCompanyScope;
+
     public function index(Request $request)
     {
         $baseQuery = ChartOfAccount::query()
             ->with(['company:id,name', 'accountGroup:id,name', 'parent:id,code,name', 'dimensions:id,company_id,name'])
+            ->when($this->isCompanyAdmin(), fn ($query) => $query->where('company_id', $request->user()->company_id))
             ->when($request->search, function ($query) use ($request) {
                 $query->where(function ($subQuery) use ($request) {
                     $subQuery->where('code', 'like', '%' . $request->search . '%')
@@ -38,14 +42,19 @@ class ChartOfAccountController extends Controller
             ->paginate(10, ['*'], 'transaction_page')
             ->withQueryString();
 
-        $companies = Company::query()->select('id', 'name')->orderBy('name')->get();
-        $accountGroups = AccountGroup::query()->select('id', 'company_id', 'name')->orderBy('name')->get();
+        $companies = $this->getAccessibleCompanies();
+        $accountGroups = AccountGroup::query()->select('id', 'company_id', 'name')
+            ->when($this->isCompanyAdmin(), fn ($query) => $query->where('company_id', $request->user()->company_id))
+            ->orderBy('name')->get();
         $parentAccounts = ChartOfAccount::query()
             ->select('id', 'company_id', 'account_group_id', 'code', 'name', 'level', 'account_type', 'financial_statement_group')
             ->where('level', 3)
+            ->when($this->isCompanyAdmin(), fn ($query) => $query->where('company_id', $request->user()->company_id))
             ->orderBy('code')
             ->get();
-        $dimensions = Dimension::query()->select('id', 'company_id', 'name')->where('is_active', true)->orderBy('name')->get();
+        $dimensions = Dimension::query()->select('id', 'company_id', 'name')->where('is_active', true)
+            ->when($this->isCompanyAdmin(), fn ($query) => $query->where('company_id', $request->user()->company_id))
+            ->orderBy('name')->get();
 
         return inertia('Apps/ChartOfAccounts/Index', [
             'masterChartOfAccounts' => $masterChartOfAccounts,
@@ -76,6 +85,8 @@ class ChartOfAccountController extends Controller
 
     public function update(ChartOfAccountRequest $request, ChartOfAccount $chart_of_account)
     {
+        $this->enforceCompanyAccess((int) $chart_of_account->company_id);
+
         $payload = $request->validated();
         $this->applyTransactionDefaults($payload);
         $dimensionIds = $payload['dimension_ids'] ?? [];
@@ -93,6 +104,7 @@ class ChartOfAccountController extends Controller
 
     public function destroy(ChartOfAccount $chart_of_account)
     {
+        $this->enforceCompanyAccess((int) $chart_of_account->company_id);
         $chart_of_account->delete();
 
         return back();
@@ -105,6 +117,8 @@ class ChartOfAccountController extends Controller
         ]);
 
         $companyId = (int) $payload['company_id'];
+        $this->enforceCompanyAccess($companyId);
+
         $parentAccounts = ChartOfAccount::query()
             ->where('company_id', $companyId)
             ->where('level', 3)

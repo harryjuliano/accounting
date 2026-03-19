@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Apps;
 
+use App\Http\Controllers\Concerns\InteractsWithCompanyScope;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ManualJournalRequest;
 use App\Models\AccountingPeriod;
@@ -16,6 +17,8 @@ use Illuminate\Validation\ValidationException;
 
 class ManualJournalController extends Controller
 {
+    use InteractsWithCompanyScope;
+
     private function resolveAccountingPeriod(int $companyId, string $postingDate): ?AccountingPeriod
     {
         return AccountingPeriod::query()
@@ -46,6 +49,7 @@ class ManualJournalController extends Controller
         $manualJournals = JournalEntry::query()
             ->with(['company:id,name', 'accountingPeriod:id,period_name', 'lines.account:id,company_id,code,name,requires_dimension'])
             ->where('journal_type', 'manual')
+            ->when($this->isCompanyAdmin(), fn ($query) => $query->where('company_id', $request->user()->company_id))
             ->when($request->search, function ($query) use ($request) {
                 $query->where(function ($subQuery) use ($request) {
                     $subQuery->where('journal_no', 'like', '%' . $request->search . '%')
@@ -60,12 +64,15 @@ class ManualJournalController extends Controller
 
         return inertia('Apps/ManualJournals/Index', [
             'manualJournals' => $manualJournals,
-            'companies' => Company::query()->select('id', 'name')->orderBy('name')->get(),
-            'accountingPeriods' => AccountingPeriod::query()->select('id', 'company_id', 'period_name', 'start_date', 'end_date')->orderByDesc('start_date')->get(),
+            'companies' => $this->getAccessibleCompanies(),
+            'accountingPeriods' => AccountingPeriod::query()->select('id', 'company_id', 'period_name', 'start_date', 'end_date')
+                ->when($this->isCompanyAdmin(), fn ($query) => $query->where('company_id', $request->user()->company_id))
+                ->orderByDesc('start_date')->get(),
             'currencies' => Currency::query()->select('code', 'name')->where('is_active', true)->orderBy('code')->get(),
             'accounts' => ChartOfAccount::query()
                 ->select('id', 'company_id', 'code', 'name', 'level', 'requires_dimension')
                 ->with(['dimensions:id,company_id,name,type,attribute_schema_json'])
+                ->when($this->isCompanyAdmin(), fn ($query) => $query->where('company_id', $request->user()->company_id))
                 ->where('is_active', true)
                 ->where('level', 4)
                 ->orderBy('code')
@@ -127,6 +134,8 @@ class ManualJournalController extends Controller
 
     public function update(ManualJournalRequest $request, JournalEntry $manual_journal)
     {
+        $this->enforceCompanyAccess((int) $manual_journal->company_id);
+
         $validated = $request->validated();
 
         DB::transaction(function () use ($validated, $manual_journal) {
@@ -178,6 +187,7 @@ class ManualJournalController extends Controller
 
     public function destroy(JournalEntry $manual_journal)
     {
+        $this->enforceCompanyAccess((int) $manual_journal->company_id);
         $manual_journal->delete();
 
         return back();

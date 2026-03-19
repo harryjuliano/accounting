@@ -18,7 +18,15 @@ class ManualJournalRequest extends FormRequest
         $journalEntryId = $this->manual_journal?->id;
 
         return [
-            'company_id' => ['required', 'exists:companies,id'],
+            'company_id' => [
+                'required',
+                'exists:companies,id',
+                function (string $attribute, mixed $value, \Closure $fail) {
+                    if ($this->user()?->hasRole('company-admin') && (int) $this->user()->company_id !== (int) $value) {
+                        $fail('Anda tidak memiliki akses ke company ini.');
+                    }
+                },
+            ],
             'accounting_period_id' => ['nullable', 'exists:accounting_periods,id'],
             'journal_no' => [
                 'required',

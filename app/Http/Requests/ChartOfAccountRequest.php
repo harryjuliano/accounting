@@ -19,7 +19,15 @@ class ChartOfAccountRequest extends FormRequest
 
         return [
             'form_type' => 'nullable|in:master,transaction',
-            'company_id' => 'required|exists:companies,id',
+            'company_id' => [
+                'required',
+                'exists:companies,id',
+                function (string $attribute, mixed $value, \Closure $fail) {
+                    if ($this->user()?->hasRole('company-admin') && (int) $this->user()->company_id !== (int) $value) {
+                        $fail('Anda tidak memiliki akses ke company ini.');
+                    }
+                },
+            ],
             'account_group_id' => 'nullable|exists:account_groups,id',
             'parent_id' => [
                 Rule::requiredIf($isTransactionCoa),

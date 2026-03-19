@@ -16,6 +16,8 @@ import {
     IconReportMoney,
     IconSettings,
     IconShieldCheck,
+    IconUserCog,
+    IconUsers,
 } from '@tabler/icons-react';
 import hasAnyPermission from './Permissions';
 
@@ -23,8 +25,36 @@ export default function Menu() {
     const { url } = usePage();
 
     const accountingAccess = hasAnyPermission(['dashboard-access']);
+    const userManagementAccess = hasAnyPermission(['users-access', 'roles-access', 'permissions-access']);
 
     const menuNavigation = [
+        {
+            title: 'User Management',
+            permissions: userManagementAccess,
+            details: [
+                {
+                    title: 'Users',
+                    href: '/apps/users',
+                    active: url.startsWith('/apps/users'),
+                    icon: <IconUsers size={20} strokeWidth={1.5} />,
+                    permissions: hasAnyPermission(['users-access']),
+                },
+                {
+                    title: 'Roles',
+                    href: '/apps/roles',
+                    active: url.startsWith('/apps/roles'),
+                    icon: <IconUserCog size={20} strokeWidth={1.5} />,
+                    permissions: hasAnyPermission(['roles-access']),
+                },
+                {
+                    title: 'Permissions',
+                    href: '/apps/permissions',
+                    active: url.startsWith('/apps/permissions'),
+                    icon: <IconShieldCheck size={20} strokeWidth={1.5} />,
+                    permissions: hasAnyPermission(['permissions-access']),
+                },
+            ],
+        },
         {
             title: 'Dashboard',
             permissions: accountingAccess,

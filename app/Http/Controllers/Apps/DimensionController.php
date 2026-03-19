@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Apps;
 
+use App\Http\Controllers\Concerns\InteractsWithCompanyScope;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\DimensionRequest;
 use App\Models\Company;
@@ -12,10 +13,13 @@ use Illuminate\Validation\ValidationException;
 
 class DimensionController extends Controller
 {
+    use InteractsWithCompanyScope;
+
     public function index(Request $request)
     {
         $dimensions = Dimension::query()
             ->with('company:id,name')
+            ->when($this->isCompanyAdmin(), fn ($query) => $query->where('company_id', $request->user()->company_id))
             ->when($request->search, function ($query) use ($request) {
                 $query->where(function ($subQuery) use ($request) {
                     $subQuery->where('code', 'like', '%' . $request->search . '%')
@@ -28,7 +32,7 @@ class DimensionController extends Controller
             ->paginate(10)
             ->withQueryString();
 
-        $companies = Company::query()->select('id', 'name')->orderBy('name')->get();
+        $companies = $this->getAccessibleCompanies();
 
         return inertia('Apps/Dimensions/Index', [
             'dimensions' => $dimensions,
@@ -45,6 +49,7 @@ class DimensionController extends Controller
 
     public function update(DimensionRequest $request, Dimension $dimension)
     {
+        $this->enforceCompanyAccess((int) $dimension->company_id);
         $dimension->update($this->validatedPayload($request));
 
         return back();
@@ -52,6 +57,7 @@ class DimensionController extends Controller
 
     public function destroy(Dimension $dimension)
     {
+        $this->enforceCompanyAccess((int) $dimension->company_id);
         $dimension->delete();
 
         return back();

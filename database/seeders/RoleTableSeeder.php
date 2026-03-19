@@ -43,5 +43,9 @@ class RoleTableSeeder extends Seeder
 
         // create new role
         Role::create(['name' => 'super-admin']);
+
+        // create company admin role
+        $companyAdmin = Role::create(['name' => 'company-admin']);
+        $companyAdmin->givePermissionTo(['dashboard-access', 'company-admin-access']);
     }
 }

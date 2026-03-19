@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Apps;
 
+use App\Http\Controllers\Concerns\InteractsWithCompanyScope;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CompanyRequest;
 use App\Models\Company;
@@ -9,9 +10,12 @@ use Illuminate\Http\Request;
 
 class CompanyController extends Controller
 {
+    use InteractsWithCompanyScope;
+
     public function index(Request $request)
     {
         $companies = Company::query()
+            ->when($this->isCompanyAdmin(), fn ($query) => $query->where('id', $request->user()->company_id))
             ->when($request->search, function ($query) use ($request) {
                 $query->where(function ($subQuery) use ($request) {
                     $subQuery->where('code', 'like', '%' . $request->search . '%')
@@ -30,6 +34,8 @@ class CompanyController extends Controller
 
     public function store(CompanyRequest $request)
     {
+        abort_if($this->isCompanyAdmin(), 403, 'Company admin tidak dapat membuat company baru.');
+
         Company::create($request->validated());
 
         return back();
@@ -37,6 +43,7 @@ class CompanyController extends Controller
 
     public function update(CompanyRequest $request, Company $company)
     {
+        $this->enforceCompanyAccess((int) $company->id);
         $company->update($request->validated());
 
         return back();
@@ -44,6 +51,7 @@ class CompanyController extends Controller
 
     public function destroy(Company $company)
     {
+        $this->enforceCompanyAccess((int) $company->id);
         $company->delete();
 
         return back();

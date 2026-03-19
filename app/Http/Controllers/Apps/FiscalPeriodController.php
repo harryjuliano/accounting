@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Apps;
 
+use App\Http\Controllers\Concerns\InteractsWithCompanyScope;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\FiscalPeriodRequest;
 use App\Models\AccountingPeriod;
@@ -15,6 +16,8 @@ use Illuminate\Support\Facades\Auth;
 
 class FiscalPeriodController extends Controller
 {
+    use InteractsWithCompanyScope;
+
     private function buildFiscalYearPayload(array $validated): array
     {
         $fiscalYear = (int) $validated['year_label'];
@@ -66,16 +69,14 @@ class FiscalPeriodController extends Controller
                 'company:id,name',
                 'accountingPeriods:id,company_id,fiscal_year_id,period_no,period_name,start_date,end_date,status,closed_at',
             ])
+            ->when($this->isCompanyAdmin(), fn ($query) => $query->where('company_id', $request->user()->company_id))
             ->when($request->search, fn ($query) => $query->where('year_label', 'like', '%' . $request->search . '%'))
             ->orderByDesc('year_label')
             ->orderByDesc('id')
             ->paginate(10)
             ->withQueryString();
 
-        $companies = Company::query()
-            ->select('id', 'name')
-            ->orderBy('name')
-            ->get();
+        $companies = $this->getAccessibleCompanies();
 
         return inertia('Apps/FiscalPeriods/Index', [
             'fiscalPeriods' => $fiscalPeriods,
@@ -95,6 +96,8 @@ class FiscalPeriodController extends Controller
 
     public function update(FiscalPeriodRequest $request, FiscalYear $fiscal_period)
     {
+        $this->enforceCompanyAccess((int) $fiscal_period->company_id);
+
         DB::transaction(function () use ($request, $fiscal_period) {
             $fiscal_period->update($this->buildFiscalYearPayload($request->validated()));
             $this->syncAccountingPeriods($fiscal_period->fresh());
@@ -105,6 +108,7 @@ class FiscalPeriodController extends Controller
 
     public function destroy(FiscalYear $fiscal_period)
     {
+        $this->enforceCompanyAccess((int) $fiscal_period->company_id);
         $fiscal_period->delete();
 
         return back();
@@ -112,6 +116,7 @@ class FiscalPeriodController extends Controller
 
     public function toggleMonthlyClose(FiscalYear $fiscal_period, AccountingPeriod $accounting_period)
     {
+        $this->enforceCompanyAccess((int) $fiscal_period->company_id);
         abort_unless($accounting_period->fiscal_year_id === $fiscal_period->id, 404);
 
         if (! in_array($accounting_period->status, ['open', 'soft_closed'], true)) {
@@ -133,6 +138,8 @@ class FiscalPeriodController extends Controller
 
     public function hardCloseYear(FiscalYear $fiscal_period)
     {
+        $this->enforceCompanyAccess((int) $fiscal_period->company_id);
+
         DB::transaction(function () use ($fiscal_period) {
             $fiscal_period->update(['status' => 'closed']);
 
