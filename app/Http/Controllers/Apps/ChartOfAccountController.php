@@ -16,7 +16,7 @@ class ChartOfAccountController extends Controller
 {
     public function index(Request $request)
     {
-        $chartOfAccounts = ChartOfAccount::query()
+        $baseQuery = ChartOfAccount::query()
             ->with(['company:id,name', 'accountGroup:id,name', 'parent:id,code,name', 'dimensions:id,company_id,name'])
             ->when($request->search, function ($query) use ($request) {
                 $query->where(function ($subQuery) use ($request) {
@@ -25,18 +25,31 @@ class ChartOfAccountController extends Controller
                         ->orWhere('account_type', 'like', '%' . $request->search . '%')
                         ->orWhereHas('company', fn ($companyQuery) => $companyQuery->where('name', 'like', '%' . $request->search . '%'));
                 });
-            })
+            });
+
+        $masterChartOfAccounts = (clone $baseQuery)
             ->latest()
-            ->paginate(10)
+            ->paginate(10, ['*'], 'master_page')
+            ->withQueryString();
+
+        $transactionChartOfAccounts = (clone $baseQuery)
+            ->where('level', 4)
+            ->latest()
+            ->paginate(10, ['*'], 'transaction_page')
             ->withQueryString();
 
         $companies = Company::query()->select('id', 'name')->orderBy('name')->get();
         $accountGroups = AccountGroup::query()->select('id', 'company_id', 'name')->orderBy('name')->get();
-        $parentAccounts = ChartOfAccount::query()->select('id', 'company_id', 'code', 'name')->orderBy('code')->get();
+        $parentAccounts = ChartOfAccount::query()
+            ->select('id', 'company_id', 'account_group_id', 'code', 'name', 'level', 'account_type', 'financial_statement_group')
+            ->where('level', 3)
+            ->orderBy('code')
+            ->get();
         $dimensions = Dimension::query()->select('id', 'company_id', 'name')->where('is_active', true)->orderBy('name')->get();
 
         return inertia('Apps/ChartOfAccounts/Index', [
-            'chartOfAccounts' => $chartOfAccounts,
+            'masterChartOfAccounts' => $masterChartOfAccounts,
+            'transactionChartOfAccounts' => $transactionChartOfAccounts,
             'companies' => $companies,
             'accountGroups' => $accountGroups,
             'parentAccounts' => $parentAccounts,
@@ -47,6 +60,7 @@ class ChartOfAccountController extends Controller
     public function store(ChartOfAccountRequest $request)
     {
         $payload = $request->validated();
+        $this->applyTransactionDefaults($payload);
         $dimensionIds = $payload['dimension_ids'] ?? [];
         unset($payload['dimension_ids']);
 
@@ -63,6 +77,7 @@ class ChartOfAccountController extends Controller
     public function update(ChartOfAccountRequest $request, ChartOfAccount $chart_of_account)
     {
         $payload = $request->validated();
+        $this->applyTransactionDefaults($payload);
         $dimensionIds = $payload['dimension_ids'] ?? [];
         unset($payload['dimension_ids']);
 
@@ -99,5 +114,25 @@ class ChartOfAccountController extends Controller
                 'dimension_ids' => 'Semua dimension harus berasal dari company yang sama dengan akun COA.',
             ]);
         }
+    }
+
+    private function applyTransactionDefaults(array &$payload): void
+    {
+        if (($payload['form_type'] ?? null) !== 'transaction') {
+            unset($payload['form_type']);
+
+            return;
+        }
+
+        $parentAccount = ChartOfAccount::query()
+            ->select('id', 'account_group_id', 'account_type', 'financial_statement_group')
+            ->find($payload['parent_id']);
+
+        $payload['level'] = 4;
+        $payload['account_group_id'] = $parentAccount?->account_group_id;
+        $payload['account_type'] = $parentAccount?->account_type;
+        $payload['financial_statement_group'] = $parentAccount?->financial_statement_group;
+
+        unset($payload['form_type']);
     }
 }
