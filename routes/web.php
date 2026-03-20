@@ -50,6 +50,8 @@ Route::group(['prefix' => 'apps', 'as' => 'apps.' , 'middleware' => ['auth']], f
     // chart of accounts route
     Route::resource('/chart-of-accounts', ChartOfAccountController::class)->except(['create', 'edit', 'show'])->parameters(['chart-of-accounts' => 'chart_of_account']);
     Route::post('/chart-of-accounts/import-default-template', [ChartOfAccountController::class, 'importDefaultTemplate'])->name('chart-of-accounts.import-default-template');
+    Route::post('/chart-of-accounts/import-transaction-template', [ChartOfAccountController::class, 'importTransactionTemplate'])->name('chart-of-accounts.import-transaction-template');
+    Route::get('/chart-of-accounts/export-transaction-template', [ChartOfAccountController::class, 'exportTransactionTemplate'])->name('chart-of-accounts.export-transaction-template');
     // dimensions route
     Route::resource('/dimensions', DimensionController::class)->except(['create', 'edit', 'show']);
     // tax codes route
