@@ -40,6 +40,7 @@ export default function Button({className, icon, label, type, href, url, id, var
 
     // variant color button
     const variants = {
+        blue: 'bg-blue-600 text-white border-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:border-blue-500 dark:hover:bg-blue-400',
         rose: 'bg-white text-rose-500 hover:bg-gray-100 dark:bg-gray-900 dark:border-gray-800 dark:hover:bg-gray-950',
         roseBlack: 'bg-white text-rose-500 hover:bg-gray-100 dark:bg-gray-950 dark:border-gray-800 dark:hover:bg-gray-900',
         orange: 'bg-white text-orange-500 hover:bg-gray-100 dark:bg-gray-900 dark:border-gray-800 dark:hover:bg-gray-950',

@@ -10,8 +10,6 @@ import Pagination from '@/Components/Pagination';
 import { IconCirclePlus, IconDatabaseOff, IconNotes, IconPencilCheck, IconPencilCog, IconPlus, IconTrash } from '@tabler/icons-react';
 
 const emptyLine = { account_id: '', description: '', debit: 0, credit: 0, dimension_details: [] };
-const amountFormatter = new Intl.NumberFormat('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
 const getTodayDate = () => new Date().toISOString().split('T')[0];
 
 const parseAmountInput = (value) => {
@@ -24,7 +22,10 @@ const parseAmountInput = (value) => {
     return Number.isNaN(parsed) ? 0 : parsed;
 };
 
-const formatAmount = (value) => amountFormatter.format(Number(value || 0));
+const formatAmount = (value, decimalPlaces = 2) => new Intl.NumberFormat('id-ID', {
+    minimumFractionDigits: decimalPlaces,
+    maximumFractionDigits: decimalPlaces,
+}).format(Number(value || 0));
 
 const normalizeDimensionDetails = (details = []) => {
     if (!Array.isArray(details)) {
@@ -38,11 +39,11 @@ const normalizeDimensionDetails = (details = []) => {
 };
 
 export default function Index() {
-    const { manualJournals, companies, accountingPeriods, currencies, accounts, defaultEntryDate, errors } = usePage().props;
+    const { manualJournals, companies, branches, accountingPeriods, currencies, accounts, defaultEntryDate, errors } = usePage().props;
     const fallbackEntryDate = defaultEntryDate || getTodayDate();
 
     const { data, setData, post, transform } = useForm({
-        id: '', company_id: companies[0]?.id ?? '', accounting_period_id: '', journal_no: '', entry_date: fallbackEntryDate, posting_date: '', reference_no: '', description: '',
+        id: '', company_id: companies[0]?.id ?? '', branch_id: '', accounting_period_id: '', journal_no: '', entry_date: fallbackEntryDate, posting_date: '', reference_no: '', description: '',
         currency_code: currencies[0]?.code ?? 'IDR', exchange_rate: 1, status: 'draft', lines: [{ ...emptyLine }, { ...emptyLine }], isUpdate: false, isOpen: false,
     });
 
@@ -53,7 +54,7 @@ export default function Index() {
 
     const resetForm = () => {
         setData({
-            id: '', company_id: companies[0]?.id ?? '', accounting_period_id: '', journal_no: '', entry_date: fallbackEntryDate, posting_date: '', reference_no: '', description: '',
+            id: '', company_id: companies[0]?.id ?? '', branch_id: '', accounting_period_id: '', journal_no: '', entry_date: fallbackEntryDate, posting_date: '', reference_no: '', description: '',
             currency_code: currencies[0]?.code ?? 'IDR', exchange_rate: 1, status: 'draft', lines: [{ ...emptyLine }, { ...emptyLine }], isUpdate: false, isOpen: false,
         });
         setDimensionEditor({ open: false, lineIndex: null, details: [] });
@@ -66,7 +67,10 @@ export default function Index() {
     };
 
     const filteredPeriods = accountingPeriods.filter((period) => period.company_id === Number(data.company_id));
+    const filteredBranches = branches.filter((branch) => branch.company_id === Number(data.company_id));
     const filteredAccounts = accounts.filter((account) => account.company_id === Number(data.company_id) && Number(account.level) === 4);
+    const selectedCurrency = currencies.find((currency) => currency.code === data.currency_code);
+    const decimalPlaces = Number(selectedCurrency?.decimal_places ?? 2);
     const selectedPeriod = filteredPeriods.find((period) => {
         if (!data.posting_date) return false;
 
@@ -182,7 +186,7 @@ export default function Index() {
                         <div className='flex flex-col gap-2'>
                             <label className='text-gray-600 text-sm'>Company</label>
                             <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={data.company_id} onChange={(e) => {
-                                setData({ ...data, company_id: Number(e.target.value), accounting_period_id: '', posting_date: '', lines: [{ ...emptyLine }, { ...emptyLine }] });
+                                setData({ ...data, company_id: Number(e.target.value), branch_id: '', accounting_period_id: '', posting_date: '', lines: [{ ...emptyLine }, { ...emptyLine }] });
                                 setAccountSearchTerms(['', '']);
                             }}>{companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}</select>
                             {errors.company_id && <small className='text-xs text-red-500'>{errors.company_id}</small>}
@@ -191,6 +195,16 @@ export default function Index() {
                             <label className='text-gray-600 text-sm'>Periode</label>
                             <input type='text' readOnly value={selectedPeriod ? `${selectedPeriod.period_name} (${selectedPeriod.start_date} s/d ${selectedPeriod.end_date})` : 'Pilih tanggal posting terlebih dahulu'} className='w-full px-3 py-1.5 border text-sm rounded-md bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800 cursor-not-allowed' />
                             {errors.accounting_period_id && <small className='text-xs text-red-500'>{errors.accounting_period_id}</small>}
+                        </div>
+                    </div>
+                    <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
+                        <div className='flex flex-col gap-2'>
+                            <label className='text-gray-600 text-sm'>Branch</label>
+                            <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={data.branch_id} onChange={(e) => setData('branch_id', e.target.value ? Number(e.target.value) : '')}>
+                                <option value=''>Tidak Spesifik</option>
+                                {filteredBranches.map((branch) => <option key={branch.id} value={branch.id}>{branch.code} - {branch.name}</option>)}
+                            </select>
+                            {errors.branch_id && <small className='text-xs text-red-500'>{errors.branch_id}</small>}
                         </div>
                     </div>
                     <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
@@ -227,19 +241,23 @@ export default function Index() {
 
                             return (
                                 <div key={index} className='grid grid-cols-1 md:grid-cols-12 gap-2 items-end'>
-                                    <div className='md:col-span-3'>
-                                        <label className='text-gray-600 text-sm'>Akun</label>
+                                    <div className='md:col-span-1'>
+                                        <label className='text-gray-600 text-sm'>Cari COA</label>
                                         <input
                                             type='text'
-                                            placeholder='Cari COA level 4...'
+                                            placeholder='COA...'
+                                            maxLength={8}
                                             value={accountSearchTerms[index] ?? ''}
                                             onChange={(e) => {
                                                 const newTerms = [...accountSearchTerms];
                                                 newTerms[index] = e.target.value;
                                                 setAccountSearchTerms(newTerms);
                                             }}
-                                            className='w-full mb-1 px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800'
+                                            className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800'
                                         />
+                                    </div>
+                                    <div className='md:col-span-2'>
+                                        <label className='text-gray-600 text-sm'>Akun</label>
                                         <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={line.account_id} onChange={(e) => updateLine(index, 'account_id', Number(e.target.value))}>
                                             <option value=''>Pilih akun</option>
                                             {filteredAccounts
@@ -274,17 +292,29 @@ export default function Index() {
                                     </div>
                                     <div className='md:col-span-2'><Input label='Deskripsi' type='text' value={line.description} onChange={(e) => updateLine(index, 'description', e.target.value)} /></div>
                                     <div className='md:col-span-2'>
-                                        <Input label='Debit' type='number' min='0' step='0.01' value={line.debit} onChange={(e) => updateLine(index, 'debit', parseAmountInput(e.target.value))} />
+                                        <Input
+                                            label='Debit'
+                                            type='text'
+                                            inputMode='decimal'
+                                            value={formatAmount(line.debit, decimalPlaces)}
+                                            onChange={(e) => updateLine(index, 'debit', parseAmountInput(e.target.value))}
+                                        />
                                     </div>
                                     <div className='md:col-span-2'>
-                                        <Input label='Kredit' type='number' min='0' step='0.01' value={line.credit} onChange={(e) => updateLine(index, 'credit', parseAmountInput(e.target.value))} />
+                                        <Input
+                                            label='Kredit'
+                                            type='text'
+                                            inputMode='decimal'
+                                            value={formatAmount(line.credit, decimalPlaces)}
+                                            onChange={(e) => updateLine(index, 'credit', parseAmountInput(e.target.value))}
+                                        />
                                     </div>
                                     <div className='md:col-span-1 pb-1'><Button type='button' variant='rose' icon={<IconTrash size={16} strokeWidth={1.5} />} onClick={() => removeLine(index)} /></div>
                                 </div>
                             );
                         })}
                         {(errors.lines || errors['lines.0.debit']) && <small className='text-xs text-red-500'>{errors.lines || errors['lines.0.debit']}</small>}
-                        <div className='text-sm text-gray-600 dark:text-gray-300'>Total Debit: <b>{formatAmount(totalDebit)}</b> | Total Kredit: <b>{formatAmount(totalCredit)}</b></div>
+                        <div className='text-sm text-gray-600 dark:text-gray-300'>Total Debit: <b>{formatAmount(totalDebit, decimalPlaces)}</b> | Total Kredit: <b>{formatAmount(totalCredit, decimalPlaces)}</b></div>
                     </div>
                     <Button type='submit' variant='gray' icon={<IconPencilCheck size={20} strokeWidth={1.5} />} label='Simpan' />
                 </form>
@@ -403,7 +433,7 @@ export default function Index() {
                                 <Table.Td className='capitalize'>{journal.status.replace('_', ' ')}</Table.Td>
                                 <Table.Td><div className='flex gap-2'><Button type='modal' variant='orange' icon={<IconPencilCog size={16} strokeWidth={1.5} />} onClick={() => {
                                     const lines = journal.lines.map((line) => ({ account_id: line.account_id, description: line.description ?? '', debit: Number(line.debit), credit: Number(line.credit), dimension_details: normalizeDimensionDetails(line.dimension_details_json ?? line.dimension_details) }));
-                                    setData({ ...journal, company_id: journal.company_id, accounting_period_id: journal.accounting_period_id, exchange_rate: Number(journal.exchange_rate), lines, isUpdate: true, isOpen: true });
+                                    setData({ ...journal, company_id: journal.company_id, branch_id: journal.branch_id ?? '', accounting_period_id: journal.accounting_period_id, exchange_rate: Number(journal.exchange_rate), lines, isUpdate: true, isOpen: true });
                                     setAccountSearchTerms(lines.map(() => ''));
                                 }} /><Button type='delete' variant='rose' icon={<IconTrash size={16} strokeWidth={1.5} />} url={route('apps.manual-journals.destroy', journal.id)} /></div></Table.Td>
                             </tr>

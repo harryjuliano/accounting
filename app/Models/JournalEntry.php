@@ -11,6 +11,7 @@ class JournalEntry extends Model
 
     protected $fillable = [
         'company_id',
+        'branch_id',
         'accounting_period_id',
         'journal_batch_id',
         'journal_no',
@@ -57,6 +58,11 @@ class JournalEntry extends Model
     public function accountingPeriod()
     {
         return $this->belongsTo(AccountingPeriod::class);
+    }
+
+    public function branch()
+    {
+        return $this->belongsTo(Branch::class);
     }
 
     public function lines()

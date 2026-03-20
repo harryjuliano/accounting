@@ -27,6 +27,10 @@ class ManualJournalRequest extends FormRequest
                     }
                 },
             ],
+            'branch_id' => [
+                'nullable',
+                Rule::exists('branches', 'id')->where(fn ($query) => $query->where('company_id', $this->company_id)),
+            ],
             'accounting_period_id' => ['nullable', 'exists:accounting_periods,id'],
             'journal_no' => [
                 'required',

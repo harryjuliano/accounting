@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\InteractsWithCompanyScope;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ManualJournalRequest;
 use App\Models\AccountingPeriod;
+use App\Models\Branch;
 use App\Models\ChartOfAccount;
 use App\Models\Company;
 use App\Models\Currency;
@@ -47,7 +48,7 @@ class ManualJournalController extends Controller
     public function index(Request $request)
     {
         $manualJournals = JournalEntry::query()
-            ->with(['company:id,name', 'accountingPeriod:id,period_name', 'lines.account:id,company_id,code,name,requires_dimension'])
+            ->with(['company:id,name', 'branch:id,company_id,code,name', 'accountingPeriod:id,period_name', 'lines.account:id,company_id,code,name,requires_dimension'])
             ->where('journal_type', 'manual')
             ->when($this->isCompanyAdmin(), fn ($query) => $query->where('company_id', $request->user()->company_id))
             ->when($request->search, function ($query) use ($request) {
@@ -65,10 +66,16 @@ class ManualJournalController extends Controller
         return inertia('Apps/ManualJournals/Index', [
             'manualJournals' => $manualJournals,
             'companies' => $this->getAccessibleCompanies(),
+            'branches' => Branch::query()
+                ->select('id', 'company_id', 'code', 'name')
+                ->where('is_active', true)
+                ->when($this->isCompanyAdmin(), fn ($query) => $query->where('company_id', $request->user()->company_id))
+                ->orderBy('code')
+                ->get(),
             'accountingPeriods' => AccountingPeriod::query()->select('id', 'company_id', 'period_name', 'start_date', 'end_date')
                 ->when($this->isCompanyAdmin(), fn ($query) => $query->where('company_id', $request->user()->company_id))
                 ->orderByDesc('start_date')->get(),
-            'currencies' => Currency::query()->select('code', 'name')->where('is_active', true)->orderBy('code')->get(),
+            'currencies' => Currency::query()->select('code', 'name', 'decimal_places')->where('is_active', true)->orderBy('code')->get(),
             'accounts' => ChartOfAccount::query()
                 ->select('id', 'company_id', 'code', 'name', 'level', 'requires_dimension')
                 ->with(['dimensions:id,company_id,name,type,attribute_schema_json'])
@@ -100,6 +107,7 @@ class ManualJournalController extends Controller
 
             $journalEntry = JournalEntry::create([
                 'company_id' => $validated['company_id'],
+                'branch_id' => $validated['branch_id'] ?? null,
                 'accounting_period_id' => $accountingPeriod->id,
                 'journal_no' => $validated['journal_no'],
                 'journal_type' => 'manual',
@@ -153,6 +161,7 @@ class ManualJournalController extends Controller
 
             $manual_journal->update([
                 'company_id' => $validated['company_id'],
+                'branch_id' => $validated['branch_id'] ?? null,
                 'accounting_period_id' => $accountingPeriod->id,
                 'journal_no' => $validated['journal_no'],
                 'entry_date' => $validated['entry_date'],
