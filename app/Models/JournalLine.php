@@ -16,6 +16,8 @@ class JournalLine extends Model
         'description',
         'debit',
         'credit',
+        'original_currency_code',
+        'original_currency_amount',
         'base_currency_debit',
         'base_currency_credit',
         'dimension_details_json',
@@ -24,6 +26,7 @@ class JournalLine extends Model
     protected $casts = [
         'debit' => 'decimal:2',
         'credit' => 'decimal:2',
+        'original_currency_amount' => 'decimal:2',
         'base_currency_debit' => 'decimal:2',
         'base_currency_credit' => 'decimal:2',
         'dimension_details_json' => 'array',
