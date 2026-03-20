@@ -27,6 +27,22 @@ const formatAmount = (value, decimalPlaces = 2) => new Intl.NumberFormat('id-ID'
     maximumFractionDigits: decimalPlaces,
 }).format(Number(value || 0));
 
+const normalizeAmountInput = (value) => {
+    const sanitized = `${value ?? ''}`.replace(/[^0-9.,]/g, '');
+    const commaCount = (sanitized.match(/,/g) || []).length;
+    const dotCount = (sanitized.match(/\./g) || []).length;
+
+    if (commaCount > 0 && dotCount > 0) {
+        return sanitized.replace(/\./g, '').replace(',', '.');
+    }
+
+    if (commaCount > 0) {
+        return sanitized.replace(',', '.');
+    }
+
+    return sanitized;
+};
+
 const normalizeDimensionDetails = (details = []) => {
     if (!Array.isArray(details)) {
         return [];
@@ -41,6 +57,7 @@ const normalizeDimensionDetails = (details = []) => {
 export default function Index() {
     const { manualJournals, companies, branches, accountingPeriods, currencies, accounts, defaultEntryDate, errors } = usePage().props;
     const fallbackEntryDate = defaultEntryDate || getTodayDate();
+    const initialDecimalPlaces = Number(currencies[0]?.decimal_places ?? 2);
 
     const { data, setData, post, transform } = useForm({
         id: '', company_id: companies[0]?.id ?? '', branch_id: '', accounting_period_id: '', journal_no: '', entry_date: fallbackEntryDate, posting_date: '', reference_no: '', description: '',
@@ -49,6 +66,9 @@ export default function Index() {
 
     const [dimensionEditor, setDimensionEditor] = React.useState({ open: false, lineIndex: null, details: [] });
     const [accountSearchTerms, setAccountSearchTerms] = React.useState(['', '']);
+    const [amountInputValues, setAmountInputValues] = React.useState(
+        [{ debit: formatAmount(0, initialDecimalPlaces), credit: formatAmount(0, initialDecimalPlaces) }, { debit: formatAmount(0, initialDecimalPlaces), credit: formatAmount(0, initialDecimalPlaces) }],
+    );
 
     transform((formData) => ({ ...formData, _method: formData.isUpdate ? 'put' : 'post' }));
 
@@ -59,6 +79,10 @@ export default function Index() {
         });
         setDimensionEditor({ open: false, lineIndex: null, details: [] });
         setAccountSearchTerms(['', '']);
+        setAmountInputValues([
+            { debit: formatAmount(0, decimalPlaces), credit: formatAmount(0, decimalPlaces) },
+            { debit: formatAmount(0, decimalPlaces), credit: formatAmount(0, decimalPlaces) },
+        ]);
     };
 
     const submit = (e) => {
@@ -96,6 +120,7 @@ export default function Index() {
     const addLine = () => {
         setData('lines', [...data.lines, { ...emptyLine }]);
         setAccountSearchTerms((prev) => [...prev, '']);
+        setAmountInputValues((prev) => [...prev, { debit: formatAmount(0, decimalPlaces), credit: formatAmount(0, decimalPlaces) }]);
     };
     const removeLine = (index) => {
         if (data.lines.length <= 2) {
@@ -104,7 +129,31 @@ export default function Index() {
 
         setData('lines', data.lines.filter((_, i) => i !== index));
         setAccountSearchTerms((prev) => prev.filter((_, i) => i !== index));
+        setAmountInputValues((prev) => prev.filter((_, i) => i !== index));
     };
+
+    const updateAmountInput = (index, field, nextValue) => {
+        setAmountInputValues((prev) => {
+            const next = [...prev];
+            const current = next[index] || { debit: formatAmount(0, decimalPlaces), credit: formatAmount(0, decimalPlaces) };
+            next[index] = { ...current, [field]: nextValue };
+            return next;
+        });
+    };
+
+    const commitAmountInput = (index, field) => {
+        const rawValue = amountInputValues[index]?.[field] ?? '';
+        const parsedValue = parseAmountInput(rawValue);
+        updateLine(index, field, parsedValue);
+        updateAmountInput(index, field, formatAmount(parsedValue, decimalPlaces));
+    };
+
+    React.useEffect(() => {
+        setAmountInputValues(data.lines.map((line) => ({
+            debit: formatAmount(line.debit, decimalPlaces),
+            credit: formatAmount(line.credit, decimalPlaces),
+        })));
+    }, [data.lines, decimalPlaces]);
 
     const openDimensionEditor = (lineIndex) => {
         const line = data.lines[lineIndex] ?? {};
@@ -182,22 +231,19 @@ export default function Index() {
                 icon={<IconNotes size={20} strokeWidth={1.5} />}
             >
                 <form onSubmit={submit} className='space-y-4'>
-                    <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
+                    <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
                         <div className='flex flex-col gap-2'>
                             <label className='text-gray-600 text-sm'>Company</label>
                             <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={data.company_id} onChange={(e) => {
                                 setData({ ...data, company_id: Number(e.target.value), branch_id: '', accounting_period_id: '', posting_date: '', lines: [{ ...emptyLine }, { ...emptyLine }] });
                                 setAccountSearchTerms(['', '']);
+                                setAmountInputValues([
+                                    { debit: formatAmount(0, decimalPlaces), credit: formatAmount(0, decimalPlaces) },
+                                    { debit: formatAmount(0, decimalPlaces), credit: formatAmount(0, decimalPlaces) },
+                                ]);
                             }}>{companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}</select>
                             {errors.company_id && <small className='text-xs text-red-500'>{errors.company_id}</small>}
                         </div>
-                        <div className='flex flex-col gap-2'>
-                            <label className='text-gray-600 text-sm'>Periode</label>
-                            <input type='text' readOnly value={selectedPeriod ? `${selectedPeriod.period_name} (${selectedPeriod.start_date} s/d ${selectedPeriod.end_date})` : 'Pilih tanggal posting terlebih dahulu'} className='w-full px-3 py-1.5 border text-sm rounded-md bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800 cursor-not-allowed' />
-                            {errors.accounting_period_id && <small className='text-xs text-red-500'>{errors.accounting_period_id}</small>}
-                        </div>
-                    </div>
-                    <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
                         <div className='flex flex-col gap-2'>
                             <label className='text-gray-600 text-sm'>Branch</label>
                             <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={data.branch_id} onChange={(e) => setData('branch_id', e.target.value ? Number(e.target.value) : '')}>
@@ -205,6 +251,11 @@ export default function Index() {
                                 {filteredBranches.map((branch) => <option key={branch.id} value={branch.id}>{branch.code} - {branch.name}</option>)}
                             </select>
                             {errors.branch_id && <small className='text-xs text-red-500'>{errors.branch_id}</small>}
+                        </div>
+                        <div className='flex flex-col gap-2'>
+                            <label className='text-gray-600 text-sm'>Periode</label>
+                            <input type='text' readOnly value={selectedPeriod ? `${selectedPeriod.period_name} (${selectedPeriod.start_date} s/d ${selectedPeriod.end_date})` : 'Pilih tanggal posting terlebih dahulu'} className='w-full px-3 py-1.5 border text-sm rounded-md bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800 cursor-not-allowed' />
+                            {errors.accounting_period_id && <small className='text-xs text-red-500'>{errors.accounting_period_id}</small>}
                         </div>
                     </div>
                     <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
@@ -296,8 +347,9 @@ export default function Index() {
                                             label='Debit'
                                             type='text'
                                             inputMode='decimal'
-                                            value={formatAmount(line.debit, decimalPlaces)}
-                                            onChange={(e) => updateLine(index, 'debit', parseAmountInput(e.target.value))}
+                                            value={amountInputValues[index]?.debit ?? formatAmount(line.debit, decimalPlaces)}
+                                            onChange={(e) => updateAmountInput(index, 'debit', normalizeAmountInput(e.target.value))}
+                                            onBlur={() => commitAmountInput(index, 'debit')}
                                         />
                                     </div>
                                     <div className='md:col-span-2'>
@@ -305,8 +357,9 @@ export default function Index() {
                                             label='Kredit'
                                             type='text'
                                             inputMode='decimal'
-                                            value={formatAmount(line.credit, decimalPlaces)}
-                                            onChange={(e) => updateLine(index, 'credit', parseAmountInput(e.target.value))}
+                                            value={amountInputValues[index]?.credit ?? formatAmount(line.credit, decimalPlaces)}
+                                            onChange={(e) => updateAmountInput(index, 'credit', normalizeAmountInput(e.target.value))}
+                                            onBlur={() => commitAmountInput(index, 'credit')}
                                         />
                                     </div>
                                     <div className='md:col-span-1 pb-1'><Button type='button' variant='rose' icon={<IconTrash size={16} strokeWidth={1.5} />} onClick={() => removeLine(index)} /></div>
@@ -435,6 +488,10 @@ export default function Index() {
                                     const lines = journal.lines.map((line) => ({ account_id: line.account_id, description: line.description ?? '', debit: Number(line.debit), credit: Number(line.credit), dimension_details: normalizeDimensionDetails(line.dimension_details_json ?? line.dimension_details) }));
                                     setData({ ...journal, company_id: journal.company_id, branch_id: journal.branch_id ?? '', accounting_period_id: journal.accounting_period_id, exchange_rate: Number(journal.exchange_rate), lines, isUpdate: true, isOpen: true });
                                     setAccountSearchTerms(lines.map(() => ''));
+                                    setAmountInputValues(lines.map((line) => ({
+                                        debit: formatAmount(line.debit, decimalPlaces),
+                                        credit: formatAmount(line.credit, decimalPlaces),
+                                    })));
                                 }} /><Button type='delete' variant='rose' icon={<IconTrash size={16} strokeWidth={1.5} />} url={route('apps.manual-journals.destroy', journal.id)} /></div></Table.Td>
                             </tr>
                         )) : <Table.Empty colSpan={8} message={<><div className='flex justify-center mb-2'><IconDatabaseOff size={24} /></div><span>Data manual jurnal tidak ditemukan.</span></>} />}
