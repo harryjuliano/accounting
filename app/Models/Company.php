@@ -20,4 +20,10 @@ class Company extends Model
         'fiscal_year_start_month',
         'is_active',
     ];
+
+    public function branches()
+    {
+        return $this->hasMany(Branch::class);
+    }
 }
+
