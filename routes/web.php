@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Apps\BranchController;
 use App\Http\Controllers\Apps\CompanyController;
 use App\Http\Controllers\Apps\ChartOfAccountController;
 use App\Http\Controllers\Apps\CurrencyController;
@@ -43,6 +44,8 @@ Route::group(['prefix' => 'apps', 'as' => 'apps.' , 'middleware' => ['auth']], f
     Route::resource('/users', UserController::class)->except('show');
     // companies route
     Route::resource('/companies', CompanyController::class)->except(['create', 'edit', 'show']);
+    // branches route
+    Route::resource('/branches', BranchController::class)->except(['create', 'edit', 'show']);
     // fiscal periods route
     Route::resource('/fiscal-periods', FiscalPeriodController::class)->except(['create', 'edit', 'show'])->parameters(['fiscal-periods' => 'fiscal_period']);
     Route::post('/fiscal-periods/{fiscal_period}/accounting-periods/{accounting_period}/toggle-close', [FiscalPeriodController::class, 'toggleMonthlyClose'])->name('fiscal-periods.accounting-periods.toggle-close');
