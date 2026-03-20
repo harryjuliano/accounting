@@ -94,6 +94,13 @@ export default function Menu() {
                     permissions: accountingAccess,
                 },
                 {
+                    title: 'Branches',
+                    href: '/apps/branches',
+                    active: url.startsWith('/apps/branches'),
+                    icon: <IconHierarchy3 size={20} strokeWidth={1.5} />,
+                    permissions: accountingAccess,
+                },
+                {
                     title: 'Chart of Accounts',
                     href: '/apps/chart-of-accounts',
                     active: url.startsWith('/apps/chart-of-accounts'),
