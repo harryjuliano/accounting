@@ -52,6 +52,7 @@ Route::group(['prefix' => 'apps', 'as' => 'apps.' , 'middleware' => ['auth']], f
     Route::post('/fiscal-periods/{fiscal_period}/hard-close', [FiscalPeriodController::class, 'hardCloseYear'])->name('fiscal-periods.hard-close');
     // chart of accounts route
     Route::resource('/chart-of-accounts', ChartOfAccountController::class)->except(['create', 'edit', 'show'])->parameters(['chart-of-accounts' => 'chart_of_account']);
+    Route::post('/chart-of-accounts/import-master-template', [ChartOfAccountController::class, 'importMasterTemplate'])->name('chart-of-accounts.import-master-template');
     Route::post('/chart-of-accounts/import-default-template', [ChartOfAccountController::class, 'importDefaultTemplate'])->name('chart-of-accounts.import-default-template');
     Route::post('/chart-of-accounts/import-transaction-template', [ChartOfAccountController::class, 'importTransactionTemplate'])->name('chart-of-accounts.import-transaction-template');
     Route::get('/chart-of-accounts/export-transaction-template', [ChartOfAccountController::class, 'exportTransactionTemplate'])->name('chart-of-accounts.export-transaction-template');
