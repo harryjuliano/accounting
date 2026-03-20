@@ -120,6 +120,10 @@ export default function Index() {
         postImport(route('apps.chart-of-accounts.import-default-template'));
     };
 
+    const importMasterTemplate = () => {
+        postImport(route('apps.chart-of-accounts.import-master-template'));
+    };
+
     const exportTransactionTemplate = () => {
         if (!importData.company_id) {
             return;
@@ -163,6 +167,13 @@ export default function Index() {
                         variant='gray'
                         label='Tambah Master COA'
                         onClick={() => openModal('master')}
+                    />
+                    <Button
+                        type='button'
+                        icon={<IconDatabaseImport size={20} strokeWidth={1.5} />}
+                        variant='gray'
+                        label='Import Template Master COA'
+                        onClick={importMasterTemplate}
                     />
                     <Button
                         type='button'
