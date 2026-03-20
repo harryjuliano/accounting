@@ -7,7 +7,7 @@ import Input from '@/Components/Input';
 import Table from '@/Components/Table';
 import Search from '@/Components/Search';
 import Pagination from '@/Components/Pagination';
-import { IconBook2, IconCirclePlus, IconDatabaseImport, IconDatabaseOff, IconPencilCheck, IconPencilCog, IconTrash } from '@tabler/icons-react';
+import { IconBook2, IconCirclePlus, IconDatabaseExport, IconDatabaseImport, IconDatabaseOff, IconPencilCheck, IconPencilCog, IconTrash } from '@tabler/icons-react';
 
 const INITIAL_FORM = {
     id: '',
@@ -50,6 +50,11 @@ export default function Index() {
     });
     const { data: importData, setData: setImportData, post: postImport } = useForm({
         company_id: companies[0]?.id ?? '',
+    });
+    const { data: importFileData, setData: setImportFileData, post: postImportFile, processing: importProcessing } = useForm({
+        company_id: companies[0]?.id ?? '',
+        file: null,
+        isOpen: false,
     });
 
     transform((formData) => ({
@@ -115,6 +120,38 @@ export default function Index() {
         postImport(route('apps.chart-of-accounts.import-default-template'));
     };
 
+    const exportTransactionTemplate = () => {
+        if (!importData.company_id) {
+            return;
+        }
+
+        window.location.href = `${route('apps.chart-of-accounts.export-transaction-template')}?company_id=${importData.company_id}`;
+    };
+
+    const openImportFileModal = () => {
+        setImportFileData({
+            company_id: importData.company_id || companies[0]?.id || '',
+            file: null,
+            isOpen: true,
+        });
+    };
+
+    const closeImportFileModal = () => {
+        setImportFileData({
+            company_id: importData.company_id || companies[0]?.id || '',
+            file: null,
+            isOpen: false,
+        });
+    };
+
+    const importFromFile = (e) => {
+        e.preventDefault();
+        postImportFile(route('apps.chart-of-accounts.import-transaction-template'), {
+            forceFormData: true,
+            onSuccess: closeImportFileModal,
+        });
+    };
+
     return (
         <>
             <Head title='Chart Of Accounts' />
@@ -133,6 +170,20 @@ export default function Index() {
                         variant='gray'
                         label='Import Template COA Transaksi'
                         onClick={importDefaultTemplate}
+                    />
+                    <Button
+                        type='button'
+                        icon={<IconDatabaseExport size={20} strokeWidth={1.5} />}
+                        variant='gray'
+                        label='Export COA Transaksi'
+                        onClick={exportTransactionTemplate}
+                    />
+                    <Button
+                        type='button'
+                        icon={<IconDatabaseImport size={20} strokeWidth={1.5} />}
+                        variant='gray'
+                        label='Import File COA Transaksi'
+                        onClick={openImportFileModal}
                     />
                     <Button
                         type='button'
@@ -294,6 +345,37 @@ export default function Index() {
                     </div>
 
                     <Button type='submit' variant='gray' icon={<IconPencilCheck size={20} strokeWidth={1.5} />} label='Simpan' />
+                </form>
+            </Modal>
+
+            <Modal show={importFileData.isOpen} onClose={closeImportFileModal} title='Import COA Transaksi dari File' icon={<IconDatabaseImport size={20} strokeWidth={1.5} />}>
+                <form onSubmit={importFromFile} className='space-y-4'>
+                    <div className='flex flex-col gap-2'>
+                        <label className='text-gray-600 text-sm'>Company</label>
+                        <select
+                            className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800'
+                            value={importFileData.company_id}
+                            onChange={(e) => setImportFileData('company_id', Number(e.target.value))}
+                        >
+                            {companies.map((company) => (
+                                <option key={company.id} value={company.id}>{company.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className='flex flex-col gap-2'>
+                        <label className='text-gray-600 text-sm'>File CSV</label>
+                        <input
+                            type='file'
+                            accept='.csv,text/csv'
+                            className='w-full px-3 py-2 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800'
+                            onChange={(e) => setImportFileData('file', e.target.files?.[0] || null)}
+                            required
+                        />
+                        {errors.file && <small className='text-xs text-red-500'>{errors.file}</small>}
+                        <small className='text-xs text-gray-500'>Gunakan file hasil export COA transaksi agar format kolom sesuai.</small>
+                    </div>
+
+                    <Button type='submit' variant='gray' icon={<IconPencilCheck size={20} strokeWidth={1.5} />} label={importProcessing ? 'Mengimpor...' : 'Import'} disabled={importProcessing} />
                 </form>
             </Modal>
 

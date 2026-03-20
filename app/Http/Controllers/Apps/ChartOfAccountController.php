@@ -9,6 +9,8 @@ use App\Models\AccountGroup;
 use App\Models\ChartOfAccount;
 use App\Models\Company;
 use App\Models\Dimension;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Arr;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -118,6 +120,7 @@ class ChartOfAccountController extends Controller
 
         $companyId = (int) $payload['company_id'];
         $this->enforceCompanyAccess($companyId);
+        $this->ensureNoTransactionCoaExists($companyId);
 
         $parentAccounts = ChartOfAccount::query()
             ->where('company_id', $companyId)
@@ -171,6 +174,120 @@ class ChartOfAccountController extends Controller
         return back()->with('success', "Berhasil import {$imported} template COA transaksi. {$skipped} dilewati karena parent level 3 tidak ditemukan.");
     }
 
+    public function exportTransactionTemplate(Request $request)
+    {
+        $payload = $request->validate([
+            'company_id' => ['required', 'integer', 'exists:companies,id'],
+        ]);
+
+        $companyId = (int) $payload['company_id'];
+        $this->enforceCompanyAccess($companyId);
+
+        $companyName = Company::query()->whereKey($companyId)->value('name') ?? 'company';
+        $rows = ChartOfAccount::query()
+            ->with('parent:id,code')
+            ->where('company_id', $companyId)
+            ->where('level', 4)
+            ->orderBy('code')
+            ->get();
+
+        $headers = $this->transactionTemplateHeaders();
+
+        return response()->streamDownload(function () use ($rows, $headers): void {
+            $handle = fopen('php://output', 'wb');
+            fputcsv($handle, $headers);
+
+            foreach ($rows as $row) {
+                fputcsv($handle, [
+                    $row->parent?->code ?? '',
+                    $row->code,
+                    $row->name,
+                    $row->alias_name,
+                    $row->normal_balance,
+                    $row->is_active ? '1' : '0',
+                    $row->allow_manual_posting ? '1' : '0',
+                    $row->allow_reconciliation ? '1' : '0',
+                    $row->requires_dimension ? '1' : '0',
+                    $row->is_control_account ? '1' : '0',
+                ]);
+            }
+
+            fclose($handle);
+        }, sprintf('coa-transaksi-template-%s.csv', str($companyName)->slug()->toString()), [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
+    }
+
+    public function importTransactionTemplate(Request $request)
+    {
+        $payload = $request->validate([
+            'company_id' => ['required', 'integer', 'exists:companies,id'],
+            'file' => ['required', 'file', 'mimes:csv,txt'],
+        ]);
+
+        $companyId = (int) $payload['company_id'];
+        $this->enforceCompanyAccess($companyId);
+        $this->ensureNoTransactionCoaExists($companyId);
+
+        $rows = $this->parseTransactionTemplateCsv($payload['file']);
+        if (empty($rows)) {
+            return back()->withErrors([
+                'file' => 'File template COA transaksi kosong.',
+            ]);
+        }
+
+        $parentAccounts = ChartOfAccount::query()
+            ->where('company_id', $companyId)
+            ->where('level', 3)
+            ->get(['id', 'code', 'account_group_id', 'account_type', 'financial_statement_group'])
+            ->keyBy('code');
+
+        $invalidParents = [];
+        foreach ($rows as $row) {
+            if (! $parentAccounts->has((string) $row['parent_code'])) {
+                $invalidParents[] = (string) $row['parent_code'];
+            }
+        }
+
+        if (! empty($invalidParents)) {
+            return back()->withErrors([
+                'file' => 'Parent level 3 tidak ditemukan untuk kode: ' . implode(', ', Arr::sort(array_unique($invalidParents))),
+            ]);
+        }
+
+        DB::transaction(function () use ($rows, $parentAccounts, $companyId): void {
+            foreach ($rows as $row) {
+                $parent = $parentAccounts->get((string) $row['parent_code']);
+                $accountType = (string) $parent->account_type;
+
+                ChartOfAccount::updateOrCreate(
+                    [
+                        'company_id' => $companyId,
+                        'code' => (string) $row['code'],
+                    ],
+                    [
+                        'account_group_id' => $parent->account_group_id,
+                        'parent_id' => $parent->id,
+                        'name' => (string) $row['name'],
+                        'alias_name' => (string) $row['alias_name'],
+                        'level' => 4,
+                        'account_type' => $accountType,
+                        'normal_balance' => (string) $row['normal_balance'],
+                        'financial_statement_group' => $parent->financial_statement_group,
+                        'cashflow_group' => null,
+                        'allow_manual_posting' => (bool) $row['allow_manual_posting'],
+                        'allow_reconciliation' => (bool) $row['allow_reconciliation'],
+                        'requires_dimension' => (bool) $row['requires_dimension'],
+                        'is_control_account' => (bool) $row['is_control_account'],
+                        'is_active' => (bool) $row['is_active'],
+                    ]
+                );
+            }
+        });
+
+        return back()->with('success', 'Berhasil import template COA transaksi dari file.');
+    }
+
     private function validateDimensionCompany(int $companyId, array $dimensionIds): void
     {
         if (empty($dimensionIds)) {
@@ -207,6 +324,114 @@ class ChartOfAccountController extends Controller
         $payload['financial_statement_group'] = $parentAccount?->financial_statement_group;
 
         unset($payload['form_type']);
+    }
+
+    private function ensureNoTransactionCoaExists(int $companyId): void
+    {
+        $hasTransactionCoa = ChartOfAccount::query()
+            ->where('company_id', $companyId)
+            ->where('level', 4)
+            ->exists();
+
+        if ($hasTransactionCoa) {
+            throw ValidationException::withMessages([
+                'company_id' => 'Import template COA transaksi hanya bisa dilakukan ketika COA transaksi level 4 masih kosong.',
+            ]);
+        }
+    }
+
+    private function transactionTemplateHeaders(): array
+    {
+        return [
+            'parent_code',
+            'code',
+            'name',
+            'alias_name',
+            'normal_balance',
+            'is_active',
+            'allow_manual_posting',
+            'allow_reconciliation',
+            'requires_dimension',
+            'is_control_account',
+        ];
+    }
+
+    private function parseTransactionTemplateCsv(UploadedFile $file): array
+    {
+        $handle = fopen($file->getRealPath(), 'rb');
+        $headers = fgetcsv($handle) ?: [];
+        $expectedHeaders = $this->transactionTemplateHeaders();
+
+        if ($headers !== $expectedHeaders) {
+            fclose($handle);
+
+            throw ValidationException::withMessages([
+                'file' => 'Format file tidak sesuai template export COA transaksi.',
+            ]);
+        }
+
+        $rows = [];
+        $rowNumber = 1;
+
+        while (($line = fgetcsv($handle)) !== false) {
+            $rowNumber++;
+            if (count(array_filter($line, fn ($value) => trim((string) $value) !== '')) === 0) {
+                continue;
+            }
+
+            $row = array_combine($expectedHeaders, array_pad($line, count($expectedHeaders), ''));
+            $rows[] = $this->normalizeTransactionTemplateRow($row, $rowNumber);
+        }
+
+        fclose($handle);
+
+        return $rows;
+    }
+
+    private function normalizeTransactionTemplateRow(array $row, int $rowNumber): array
+    {
+        $normalized = [
+            'parent_code' => trim((string) ($row['parent_code'] ?? '')),
+            'code' => trim((string) ($row['code'] ?? '')),
+            'name' => trim((string) ($row['name'] ?? '')),
+            'alias_name' => trim((string) ($row['alias_name'] ?? '')),
+            'normal_balance' => strtolower(trim((string) ($row['normal_balance'] ?? 'debit'))),
+            'is_active' => $this->toBooleanValue($row['is_active'] ?? '', 'is_active', $rowNumber),
+            'allow_manual_posting' => $this->toBooleanValue($row['allow_manual_posting'] ?? '', 'allow_manual_posting', $rowNumber),
+            'allow_reconciliation' => $this->toBooleanValue($row['allow_reconciliation'] ?? '', 'allow_reconciliation', $rowNumber),
+            'requires_dimension' => $this->toBooleanValue($row['requires_dimension'] ?? '', 'requires_dimension', $rowNumber),
+            'is_control_account' => $this->toBooleanValue($row['is_control_account'] ?? '', 'is_control_account', $rowNumber),
+        ];
+
+        if ($normalized['parent_code'] === '' || $normalized['code'] === '' || $normalized['name'] === '') {
+            throw ValidationException::withMessages([
+                'file' => "Kolom parent_code, code, dan name wajib diisi. Error pada baris {$rowNumber}.",
+            ]);
+        }
+
+        if (! in_array($normalized['normal_balance'], ['debit', 'credit'], true)) {
+            throw ValidationException::withMessages([
+                'file' => "Nilai normal_balance harus debit/credit. Error pada baris {$rowNumber}.",
+            ]);
+        }
+
+        return $normalized;
+    }
+
+    private function toBooleanValue(mixed $value, string $column, int $rowNumber): bool
+    {
+        $normalized = strtolower(trim((string) $value));
+        if (in_array($normalized, ['1', 'true', 'yes'], true)) {
+            return true;
+        }
+
+        if (in_array($normalized, ['0', 'false', 'no'], true)) {
+            return false;
+        }
+
+        throw ValidationException::withMessages([
+            'file' => "Nilai {$column} harus 0/1. Error pada baris {$rowNumber}.",
+        ]);
     }
 
     private function defaultTransactionTemplate(): array
