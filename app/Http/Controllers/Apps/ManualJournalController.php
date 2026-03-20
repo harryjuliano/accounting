@@ -20,6 +20,26 @@ class ManualJournalController extends Controller
 {
     use InteractsWithCompanyScope;
 
+    private function buildJournalLinePayload(array $line, int $lineNo, string $currencyCode, float $exchangeRate): array
+    {
+        $debit = (float) ($line['debit'] ?? 0);
+        $credit = (float) ($line['credit'] ?? 0);
+        $originalAmount = $debit > 0 ? $debit : $credit;
+
+        return [
+            'line_no' => $lineNo,
+            'account_id' => $line['account_id'],
+            'description' => $line['description'] ?? null,
+            'debit' => $debit,
+            'credit' => $credit,
+            'original_currency_code' => $currencyCode,
+            'original_currency_amount' => $originalAmount,
+            'base_currency_debit' => round($debit * $exchangeRate, 2),
+            'base_currency_credit' => round($credit * $exchangeRate, 2),
+            'dimension_details_json' => $line['dimension_details'] ?? null,
+        ];
+    }
+
     private function resolveAccountingPeriod(int $companyId, string $postingDate): ?AccountingPeriod
     {
         return AccountingPeriod::query()
@@ -124,16 +144,14 @@ class ManualJournalController extends Controller
             ]);
 
             foreach ($validated['lines'] as $index => $line) {
-                $journalEntry->lines()->create([
-                    'line_no' => $index + 1,
-                    'account_id' => $line['account_id'],
-                    'description' => $line['description'] ?? null,
-                    'debit' => $line['debit'],
-                    'credit' => $line['credit'],
-                    'base_currency_debit' => $line['debit'],
-                    'base_currency_credit' => $line['credit'],
-                    'dimension_details_json' => $line['dimension_details'] ?? null,
-                ]);
+                $journalEntry->lines()->create(
+                    $this->buildJournalLinePayload(
+                        $line,
+                        $index + 1,
+                        (string) $validated['currency_code'],
+                        (float) $validated['exchange_rate']
+                    )
+                );
             }
         });
 
@@ -178,16 +196,14 @@ class ManualJournalController extends Controller
             $manual_journal->lines()->delete();
 
             foreach ($validated['lines'] as $index => $line) {
-                $manual_journal->lines()->create([
-                    'line_no' => $index + 1,
-                    'account_id' => $line['account_id'],
-                    'description' => $line['description'] ?? null,
-                    'debit' => $line['debit'],
-                    'credit' => $line['credit'],
-                    'base_currency_debit' => $line['debit'],
-                    'base_currency_credit' => $line['credit'],
-                    'dimension_details_json' => $line['dimension_details'] ?? null,
-                ]);
+                $manual_journal->lines()->create(
+                    $this->buildJournalLinePayload(
+                        $line,
+                        $index + 1,
+                        (string) $validated['currency_code'],
+                        (float) $validated['exchange_rate']
+                    )
+                );
             }
         });
 
