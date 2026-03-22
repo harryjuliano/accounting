@@ -99,7 +99,7 @@ class ManualJournalController extends Controller
             ->leftJoin('branches', 'branches.id', '=', 'journal_entries.branch_id')
             ->with(['company:id,name,timezone', 'branch:id,company_id,code,name', 'accountingPeriod:id,period_name', 'lines.account:id,company_id,code,name,requires_dimension'])
             ->where('journal_type', 'manual')
-            ->when($this->isCompanyAdmin(), fn ($query) => $query->where('company_id', $request->user()->company_id))
+            ->when($this->isCompanyAdmin(), fn ($query) => $query->where('journal_entries.company_id', $request->user()->company_id))
             ->whereYear('journal_entries.entry_date', $year)
             ->whereMonth('journal_entries.entry_date', $month)
             ->when($branchId !== 'all', fn ($query) => $query->where('journal_entries.branch_id', $branchId))
