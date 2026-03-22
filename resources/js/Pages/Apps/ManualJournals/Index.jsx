@@ -1,13 +1,12 @@
 import AppLayout from '@/Layouts/AppLayout';
-import { Head, useForm, usePage } from '@inertiajs/react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
 import React from 'react';
 import Button from '@/Components/Button';
 import Modal from '@/Components/Modal';
 import Input from '@/Components/Input';
 import Table from '@/Components/Table';
-import Search from '@/Components/Search';
 import Pagination from '@/Components/Pagination';
-import { IconCirclePlus, IconDatabaseOff, IconNotes, IconPencilCheck, IconPencilCog, IconPlus, IconTrash } from '@tabler/icons-react';
+import { IconArrowsSort, IconCirclePlus, IconDatabaseOff, IconNotes, IconPencilCheck, IconPencilCog, IconPlus, IconSearch, IconTrash } from '@tabler/icons-react';
 
 const emptyLine = { account_id: '', description: '', debit: 0, credit: 0, dimension_details: [] };
 const getTodayDate = () => new Date().toISOString().split('T')[0];
@@ -54,8 +53,28 @@ const normalizeDimensionDetails = (details = []) => {
     }));
 };
 
+const formatDateByTimezone = (dateValue, timezone = 'UTC') => {
+    if (!dateValue) {
+        return '-';
+    }
+
+    const date = new Date(`${dateValue}T12:00:00Z`);
+    const formatter = new Intl.DateTimeFormat('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        timeZone: timezone,
+    });
+    const parts = formatter.formatToParts(date);
+    const day = parts.find((part) => part.type === 'day')?.value ?? '';
+    const month = (parts.find((part) => part.type === 'month')?.value ?? '').toLowerCase();
+    const year = parts.find((part) => part.type === 'year')?.value ?? '';
+
+    return `${day}-${month}-${year}`;
+};
+
 export default function Index() {
-    const { manualJournals, companies, branches, accountingPeriods, currencies, accounts, defaultEntryDate, errors } = usePage().props;
+    const { manualJournals, companies, branches, accountingPeriods, currencies, accounts, defaultEntryDate, errors, filters, sort, yearOptions, monthOptions } = usePage().props;
     const fallbackEntryDate = defaultEntryDate || getTodayDate();
     const initialDecimalPlaces = Number(currencies[0]?.decimal_places ?? 2);
 
@@ -69,6 +88,12 @@ export default function Index() {
     const [amountInputValues, setAmountInputValues] = React.useState(
         [{ debit: formatAmount(0, initialDecimalPlaces), credit: formatAmount(0, initialDecimalPlaces) }, { debit: formatAmount(0, initialDecimalPlaces), credit: formatAmount(0, initialDecimalPlaces) }],
     );
+    const [listFilters, setListFilters] = React.useState({
+        search: filters?.search ?? '',
+        year: Number(filters?.year ?? new Date().getFullYear()),
+        month: Number(filters?.month ?? (new Date().getMonth() + 1)),
+        branch_id: filters?.branch_id ?? 'all',
+    });
 
     transform((formData) => ({ ...formData, _method: formData.isUpdate ? 'put' : 'post' }));
 
@@ -214,13 +239,96 @@ export default function Index() {
 
     const totalDebit = data.lines.reduce((sum, line) => sum + Number(line.debit || 0), 0);
     const totalCredit = data.lines.reduce((sum, line) => sum + Number(line.credit || 0), 0);
+    const currentSortBy = sort?.by ?? 'entry_date';
+    const currentSortDirection = sort?.direction ?? 'desc';
+    const serializedFilters = React.useMemo(() => ({
+        search: listFilters.search,
+        year: Number(listFilters.year),
+        month: Number(listFilters.month),
+        branch_id: listFilters.branch_id || 'all',
+    }), [listFilters]);
+
+    const applyListFilters = React.useCallback((nextFilters) => {
+        router.get(route('apps.manual-journals.index'), {
+            ...nextFilters,
+            sort_by: currentSortBy,
+            sort_direction: currentSortDirection,
+        }, {
+            preserveState: true,
+            replace: true,
+        });
+    }, [currentSortBy, currentSortDirection]);
+
+    const submitSearch = (event) => {
+        event.preventDefault();
+        applyListFilters(serializedFilters);
+    };
+
+    const updateFilter = (field, value) => {
+        const nextFilters = { ...listFilters, [field]: value };
+        setListFilters(nextFilters);
+
+        if (field !== 'search') {
+            applyListFilters({
+                search: nextFilters.search,
+                year: Number(nextFilters.year),
+                month: Number(nextFilters.month),
+                branch_id: nextFilters.branch_id || 'all',
+            });
+        }
+    };
+
+    const toggleSort = (field) => {
+        const nextDirection = currentSortBy === field && currentSortDirection === 'asc' ? 'desc' : 'asc';
+
+        router.get(route('apps.manual-journals.index'), {
+            ...serializedFilters,
+            sort_by: field,
+            sort_direction: nextDirection,
+        }, {
+            preserveState: true,
+            replace: true,
+        });
+    };
+
+    const SortableHeader = ({ field, label, className = '' }) => (
+        <Table.Th className={className}>
+            <button type='button' className='inline-flex items-center gap-1 select-none' onClick={() => toggleSort(field)}>
+                <span>{label}</span>
+                <IconArrowsSort size={14} className={currentSortBy === field ? 'text-blue-500' : ''} />
+            </button>
+        </Table.Th>
+    );
 
     return (
         <>
             <Head title='Manual Journal' />
             <div className='mb-2 flex justify-between items-center gap-2'>
                 <Button type='button' icon={<IconCirclePlus size={20} strokeWidth={1.5} />} variant='gray' label='Tambah Manual Jurnal' onClick={() => setData('isOpen', true)} />
-                <div className='w-full md:w-4/12'><Search url={route('apps.manual-journals.index')} placeholder='Cari manual jurnal...' /></div>
+                <form onSubmit={submitSearch} className='w-full md:w-10/12 grid grid-cols-1 md:grid-cols-4 gap-2'>
+                    <div className='relative md:col-span-2'>
+                        <input
+                            type='text'
+                            value={listFilters.search}
+                            onChange={(event) => updateFilter('search', event.target.value)}
+                            className='py-2 px-4 pr-11 block w-full rounded-lg text-sm border focus:outline-none focus:ring-0 focus:ring-gray-400 text-gray-700 bg-white border-gray-200 focus:border-gray-200 dark:focus:ring-gray-500 dark:focus:border-gray-800 dark:text-gray-200 dark:bg-gray-950 dark:border-gray-900'
+                            placeholder='Cari manual jurnal...'
+                        />
+                        <button type='submit' className='absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500'>
+                            <IconSearch size={18} />
+                        </button>
+                    </div>
+                    <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={listFilters.year} onChange={(event) => updateFilter('year', Number(event.target.value))}>
+                        {yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}
+                    </select>
+                    <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={listFilters.month} onChange={(event) => updateFilter('month', Number(event.target.value))}>
+                        {monthOptions.map((month) => <option key={month.value} value={month.value}>{month.label}</option>)}
+                    </select>
+                    <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800 md:col-span-4' value={listFilters.branch_id} onChange={(event) => updateFilter('branch_id', event.target.value)}>
+                        <option value='all'>Semua Branch</option>
+                        {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.code} - {branch.name}</option>)}
+                    </select>
+                </form>
             </div>
             <Modal
                 show={data.isOpen && !dimensionEditor.open}
@@ -473,16 +581,33 @@ export default function Index() {
 
             <Table.Card title='Data Manual Jurnal'>
                 <Table>
-                    <Table.Thead><tr><Table.Th>No</Table.Th><Table.Th>Company</Table.Th><Table.Th>No Jurnal</Table.Th><Table.Th>Tanggal</Table.Th><Table.Th>Deskripsi</Table.Th><Table.Th>Total</Table.Th><Table.Th>Status</Table.Th><Table.Th className='w-40'></Table.Th></tr></Table.Thead>
+                    <Table.Thead>
+                        <tr>
+                            <SortableHeader field='id' label='No' />
+                            <SortableHeader field='company' label='Company' />
+                            <SortableHeader field='branch' label='Branch' />
+                            <SortableHeader field='journal_no' label='No Jurnal' />
+                            <SortableHeader field='entry_date' label='Tanggal' />
+                            <SortableHeader field='description' label='Deskripsi' />
+                            <SortableHeader field='currency' label='Currency' />
+                            <SortableHeader field='original_amount' label='Original Amount' />
+                            <SortableHeader field='report_amount' label='Report Amount' />
+                            <SortableHeader field='status' label='Status' />
+                            <Table.Th className='w-40'>Aksi</Table.Th>
+                        </tr>
+                    </Table.Thead>
                     <Table.Tbody>
                         {manualJournals.data.length ? manualJournals.data.map((journal, i) => (
                             <tr key={journal.id} className='hover:bg-gray-100 dark:hover:bg-gray-900'>
                                 <Table.Td>{i + 1 + ((manualJournals.current_page - 1) * manualJournals.per_page)}</Table.Td>
                                 <Table.Td>{journal.company?.name}</Table.Td>
+                                <Table.Td>{journal.branch ? `${journal.branch.code} - ${journal.branch.name}` : '-'}</Table.Td>
                                 <Table.Td>{journal.journal_no}</Table.Td>
-                                <Table.Td>{journal.entry_date}</Table.Td>
+                                <Table.Td>{formatDateByTimezone(journal.entry_date, journal.company?.timezone ?? 'UTC')}</Table.Td>
                                 <Table.Td>{journal.description}</Table.Td>
-                                <Table.Td>{Number(journal.total_debit).toLocaleString()}</Table.Td>
+                                <Table.Td>{journal.currency_code}</Table.Td>
+                                <Table.Td>{formatAmount(journal.total_debit, decimalPlaces)}</Table.Td>
+                                <Table.Td>{formatAmount(Number(journal.total_debit || 0) * Number(journal.exchange_rate || 0), decimalPlaces)}</Table.Td>
                                 <Table.Td className='capitalize'>{journal.status.replace('_', ' ')}</Table.Td>
                                 <Table.Td><div className='flex gap-2'><Button type='modal' variant='orange' icon={<IconPencilCog size={16} strokeWidth={1.5} />} onClick={() => {
                                     const lines = journal.lines.map((line) => ({ account_id: line.account_id, description: line.description ?? '', debit: Number(line.debit), credit: Number(line.credit), dimension_details: normalizeDimensionDetails(line.dimension_details_json ?? line.dimension_details) }));
@@ -494,7 +619,7 @@ export default function Index() {
                                     })));
                                 }} /><Button type='delete' variant='rose' icon={<IconTrash size={16} strokeWidth={1.5} />} url={route('apps.manual-journals.destroy', journal.id)} /></div></Table.Td>
                             </tr>
-                        )) : <Table.Empty colSpan={8} message={<><div className='flex justify-center mb-2'><IconDatabaseOff size={24} /></div><span>Data manual jurnal tidak ditemukan.</span></>} />}
+                        )) : <Table.Empty colSpan={11} message={<><div className='flex justify-center mb-2'><IconDatabaseOff size={24} /></div><span>Data manual jurnal tidak ditemukan.</span></>} />}
                     </Table.Tbody>
                 </Table>
             </Table.Card>
