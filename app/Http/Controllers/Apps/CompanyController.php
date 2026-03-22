@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\InteractsWithCompanyScope;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CompanyRequest;
 use App\Models\Company;
+use App\Models\Currency;
 use Illuminate\Http\Request;
 
 class CompanyController extends Controller
@@ -29,6 +30,16 @@ class CompanyController extends Controller
 
         return inertia('Apps/Companies/Index', [
             'companies' => $companies,
+            'currencyOptions' => Currency::query()
+                ->where('is_active', true)
+                ->orderBy('code')
+                ->get(['code', 'name']),
+            'timezoneOptions' => collect(\DateTimeZone::listIdentifiers())
+                ->map(fn (string $timezone) => [
+                    'value' => $timezone,
+                    'label' => $timezone,
+                ])
+                ->values(),
         ]);
     }
 

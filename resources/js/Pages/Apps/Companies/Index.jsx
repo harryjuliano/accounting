@@ -10,7 +10,41 @@ import Pagination from '@/Components/Pagination';
 import { IconBuilding, IconCirclePlus, IconDatabaseOff, IconPencilCheck, IconPencilCog, IconTrash } from '@tabler/icons-react';
 
 export default function Index() {
-    const { companies, errors } = usePage().props;
+    const { companies, currencyOptions, timezoneOptions, errors } = usePage().props;
+
+    const countryOptions = [
+        { code: 'ID', name: 'Indonesia' },
+        { code: 'SG', name: 'Singapore' },
+        { code: 'MY', name: 'Malaysia' },
+        { code: 'TH', name: 'Thailand' },
+        { code: 'PH', name: 'Philippines' },
+        { code: 'VN', name: 'Vietnam' },
+        { code: 'AU', name: 'Australia' },
+        { code: 'NZ', name: 'New Zealand' },
+        { code: 'CN', name: 'China' },
+        { code: 'JP', name: 'Japan' },
+        { code: 'KR', name: 'South Korea' },
+        { code: 'IN', name: 'India' },
+        { code: 'AE', name: 'United Arab Emirates' },
+        { code: 'SA', name: 'Saudi Arabia' },
+        { code: 'QA', name: 'Qatar' },
+        { code: 'GB', name: 'United Kingdom' },
+        { code: 'DE', name: 'Germany' },
+        { code: 'FR', name: 'France' },
+        { code: 'NL', name: 'Netherlands' },
+        { code: 'IT', name: 'Italy' },
+        { code: 'ES', name: 'Spain' },
+        { code: 'CH', name: 'Switzerland' },
+        { code: 'SE', name: 'Sweden' },
+        { code: 'NO', name: 'Norway' },
+        { code: 'DK', name: 'Denmark' },
+        { code: 'US', name: 'United States' },
+        { code: 'CA', name: 'Canada' },
+        { code: 'MX', name: 'Mexico' },
+        { code: 'BR', name: 'Brazil' },
+        { code: 'AR', name: 'Argentina' },
+        { code: 'ZA', name: 'South Africa' },
+    ];
 
     const { data, setData, post, transform } = useForm({
         id: '',
@@ -79,10 +113,28 @@ export default function Index() {
                     <Input label='Nama Legal' type='text' value={data.legal_name} onChange={(e) => setData('legal_name', e.target.value)} errors={errors.legal_name} />
                     <Input label='NPWP/Tax ID' type='text' value={data.tax_id} onChange={(e) => setData('tax_id', e.target.value)} errors={errors.tax_id} />
                     <div className='grid grid-cols-2 gap-3'>
-                        <Input label='Base Currency' type='text' value={data.base_currency_code} onChange={(e) => setData('base_currency_code', e.target.value.toUpperCase())} errors={errors.base_currency_code} />
-                        <Input label='Country Code' type='text' value={data.country_code} onChange={(e) => setData('country_code', e.target.value.toUpperCase())} errors={errors.country_code} />
+                        <div className='flex flex-col gap-2'>
+                            <label className='text-gray-600 text-sm'>Base Currency</label>
+                            <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={data.base_currency_code} onChange={(e) => setData('base_currency_code', e.target.value)}>
+                                {currencyOptions.map((currency) => <option key={currency.code} value={currency.code}>{currency.code} - {currency.name}</option>)}
+                            </select>
+                            {errors.base_currency_code && <div className='text-rose-500 text-xs'>{errors.base_currency_code}</div>}
+                        </div>
+                        <div className='flex flex-col gap-2'>
+                            <label className='text-gray-600 text-sm'>Country</label>
+                            <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={data.country_code} onChange={(e) => setData('country_code', e.target.value)}>
+                                {countryOptions.map((country) => <option key={country.code} value={country.code}>{country.name} ({country.code})</option>)}
+                            </select>
+                            {errors.country_code && <div className='text-rose-500 text-xs'>{errors.country_code}</div>}
+                        </div>
                     </div>
-                    <Input label='Timezone' type='text' value={data.timezone} onChange={(e) => setData('timezone', e.target.value)} errors={errors.timezone} />
+                    <div className='flex flex-col gap-2'>
+                        <label className='text-gray-600 text-sm'>Time Zone</label>
+                        <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={data.timezone} onChange={(e) => setData('timezone', e.target.value)}>
+                            {timezoneOptions.map((timezone) => <option key={timezone.value} value={timezone.value}>{timezone.label}</option>)}
+                        </select>
+                        {errors.timezone && <div className='text-rose-500 text-xs'>{errors.timezone}</div>}
+                    </div>
                     <Input label='Bulan Awal Tahun Fiskal (1-12)' type='number' min={1} max={12} value={data.fiscal_year_start_month} onChange={(e) => setData('fiscal_year_start_month', Number(e.target.value))} errors={errors.fiscal_year_start_month} />
 
                     <div className='flex flex-col gap-2'>

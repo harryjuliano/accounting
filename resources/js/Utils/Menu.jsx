@@ -80,7 +80,7 @@ export default function Menu() {
             permissions: accountingAccess,
             details: [
                 {
-                    title: 'Company & Fiscal Period',
+                    title: 'Company',
                     href: '/apps/companies',
                     active: url.startsWith('/apps/companies'),
                     icon: <IconCalendarStats size={20} strokeWidth={1.5} />,
