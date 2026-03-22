@@ -67,21 +67,76 @@ class ManualJournalController extends Controller
 
     public function index(Request $request)
     {
+        $userTimezone = $request->user()?->company?->timezone ?? config('app.timezone', 'UTC');
+        $today = Carbon::now($userTimezone);
+
+        $year = (int) $request->integer('year', (int) $today->year);
+        $month = (int) $request->integer('month', (int) $today->month);
+        $branchId = $request->input('branch_id', 'all');
+
+        $sortBy = $request->string('sort_by')->toString() ?: 'entry_date';
+        $sortDirection = strtolower($request->string('sort_direction')->toString() ?: 'desc');
+        $sortDirection = in_array($sortDirection, ['asc', 'desc'], true) ? $sortDirection : 'desc';
+
+        $sortColumns = [
+            'id' => 'journal_entries.id',
+            'company' => 'companies.name',
+            'branch' => 'branches.code',
+            'journal_no' => 'journal_entries.journal_no',
+            'entry_date' => 'journal_entries.entry_date',
+            'description' => 'journal_entries.description',
+            'currency' => 'journal_entries.currency_code',
+            'original_amount' => 'journal_entries.total_debit',
+            'report_amount' => DB::raw('(journal_entries.total_debit * journal_entries.exchange_rate)'),
+            'status' => 'journal_entries.status',
+        ];
+
+        $resolvedSortColumn = $sortColumns[$sortBy] ?? $sortColumns['entry_date'];
+
         $manualJournals = JournalEntry::query()
-            ->with(['company:id,name', 'branch:id,company_id,code,name', 'accountingPeriod:id,period_name', 'lines.account:id,company_id,code,name,requires_dimension'])
+            ->select('journal_entries.*')
+            ->leftJoin('companies', 'companies.id', '=', 'journal_entries.company_id')
+            ->leftJoin('branches', 'branches.id', '=', 'journal_entries.branch_id')
+            ->with(['company:id,name,timezone', 'branch:id,company_id,code,name', 'accountingPeriod:id,period_name', 'lines.account:id,company_id,code,name,requires_dimension'])
             ->where('journal_type', 'manual')
             ->when($this->isCompanyAdmin(), fn ($query) => $query->where('company_id', $request->user()->company_id))
+            ->whereYear('journal_entries.entry_date', $year)
+            ->whereMonth('journal_entries.entry_date', $month)
+            ->when($branchId !== 'all', fn ($query) => $query->where('journal_entries.branch_id', $branchId))
             ->when($request->search, function ($query) use ($request) {
                 $query->where(function ($subQuery) use ($request) {
                     $subQuery->where('journal_no', 'like', '%' . $request->search . '%')
                         ->orWhere('reference_no', 'like', '%' . $request->search . '%')
                         ->orWhere('description', 'like', '%' . $request->search . '%')
+                        ->orWhere('entry_date', 'like', '%' . $request->search . '%')
+                        ->orWhere('posting_date', 'like', '%' . $request->search . '%')
+                        ->orWhere('currency_code', 'like', '%' . $request->search . '%')
+                        ->orWhere('status', 'like', '%' . $request->search . '%')
+                        ->orWhereRaw('CAST(journal_entries.total_debit AS CHAR) like ?', ['%' . $request->search . '%'])
+                        ->orWhereRaw('CAST((journal_entries.total_debit * journal_entries.exchange_rate) AS CHAR) like ?', ['%' . $request->search . '%'])
+                        ->orWhereHas('branch', fn ($branchQuery) => $branchQuery
+                            ->where('code', 'like', '%' . $request->search . '%')
+                            ->orWhere('name', 'like', '%' . $request->search . '%'))
                         ->orWhereHas('company', fn ($companyQuery) => $companyQuery->where('name', 'like', '%' . $request->search . '%'));
                 });
             })
-            ->latest()
+            ->orderBy($resolvedSortColumn, $sortDirection)
+            ->orderBy('journal_entries.id', 'desc')
             ->paginate(10)
             ->withQueryString();
+
+        $years = JournalEntry::query()
+            ->selectRaw('DISTINCT YEAR(entry_date) as year')
+            ->where('journal_type', 'manual')
+            ->when($this->isCompanyAdmin(), fn ($query) => $query->where('company_id', $request->user()->company_id))
+            ->orderByDesc('year')
+            ->pluck('year')
+            ->filter()
+            ->values();
+
+        if (! $years->contains($year)) {
+            $years->prepend($year);
+        }
 
         return inertia('Apps/ManualJournals/Index', [
             'manualJournals' => $manualJournals,
@@ -105,6 +160,21 @@ class ManualJournalController extends Controller
                 ->orderBy('code')
                 ->get(),
             'defaultEntryDate' => Carbon::now()->toDateString(),
+            'filters' => [
+                'search' => $request->string('search')->toString(),
+                'year' => $year,
+                'month' => $month,
+                'branch_id' => $branchId,
+            ],
+            'sort' => [
+                'by' => $sortBy,
+                'direction' => $sortDirection,
+            ],
+            'yearOptions' => $years,
+            'monthOptions' => collect(range(1, 12))->map(fn (int $value) => [
+                'value' => $value,
+                'label' => Carbon::create()->month($value)->translatedFormat('F'),
+            ])->values(),
         ]);
     }
 
