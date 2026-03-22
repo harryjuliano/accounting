@@ -99,9 +99,10 @@ export default function Index() {
     const [listFilters, setListFilters] = React.useState({
         search: filters?.search ?? '',
         year: Number(filters?.year ?? new Date().getFullYear()),
-        month: Number(filters?.month ?? (new Date().getMonth() + 1)),
+        month: `${filters?.month ?? (new Date().getMonth() + 1)}`,
         branch_id: filters?.branch_id ?? 'all',
     });
+    const [selectedJournalIds, setSelectedJournalIds] = React.useState([]);
 
     transform((formData) => ({ ...formData, _method: formData.isUpdate ? 'put' : 'post' }));
 
@@ -252,7 +253,7 @@ export default function Index() {
     const serializedFilters = React.useMemo(() => ({
         search: listFilters.search,
         year: Number(listFilters.year),
-        month: Number(listFilters.month),
+        month: listFilters.month,
         branch_id: listFilters.branch_id || 'all',
     }), [listFilters]);
 
@@ -280,7 +281,7 @@ export default function Index() {
             applyListFilters({
                 search: nextFilters.search,
                 year: Number(nextFilters.year),
-                month: Number(nextFilters.month),
+                month: nextFilters.month,
                 branch_id: nextFilters.branch_id || 'all',
             });
         }
@@ -308,6 +309,37 @@ export default function Index() {
         </Table.Th>
     );
 
+    const displayedSelectableIds = manualJournals.data.filter((journal) => journal.status !== 'posted').map((journal) => Number(journal.id));
+    const selectedCount = selectedJournalIds.length;
+    const allDisplayedSelected = displayedSelectableIds.length > 0 && displayedSelectableIds.every((id) => selectedJournalIds.includes(id));
+
+    const toggleJournalSelection = (journalId) => {
+        setSelectedJournalIds((prev) => (prev.includes(journalId) ? prev.filter((id) => id !== journalId) : [...prev, journalId]));
+    };
+
+    const toggleSelectAllDisplayed = () => {
+        if (allDisplayedSelected) {
+            setSelectedJournalIds((prev) => prev.filter((id) => !displayedSelectableIds.includes(id)));
+            return;
+        }
+
+        setSelectedJournalIds((prev) => Array.from(new Set([...prev, ...displayedSelectableIds])));
+    };
+
+    const bulkPostSelected = () => {
+        if (!selectedCount) {
+            return;
+        }
+
+        router.post(route('apps.manual-journals.bulk-post'), {
+            journal_ids: selectedJournalIds,
+        }, {
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: () => setSelectedJournalIds([]),
+        });
+    };
+
     return (
         <>
             <Head title='Manual Journal' />
@@ -329,7 +361,7 @@ export default function Index() {
                     <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={listFilters.year} onChange={(event) => updateFilter('year', Number(event.target.value))}>
                         {yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}
                     </select>
-                    <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={listFilters.month} onChange={(event) => updateFilter('month', Number(event.target.value))}>
+                    <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={listFilters.month} onChange={(event) => updateFilter('month', event.target.value)}>
                         {monthOptions.map((month) => <option key={month.value} value={month.value}>{month.label}</option>)}
                     </select>
                     <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800 md:col-span-4' value={listFilters.branch_id} onChange={(event) => updateFilter('branch_id', event.target.value)}>
@@ -588,9 +620,25 @@ export default function Index() {
             </Modal>
 
             <Table.Card title='Data Manual Jurnal'>
+                <div className='mb-3 flex justify-end'>
+                    <Button
+                        type='bulk'
+                        variant='blue'
+                        label={`Posting (${selectedCount})`}
+                        disabled={!selectedCount}
+                        onClick={bulkPostSelected}
+                    />
+                </div>
                 <Table>
                     <Table.Thead>
                         <tr>
+                            <Table.Th className='w-10'>
+                                <input
+                                    type='checkbox'
+                                    checked={allDisplayedSelected}
+                                    onChange={toggleSelectAllDisplayed}
+                                />
+                            </Table.Th>
                             <SortableHeader field='id' label='No' />
                             <SortableHeader field='company' label='Company' />
                             <SortableHeader field='branch' label='Branch' />
@@ -607,6 +655,14 @@ export default function Index() {
                     <Table.Tbody>
                         {manualJournals.data.length ? manualJournals.data.map((journal, i) => (
                             <tr key={journal.id} className='hover:bg-gray-100 dark:hover:bg-gray-900'>
+                                <Table.Td>
+                                    <input
+                                        type='checkbox'
+                                        disabled={journal.status === 'posted'}
+                                        checked={selectedJournalIds.includes(Number(journal.id))}
+                                        onChange={() => toggleJournalSelection(Number(journal.id))}
+                                    />
+                                </Table.Td>
                                 <Table.Td>{i + 1 + ((manualJournals.current_page - 1) * manualJournals.per_page)}</Table.Td>
                                 <Table.Td>{journal.company?.name}</Table.Td>
                                 <Table.Td>{journal.branch ? `${journal.branch.code} - ${journal.branch.name}` : '-'}</Table.Td>
@@ -627,7 +683,7 @@ export default function Index() {
                                     })));
                                 }} /><Button type='delete' variant='rose' icon={<IconTrash size={16} strokeWidth={1.5} />} url={route('apps.manual-journals.destroy', journal.id)} /></div></Table.Td>
                             </tr>
-                        )) : <Table.Empty colSpan={11} message={<><div className='flex justify-center mb-2'><IconDatabaseOff size={24} /></div><span>Data manual jurnal tidak ditemukan.</span></>} />}
+                        )) : <Table.Empty colSpan={12} message={<><div className='flex justify-center mb-2'><IconDatabaseOff size={24} /></div><span>Data manual jurnal tidak ditemukan.</span></>} />}
                     </Table.Tbody>
                 </Table>
             </Table.Card>
