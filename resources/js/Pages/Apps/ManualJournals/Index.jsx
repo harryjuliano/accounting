@@ -58,7 +58,15 @@ const formatDateByTimezone = (dateValue, timezone = 'UTC') => {
         return '-';
     }
 
-    const date = new Date(`${dateValue}T12:00:00Z`);
+    const normalizedDateValue = typeof dateValue === 'string' ? dateValue.trim() : dateValue;
+    const date = typeof normalizedDateValue === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(normalizedDateValue)
+        ? new Date(`${normalizedDateValue}T12:00:00Z`)
+        : new Date(normalizedDateValue);
+
+    if (Number.isNaN(date.getTime())) {
+        return '-';
+    }
+
     const formatter = new Intl.DateTimeFormat('en-GB', {
         day: '2-digit',
         month: 'short',
