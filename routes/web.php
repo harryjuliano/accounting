@@ -66,6 +66,7 @@ Route::group(['prefix' => 'apps', 'as' => 'apps.' , 'middleware' => ['auth']], f
     Route::resource('/exchange-rates', ExchangeRateController::class)->except(['index', 'create', 'edit', 'show']);
     // manual journals route
     Route::resource('/manual-journals', ManualJournalController::class)->except(['create', 'edit', 'show'])->parameters(['manual-journals' => 'manual_journal']);
+    Route::post('/manual-journals/bulk-post', [ManualJournalController::class, 'bulkPost'])->name('manual-journals.bulk-post');
 });
 
 require __DIR__.'/auth.php';

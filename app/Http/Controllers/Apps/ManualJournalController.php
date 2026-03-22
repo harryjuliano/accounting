@@ -71,7 +71,9 @@ class ManualJournalController extends Controller
         $today = Carbon::now($userTimezone);
 
         $year = (int) $request->integer('year', (int) $today->year);
-        $month = (int) $request->integer('month', (int) $today->month);
+        $monthFilter = (string) $request->input('month', (string) $today->month);
+        $isAllMonths = $monthFilter === 'all';
+        $month = $isAllMonths ? 'all' : max(1, min(12, (int) $monthFilter));
         $branchId = $request->input('branch_id', 'all');
 
         $sortBy = $request->string('sort_by')->toString() ?: 'entry_date';
@@ -101,7 +103,7 @@ class ManualJournalController extends Controller
             ->where('journal_type', 'manual')
             ->when($this->isCompanyAdmin(), fn ($query) => $query->where('journal_entries.company_id', $request->user()->company_id))
             ->whereYear('journal_entries.entry_date', $year)
-            ->whereMonth('journal_entries.entry_date', $month)
+            ->when(! $isAllMonths, fn ($query) => $query->whereMonth('journal_entries.entry_date', $month))
             ->when($branchId !== 'all', fn ($query) => $query->where('journal_entries.branch_id', $branchId))
             ->when($request->search, function ($query) use ($request) {
                 $query->where(function ($subQuery) use ($request) {
@@ -174,8 +176,42 @@ class ManualJournalController extends Controller
             'monthOptions' => collect(range(1, 12))->map(fn (int $value) => [
                 'value' => $value,
                 'label' => Carbon::create()->month($value)->translatedFormat('F'),
+            ])->prepend([
+                'value' => 'all',
+                'label' => 'All Month',
             ])->values(),
         ]);
+    }
+
+    public function bulkPost(Request $request)
+    {
+        $validated = $request->validate([
+            'journal_ids' => ['required', 'array', 'min:1'],
+            'journal_ids.*' => ['integer', 'exists:journal_entries,id'],
+        ]);
+
+        $entries = JournalEntry::query()
+            ->where('journal_type', 'manual')
+            ->whereIn('id', $validated['journal_ids'])
+            ->when($this->isCompanyAdmin(), fn ($query) => $query->where('company_id', $request->user()->company_id))
+            ->get();
+
+        DB::transaction(function () use ($entries) {
+            foreach ($entries as $entry) {
+                $accountingPeriod = $this->resolveAccountingPeriod((int) $entry->company_id, (string) $entry->posting_date);
+
+                if (! $accountingPeriod) {
+                    throw ValidationException::withMessages([
+                        'journal_ids' => "Periode fiskal untuk jurnal {$entry->journal_no} tidak ditemukan.",
+                    ]);
+                }
+
+                $this->ensurePeriodAllowsPosting($accountingPeriod);
+                $entry->update(['status' => 'posted']);
+            }
+        });
+
+        return back();
     }
 
     public function store(ManualJournalRequest $request)
