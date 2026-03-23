@@ -477,16 +477,17 @@ class ManualJournalController extends Controller
         return back()->with('success', 'Import manual jurnal berhasil diproses.');
     }
 
-    public function downloadImportTemplate()
+    public function downloadImportTemplate(Request $request)
     {
         $headers = $this->manualJournalTemplateHeaders();
+        $companyId = (int) ($request->user()?->company_id ?: ($this->getAccessibleCompanies()->first()->id ?? 1));
         $sampleRows = [
-            ['1', 'JRN-0001', '2026-03-01', '2026-03-01', 'REF-001', 'Penjualan tunai', 'IDR', '1', 'draft', 'JKT', '1101', 'Kas', '1000000', '0'],
-            ['1', 'JRN-0001', '2026-03-01', '2026-03-01', 'REF-001', 'Penjualan tunai', 'IDR', '1', 'draft', 'JKT', '4101', 'Pendapatan penjualan', '0', '1000000'],
+            [(string) $companyId, 'JRN-0001', '2026-03-01', '2026-03-01', 'REF-001', 'Penjualan tunai', 'IDR', '1', 'draft', 'JKT', '1101', 'Kas', '1000000', '0'],
+            [(string) $companyId, 'JRN-0001', '2026-03-01', '2026-03-01', 'REF-001', 'Penjualan tunai', 'IDR', '1', 'draft', 'JKT', '4101', 'Pendapatan penjualan', '0', '1000000'],
         ];
 
         $stream = fopen('php://temp', 'wb+');
-        fwrite($stream, "ï»¿");
+        fwrite($stream, "\xEF\xBB\xBF");
         fputcsv($stream, $headers);
 
         foreach ($sampleRows as $row) {
@@ -620,7 +621,7 @@ class ManualJournalController extends Controller
             return ',';
         }
 
-        $firstLine = preg_replace('/^ï»¿/', '', $firstLine) ?? $firstLine;
+        $firstLine = preg_replace('/^\xEF\xBB\xBF/', '', $firstLine) ?? $firstLine;
         $delimiters = [',', ';', "	", '|'];
 
         foreach ($delimiters as $delimiter) {
@@ -642,7 +643,7 @@ class ManualJournalController extends Controller
         return array_map(static function ($header) {
             $normalized = trim((string) $header);
 
-            return preg_replace('/^ï»¿/', '', $normalized) ?? $normalized;
+            return preg_replace('/^\xEF\xBB\xBF/', '', $normalized) ?? $normalized;
         }, $headers);
     }
 
