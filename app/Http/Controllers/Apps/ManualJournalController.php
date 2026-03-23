@@ -13,6 +13,7 @@ use App\Models\Currency;
 use App\Models\JournalEntry;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -318,6 +319,331 @@ class ManualJournalController extends Controller
         });
 
         return back();
+    }
+
+
+    public function importFromCsv(Request $request)
+    {
+        $payload = $request->validate([
+            'file' => ['required', 'file', 'mimes:csv,txt'],
+        ]);
+
+        $rows = $this->parseManualJournalCsv($payload['file']);
+
+        if (count($rows) < 2) {
+            throw ValidationException::withMessages([
+                'file' => 'Minimal berisi 2 baris jurnal agar debit dan kredit seimbang.',
+            ]);
+        }
+
+        $groupedRows = collect($rows)->groupBy(fn (array $row) => $row['company_id'] . '|' . $row['journal_no']);
+
+        DB::transaction(function () use ($groupedRows, $request): void {
+            foreach ($groupedRows as $journalRows) {
+                $firstRow = $journalRows->first();
+                $journalNo = $firstRow['journal_no'];
+                $companyId = (int) $firstRow['company_id'];
+                $this->enforceCompanyAccess($companyId);
+
+                if (! Company::query()->where('id', $companyId)->exists()) {
+                    throw ValidationException::withMessages([
+                        'file' => "Company ID {$companyId} pada jurnal {$journalNo} tidak ditemukan.",
+                    ]);
+                }
+
+                if (! Currency::query()->where('code', $firstRow['currency_code'])->exists()) {
+                    throw ValidationException::withMessages([
+                        'file' => "Currency {$firstRow['currency_code']} pada jurnal {$journalNo} tidak ditemukan.",
+                    ]);
+                }
+
+                foreach ($journalRows as $row) {
+                    if (
+                        $row['entry_date'] !== $firstRow['entry_date']
+                        || $row['posting_date'] !== $firstRow['posting_date']
+                        || $row['currency_code'] !== $firstRow['currency_code']
+                        || $row['exchange_rate'] !== $firstRow['exchange_rate']
+                        || $row['status'] !== $firstRow['status']
+                    ) {
+                        throw ValidationException::withMessages([
+                            'file' => "Data header jurnal {$journalNo} harus konsisten pada setiap baris (tanggal, currency, rate, status).",
+                        ]);
+                    }
+                }
+
+                $existingEntry = JournalEntry::query()
+                    ->where('company_id', $companyId)
+                    ->where('journal_no', $journalNo)
+                    ->exists();
+
+                if ($existingEntry) {
+                    throw ValidationException::withMessages([
+                        'file' => "Nomor jurnal {$journalNo} sudah terdaftar. Gunakan nomor jurnal lain.",
+                    ]);
+                }
+
+                $accountingPeriod = $this->resolveAccountingPeriod($companyId, $firstRow['posting_date']);
+
+                if (! $accountingPeriod) {
+                    throw ValidationException::withMessages([
+                        'file' => "Periode fiskal untuk jurnal {$journalNo} tidak ditemukan.",
+                    ]);
+                }
+
+                $this->ensurePeriodAllowsPosting($accountingPeriod);
+
+                $branchId = $firstRow['branch_code']
+                    ? (int) Branch::query()
+                        ->where('company_id', $companyId)
+                        ->where('code', $firstRow['branch_code'])
+                        ->value('id')
+                    : null;
+
+                if ($firstRow['branch_code'] && ! $branchId) {
+                    throw ValidationException::withMessages([
+                        'file' => "Branch code {$firstRow['branch_code']} pada jurnal {$journalNo} tidak ditemukan.",
+                    ]);
+                }
+
+                $accountCodes = $journalRows->pluck('account_code')->unique()->values();
+                $accounts = ChartOfAccount::query()
+                    ->where('company_id', $companyId)
+                    ->whereIn('code', $accountCodes)
+                    ->get(['id', 'code'])
+                    ->keyBy('code');
+
+                $lines = $journalRows->map(function (array $row, int $index) use ($accounts, $journalNo) {
+                    $account = $accounts->get($row['account_code']);
+
+                    if (! $account) {
+                        throw ValidationException::withMessages([
+                            'file' => "Account code {$row['account_code']} pada jurnal {$journalNo} tidak ditemukan.",
+                        ]);
+                    }
+
+                    return [
+                        'line_no' => $index + 1,
+                        'account_id' => (int) $account->id,
+                        'description' => $row['line_description'] ?: null,
+                        'debit' => $row['debit'],
+                        'credit' => $row['credit'],
+                    ];
+                })->values();
+
+                $totalDebit = (float) $lines->sum('debit');
+                $totalCredit = (float) $lines->sum('credit');
+
+                if (round($totalDebit, 2) !== round($totalCredit, 2) || $totalDebit <= 0 || $totalCredit <= 0) {
+                    throw ValidationException::withMessages([
+                        'file' => "Jurnal {$journalNo} tidak seimbang. Total debit dan kredit harus sama serta lebih dari 0.",
+                    ]);
+                }
+
+                if ($lines->contains(fn (array $line) => (($line['debit'] > 0 && $line['credit'] > 0) || ($line['debit'] == 0 && $line['credit'] == 0)))) {
+                    throw ValidationException::withMessages([
+                        'file' => "Setiap baris pada jurnal {$journalNo} wajib hanya berisi debit atau kredit.",
+                    ]);
+                }
+
+                $journalEntry = JournalEntry::create([
+                    'company_id' => $companyId,
+                    'branch_id' => $branchId,
+                    'accounting_period_id' => $accountingPeriod->id,
+                    'journal_no' => $journalNo,
+                    'journal_type' => 'manual',
+                    'entry_date' => $firstRow['entry_date'],
+                    'posting_date' => $firstRow['posting_date'],
+                    'reference_no' => $firstRow['reference_no'] ?: null,
+                    'description' => $firstRow['description'],
+                    'currency_code' => $firstRow['currency_code'],
+                    'exchange_rate' => $firstRow['exchange_rate'],
+                    'total_debit' => $totalDebit,
+                    'total_credit' => $totalCredit,
+                    'status' => $firstRow['status'],
+                    'created_by' => $request->user()->id,
+                ]);
+
+                foreach ($lines as $line) {
+                    $journalEntry->lines()->create($this->buildJournalLinePayload(
+                        $line,
+                        $line['line_no'],
+                        (string) $firstRow['currency_code'],
+                        (float) $firstRow['exchange_rate']
+                    ));
+                }
+            }
+        });
+
+        return back()->with('success', 'Import manual jurnal berhasil diproses.');
+    }
+
+    public function downloadImportTemplate()
+    {
+        $headers = $this->manualJournalTemplateHeaders();
+        $sampleRows = [
+            ['1', 'JRN-0001', '2026-03-01', '2026-03-01', 'REF-001', 'Penjualan tunai', 'IDR', '1', 'draft', 'JKT', '1101', 'Kas', '1000000', '0'],
+            ['1', 'JRN-0001', '2026-03-01', '2026-03-01', 'REF-001', 'Penjualan tunai', 'IDR', '1', 'draft', 'JKT', '4101', 'Pendapatan penjualan', '0', '1000000'],
+        ];
+
+        $stream = fopen('php://temp', 'wb+');
+        fwrite($stream, "ï»¿");
+        fputcsv($stream, $headers);
+
+        foreach ($sampleRows as $row) {
+            fputcsv($stream, $row);
+        }
+
+        rewind($stream);
+        $csv = stream_get_contents($stream);
+        fclose($stream);
+
+        return response($csv, 200, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+            'Content-Disposition' => 'attachment; filename="manual-journal-import-template.csv"',
+        ]);
+    }
+
+    private function manualJournalTemplateHeaders(): array
+    {
+        return [
+            'company_id',
+            'journal_no',
+            'entry_date',
+            'posting_date',
+            'reference_no',
+            'description',
+            'currency_code',
+            'exchange_rate',
+            'status',
+            'branch_code',
+            'account_code',
+            'line_description',
+            'debit',
+            'credit',
+        ];
+    }
+
+    private function parseManualJournalCsv(UploadedFile $file): array
+    {
+        $handle = fopen($file->getRealPath(), 'rb');
+        $expectedHeaders = $this->manualJournalTemplateHeaders();
+        $delimiter = $this->detectCsvDelimiter($handle, $expectedHeaders);
+        $headers = $this->normalizeCsvHeaders(fgetcsv($handle, 0, $delimiter) ?: []);
+
+        if ($headers !== $expectedHeaders) {
+            fclose($handle);
+
+            throw ValidationException::withMessages([
+                'file' => 'Format file tidak sesuai template import manual jurnal.',
+            ]);
+        }
+
+        $rows = [];
+        $rowNumber = 1;
+
+        while (($line = fgetcsv($handle, 0, $delimiter)) !== false) {
+            $rowNumber++;
+
+            if (count(array_filter($line, fn ($value) => trim((string) $value) !== '')) === 0) {
+                continue;
+            }
+
+            $row = array_combine($expectedHeaders, array_pad($line, count($expectedHeaders), ''));
+            $rows[] = $this->normalizeManualJournalRow($row, $rowNumber);
+        }
+
+        fclose($handle);
+
+        return $rows;
+    }
+
+    private function normalizeManualJournalRow(array $row, int $rowNumber): array
+    {
+        $normalized = [
+            'company_id' => (int) trim((string) ($row['company_id'] ?? '0')),
+            'journal_no' => trim((string) ($row['journal_no'] ?? '')),
+            'entry_date' => trim((string) ($row['entry_date'] ?? '')),
+            'posting_date' => trim((string) ($row['posting_date'] ?? '')),
+            'reference_no' => trim((string) ($row['reference_no'] ?? '')),
+            'description' => trim((string) ($row['description'] ?? '')),
+            'currency_code' => trim((string) ($row['currency_code'] ?? '')),
+            'exchange_rate' => (float) trim((string) ($row['exchange_rate'] ?? '0')),
+            'status' => strtolower(trim((string) ($row['status'] ?? 'draft'))),
+            'branch_code' => trim((string) ($row['branch_code'] ?? '')),
+            'account_code' => trim((string) ($row['account_code'] ?? '')),
+            'line_description' => trim((string) ($row['line_description'] ?? '')),
+            'debit' => (float) trim((string) ($row['debit'] ?? '0')),
+            'credit' => (float) trim((string) ($row['credit'] ?? '0')),
+        ];
+
+        if (
+            $normalized['company_id'] <= 0
+            || $normalized['journal_no'] === ''
+            || $normalized['entry_date'] === ''
+            || $normalized['posting_date'] === ''
+            || $normalized['description'] === ''
+            || $normalized['currency_code'] === ''
+            || $normalized['account_code'] === ''
+        ) {
+            throw ValidationException::withMessages([
+                'file' => "Kolom wajib belum lengkap pada baris {$rowNumber}.",
+            ]);
+        }
+
+        if (! in_array($normalized['status'], ['draft', 'pending_approval', 'approved', 'posted', 'reversed', 'cancelled'], true)) {
+            throw ValidationException::withMessages([
+                'file' => "Status pada baris {$rowNumber} tidak valid.",
+            ]);
+        }
+
+        if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $normalized['entry_date']) || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $normalized['posting_date'])) {
+            throw ValidationException::withMessages([
+                'file' => "Format entry_date / posting_date harus Y-m-d pada baris {$rowNumber}.",
+            ]);
+        }
+
+        if ($normalized['exchange_rate'] <= 0) {
+            throw ValidationException::withMessages([
+                'file' => "exchange_rate harus lebih dari 0 pada baris {$rowNumber}.",
+            ]);
+        }
+
+        return $normalized;
+    }
+
+    private function detectCsvDelimiter($handle, array $expectedHeaders): string
+    {
+        $firstLine = fgets($handle);
+        if ($firstLine === false) {
+            rewind($handle);
+
+            return ',';
+        }
+
+        $firstLine = preg_replace('/^ï»¿/', '', $firstLine) ?? $firstLine;
+        $delimiters = [',', ';', "	", '|'];
+
+        foreach ($delimiters as $delimiter) {
+            $candidateHeaders = $this->normalizeCsvHeaders(str_getcsv($firstLine, $delimiter));
+            if ($candidateHeaders === $expectedHeaders) {
+                rewind($handle);
+
+                return $delimiter;
+            }
+        }
+
+        rewind($handle);
+
+        return ',';
+    }
+
+    private function normalizeCsvHeaders(array $headers): array
+    {
+        return array_map(static function ($header) {
+            $normalized = trim((string) $header);
+
+            return preg_replace('/^ï»¿/', '', $normalized) ?? $normalized;
+        }, $headers);
     }
 
     public function destroy(JournalEntry $manual_journal)

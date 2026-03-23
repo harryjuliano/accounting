@@ -6,7 +6,7 @@ import Modal from '@/Components/Modal';
 import Input from '@/Components/Input';
 import Table from '@/Components/Table';
 import Pagination from '@/Components/Pagination';
-import { IconArrowsSort, IconCirclePlus, IconDatabaseOff, IconNotes, IconPencilCheck, IconPencilCog, IconPlus, IconSearch, IconTrash } from '@tabler/icons-react';
+import { IconArrowsSort, IconCirclePlus, IconDatabaseOff, IconFileImport, IconFileSpreadsheet, IconNotes, IconPencilCheck, IconPencilCog, IconPlus, IconSearch, IconTrash } from '@tabler/icons-react';
 
 const emptyLine = { account_id: '', description: '', debit: 0, credit: 0, dimension_details: [] };
 const getTodayDate = () => new Date().toISOString().split('T')[0];
@@ -116,6 +116,10 @@ export default function Index() {
     const { data, setData, post, transform } = useForm({
         id: '', company_id: companies[0]?.id ?? '', branch_id: '', accounting_period_id: '', journal_no: '', entry_date: fallbackEntryDate, posting_date: '', reference_no: '', description: '',
         currency_code: currencies[0]?.code ?? 'IDR', exchange_rate: 1, status: 'draft', lines: [{ ...emptyLine }, { ...emptyLine }], isUpdate: false, isOpen: false,
+    });
+    const { data: importData, setData: setImportData, post: postImport, processing: importProcessing } = useForm({
+        file: null,
+        isOpen: false,
     });
 
     const [dimensionEditor, setDimensionEditor] = React.useState({ open: false, lineIndex: null, details: [] });
@@ -365,11 +369,41 @@ export default function Index() {
         });
     };
 
+    const openImportModal = () => {
+        setImportData({
+            file: null,
+            isOpen: true,
+        });
+    };
+
+    const closeImportModal = () => {
+        setImportData({
+            file: null,
+            isOpen: false,
+        });
+    };
+
+    const submitImport = (event) => {
+        event.preventDefault();
+        postImport(route('apps.manual-journals.import'), {
+            forceFormData: true,
+            onSuccess: closeImportModal,
+        });
+    };
+
+    const downloadImportTemplate = () => {
+        window.location.href = route('apps.manual-journals.import-template');
+    };
+
     return (
         <>
             <Head title='Manual Journal' />
             <div className='mb-2 flex justify-between items-center gap-2'>
-                <Button type='button' icon={<IconCirclePlus size={20} strokeWidth={1.5} />} variant='gray' label='Tambah Manual Jurnal' onClick={() => setData('isOpen', true)} />
+                <div className='flex items-center gap-2'>
+                    <Button type='button' icon={<IconCirclePlus size={20} strokeWidth={1.5} />} variant='gray' label='Tambah Manual Jurnal' onClick={() => setData('isOpen', true)} />
+                    <Button type='button' icon={<IconFileImport size={20} strokeWidth={1.5} />} variant='gray' label='Import Excel/CSV' onClick={openImportModal} />
+                    <Button type='button' icon={<IconFileSpreadsheet size={20} strokeWidth={1.5} />} variant='gray' label='Download Template Import' onClick={downloadImportTemplate} />
+                </div>
                 <form onSubmit={submitSearch} className='w-full md:w-10/12 grid grid-cols-1 md:grid-cols-4 gap-2'>
                     <div className='relative md:col-span-2'>
                         <input
@@ -551,6 +585,30 @@ export default function Index() {
                     </div>
                     <div className='pt-4 border-t border-gray-200 dark:border-gray-800'>
                         <Button type='submit' variant='gray' icon={<IconPencilCheck size={20} strokeWidth={1.5} />} label='Simpan' />
+                    </div>
+                </form>
+            </Modal>
+            <Modal
+                show={importData.isOpen}
+                maxWidth='lg'
+                onClose={closeImportModal}
+                title='Import Manual Jurnal (Excel/CSV)'
+                icon={<IconFileImport size={20} strokeWidth={1.5} />}
+            >
+                <form onSubmit={submitImport} className='space-y-4'>
+                    <div className='space-y-2'>
+                        <label className='text-gray-600 text-sm'>File template import (.csv)</label>
+                        <input
+                            type='file'
+                            accept='.csv,text/csv'
+                            onChange={(event) => setImportData('file', event.target.files?.[0] ?? null)}
+                            className='w-full px-3 py-2 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800'
+                        />
+                        <p className='text-xs text-gray-500'>Gunakan tombol download template agar format import sesuai.</p>
+                    </div>
+                    <div className='flex justify-end gap-2'>
+                        <Button type='button' variant='gray' label='Batal' onClick={closeImportModal} />
+                        <Button type='submit' variant='blue' label={importProcessing ? 'Importing...' : 'Import'} disabled={importProcessing} />
                     </div>
                 </form>
             </Modal>
