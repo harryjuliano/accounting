@@ -109,3 +109,54 @@ it('rejects posting when fiscal year already hard closed', function () {
 
     $response->assertSessionHasErrors(['posting_date']);
 });
+
+it('persists posting date changes when updating journal in open period', function () {
+    $ctx = createPostingContext('open', 'open');
+
+    $this
+        ->actingAs($ctx['user'])
+        ->post(route('apps.manual-journals.store'), [
+            'company_id' => $ctx['company']->id,
+            'journal_no' => 'MJ-2026-003',
+            'entry_date' => '2026-01-10',
+            'posting_date' => '2026-01-10',
+            'description' => 'Initial posting date',
+            'currency_code' => 'IDR',
+            'exchange_rate' => 1,
+            'status' => 'draft',
+            'lines' => [
+                ['account_id' => $ctx['cash']->id, 'debit' => 150000, 'credit' => 0],
+                ['account_id' => $ctx['rev']->id, 'debit' => 0, 'credit' => 150000],
+            ],
+        ])
+        ->assertRedirect();
+
+    $journal = \App\Models\JournalEntry::query()->where('journal_no', 'MJ-2026-003')->firstOrFail();
+
+    $this
+        ->actingAs($ctx['user'])
+        ->put(route('apps.manual-journals.update', $journal->id), [
+            'company_id' => $ctx['company']->id,
+            'journal_no' => 'MJ-2026-003',
+            'entry_date' => '2026-01-10',
+            'posting_date' => '2026-01-20',
+            'description' => 'Updated posting date',
+            'currency_code' => 'IDR',
+            'exchange_rate' => 1,
+            'status' => 'draft',
+            'lines' => [
+                ['account_id' => $ctx['cash']->id, 'debit' => 150000, 'credit' => 0],
+                ['account_id' => $ctx['rev']->id, 'debit' => 0, 'credit' => 150000],
+            ],
+        ])
+        ->assertRedirect();
+
+    $this->assertDatabaseHas('journal_entries', [
+        'id' => $journal->id,
+        'posting_date' => '2026-01-20',
+        'accounting_period_id' => AccountingPeriod::query()
+            ->where('company_id', $ctx['company']->id)
+            ->where('period_no', 1)
+            ->value('id'),
+    ]);
+});

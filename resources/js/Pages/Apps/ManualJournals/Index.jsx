@@ -10,6 +10,33 @@ import { IconArrowsSort, IconCirclePlus, IconDatabaseOff, IconNotes, IconPencilC
 
 const emptyLine = { account_id: '', description: '', debit: 0, credit: 0, dimension_details: [] };
 const getTodayDate = () => new Date().toISOString().split('T')[0];
+const normalizeFormDate = (value, fallback = '') => {
+    if (!value) {
+        return fallback;
+    }
+
+    if (typeof value === 'string') {
+        const trimmed = value.trim();
+
+        if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+            return trimmed;
+        }
+
+        if (trimmed.includes('T')) {
+            const [datePart] = trimmed.split('T');
+            if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+                return datePart;
+            }
+        }
+    }
+
+    const parsedDate = new Date(value);
+    if (Number.isNaN(parsedDate.getTime())) {
+        return fallback;
+    }
+
+    return parsedDate.toISOString().split('T')[0];
+};
 
 const parseAmountInput = (value) => {
     const sanitized = `${value ?? ''}`.replace(/[^0-9.,-]/g, '');
@@ -675,7 +702,18 @@ export default function Index() {
                                 <Table.Td className='capitalize'>{journal.status.replace('_', ' ')}</Table.Td>
                                 <Table.Td><div className='flex gap-2'><Button type='modal' variant='orange' icon={<IconPencilCog size={16} strokeWidth={1.5} />} onClick={() => {
                                     const lines = journal.lines.map((line) => ({ account_id: line.account_id, description: line.description ?? '', debit: Number(line.debit), credit: Number(line.credit), dimension_details: normalizeDimensionDetails(line.dimension_details_json ?? line.dimension_details) }));
-                                    setData({ ...journal, company_id: journal.company_id, branch_id: journal.branch_id ?? '', accounting_period_id: journal.accounting_period_id, exchange_rate: Number(journal.exchange_rate), lines, isUpdate: true, isOpen: true });
+                                    setData({
+                                        ...journal,
+                                        company_id: journal.company_id,
+                                        branch_id: journal.branch_id ?? '',
+                                        accounting_period_id: journal.accounting_period_id,
+                                        entry_date: normalizeFormDate(journal.entry_date, fallbackEntryDate),
+                                        posting_date: normalizeFormDate(journal.posting_date),
+                                        exchange_rate: Number(journal.exchange_rate),
+                                        lines,
+                                        isUpdate: true,
+                                        isOpen: true,
+                                    });
                                     setAccountSearchTerms(lines.map(() => ''));
                                     setAmountInputValues(lines.map((line) => ({
                                         debit: formatAmount(line.debit, decimalPlaces),
