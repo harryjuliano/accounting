@@ -35,6 +35,7 @@ const INITIAL_FORM = {
 
 export default function Index() {
     const {
+        viewType,
         masterChartOfAccounts,
         transactionChartOfAccounts,
         companies,
@@ -43,6 +44,8 @@ export default function Index() {
         dimensions,
         errors,
     } = usePage().props;
+    const isMasterView = viewType !== 'transaction';
+    const searchUrl = `${route('apps.chart-of-accounts.index')}?type=${isMasterView ? 'master' : 'transaction'}`;
 
     const { data, setData, post, transform } = useForm({
         ...INITIAL_FORM,
@@ -161,51 +164,58 @@ export default function Index() {
             <Head title='Chart Of Accounts' />
             <div className='mb-2 flex justify-between items-center gap-2'>
                 <div className='flex gap-2'>
-                    <Button
-                        type='button'
-                        icon={<IconCirclePlus size={20} strokeWidth={1.5} />}
-                        variant='gray'
-                        label='Tambah Master COA'
-                        onClick={() => openModal('master')}
-                    />
-                    <Button
-                        type='button'
-                        icon={<IconDatabaseImport size={20} strokeWidth={1.5} />}
-                        variant='gray'
-                        label='Import Template Master COA'
-                        onClick={importMasterTemplate}
-                    />
-                    <Button
-                        type='button'
-                        icon={<IconDatabaseImport size={20} strokeWidth={1.5} />}
-                        variant='gray'
-                        label='Import Template COA Transaksi'
-                        onClick={importDefaultTemplate}
-                    />
-                    <Button
-                        type='button'
-                        icon={<IconDatabaseExport size={20} strokeWidth={1.5} />}
-                        variant='gray'
-                        label='Export COA Transaksi'
-                        onClick={exportTransactionTemplate}
-                    />
-                    <Button
-                        type='button'
-                        icon={<IconDatabaseImport size={20} strokeWidth={1.5} />}
-                        variant='gray'
-                        label='Import File COA Transaksi'
-                        onClick={openImportFileModal}
-                    />
-                    <Button
-                        type='button'
-                        icon={<IconCirclePlus size={20} strokeWidth={1.5} />}
-                        variant='gray'
-                        label='Tambah COA Transaksi'
-                        onClick={() => openModal('transaction')}
-                    />
+                    {isMasterView ? (
+                        <>
+                            <Button
+                                type='button'
+                                icon={<IconCirclePlus size={20} strokeWidth={1.5} />}
+                                variant='gray'
+                                label='Tambah Master COA'
+                                onClick={() => openModal('master')}
+                            />
+                            <Button
+                                type='button'
+                                icon={<IconDatabaseImport size={20} strokeWidth={1.5} />}
+                                variant='gray'
+                                label='Import Template Master COA'
+                                onClick={importMasterTemplate}
+                            />
+                        </>
+                    ) : (
+                        <>
+                            <Button
+                                type='button'
+                                icon={<IconDatabaseImport size={20} strokeWidth={1.5} />}
+                                variant='gray'
+                                label='Import Template COA Transaksi'
+                                onClick={importDefaultTemplate}
+                            />
+                            <Button
+                                type='button'
+                                icon={<IconDatabaseExport size={20} strokeWidth={1.5} />}
+                                variant='gray'
+                                label='Export COA Transaksi'
+                                onClick={exportTransactionTemplate}
+                            />
+                            <Button
+                                type='button'
+                                icon={<IconDatabaseImport size={20} strokeWidth={1.5} />}
+                                variant='gray'
+                                label='Import File COA Transaksi'
+                                onClick={openImportFileModal}
+                            />
+                            <Button
+                                type='button'
+                                icon={<IconCirclePlus size={20} strokeWidth={1.5} />}
+                                variant='gray'
+                                label='Tambah COA Transaksi'
+                                onClick={() => openModal('transaction')}
+                            />
+                        </>
+                    )}
                 </div>
                 <div className='w-full md:w-4/12'>
-                    <Search url={route('apps.chart-of-accounts.index')} placeholder='Cari akun...' />
+                    <Search url={searchUrl} placeholder='Cari akun...' />
                 </div>
             </div>
 
@@ -390,7 +400,9 @@ export default function Index() {
                 </form>
             </Modal>
 
-            <Table.Card title='Master COA'>
+            {isMasterView && (
+                <>
+                    <Table.Card title='Master COA'>
                 <Table>
                     <Table.Thead>
                         <tr>
@@ -429,10 +441,14 @@ export default function Index() {
                         )}
                     </Table.Tbody>
                 </Table>
-            </Table.Card>
-            {masterChartOfAccounts.last_page !== 1 && <Pagination links={masterChartOfAccounts.links} />}
+                    </Table.Card>
+                    {masterChartOfAccounts.last_page !== 1 && <Pagination links={masterChartOfAccounts.links} />}
+                </>
+            )}
 
-            <Table.Card title='COA Transaksi'>
+            {!isMasterView && (
+                <>
+                    <Table.Card title='COA Transaksi'>
                 <Table>
                     <Table.Thead>
                         <tr>
@@ -471,8 +487,10 @@ export default function Index() {
                         )}
                     </Table.Tbody>
                 </Table>
-            </Table.Card>
-            {transactionChartOfAccounts.last_page !== 1 && <Pagination links={transactionChartOfAccounts.links} />}
+                    </Table.Card>
+                    {transactionChartOfAccounts.last_page !== 1 && <Pagination links={transactionChartOfAccounts.links} />}
+                </>
+            )}
         </>
     );
 }

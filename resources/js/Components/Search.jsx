@@ -12,7 +12,8 @@ export default function Search({url, placeholder}) {
     const searchData = (e) => {
         e.preventDefault();
 
-        get(`${url}?search=${data.search}`)
+        const separator = url.includes('?') ? '&' : '?';
+        get(`${url}${separator}search=${encodeURIComponent(data.search)}`)
     }
 
     return (
