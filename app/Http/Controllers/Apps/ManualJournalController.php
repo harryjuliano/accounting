@@ -76,7 +76,9 @@ class ManualJournalController extends Controller
         $month = $isAllMonths ? 'all' : max(1, min(12, (int) $monthFilter));
         $branchId = $request->input('branch_id', 'all');
 
-        $sortBy = $request->string('sort_by')->toString() ?: 'entry_date';
+        $statusFilter = $request->input('status', 'all');
+
+        $sortBy = $request->string('sort_by')->toString() ?: 'posting_date';
         $sortDirection = strtolower($request->string('sort_direction')->toString() ?: 'desc');
         $sortDirection = in_array($sortDirection, ['asc', 'desc'], true) ? $sortDirection : 'desc';
 
@@ -85,7 +87,7 @@ class ManualJournalController extends Controller
             'company' => 'companies.name',
             'branch' => 'branches.code',
             'journal_no' => 'journal_entries.journal_no',
-            'entry_date' => 'journal_entries.entry_date',
+            'posting_date' => 'journal_entries.posting_date',
             'description' => 'journal_entries.description',
             'currency' => 'journal_entries.currency_code',
             'original_amount' => 'journal_entries.total_debit',
@@ -93,7 +95,7 @@ class ManualJournalController extends Controller
             'status' => 'journal_entries.status',
         ];
 
-        $resolvedSortColumn = $sortColumns[$sortBy] ?? $sortColumns['entry_date'];
+        $resolvedSortColumn = $sortColumns[$sortBy] ?? $sortColumns['posting_date'];
 
         $manualJournals = JournalEntry::query()
             ->select('journal_entries.*')
@@ -102,9 +104,10 @@ class ManualJournalController extends Controller
             ->with(['company:id,name,timezone', 'branch:id,company_id,code,name', 'accountingPeriod:id,period_name', 'lines.account:id,company_id,code,name,requires_dimension'])
             ->where('journal_type', 'manual')
             ->when($this->isCompanyAdmin(), fn ($query) => $query->where('journal_entries.company_id', $request->user()->company_id))
-            ->whereYear('journal_entries.entry_date', $year)
-            ->when(! $isAllMonths, fn ($query) => $query->whereMonth('journal_entries.entry_date', $month))
+            ->whereYear('journal_entries.posting_date', $year)
+            ->when(! $isAllMonths, fn ($query) => $query->whereMonth('journal_entries.posting_date', $month))
             ->when($branchId !== 'all', fn ($query) => $query->where('journal_entries.branch_id', $branchId))
+            ->when($statusFilter !== 'all', fn ($query) => $query->where('journal_entries.status', $statusFilter))
             ->when($request->search, function ($query) use ($request) {
                 $query->where(function ($subQuery) use ($request) {
                     $subQuery->where('journal_no', 'like', '%' . $request->search . '%')
@@ -128,7 +131,7 @@ class ManualJournalController extends Controller
             ->withQueryString();
 
         $years = JournalEntry::query()
-            ->selectRaw('DISTINCT YEAR(entry_date) as year')
+            ->selectRaw('DISTINCT YEAR(posting_date) as year')
             ->where('journal_type', 'manual')
             ->when($this->isCompanyAdmin(), fn ($query) => $query->where('company_id', $request->user()->company_id))
             ->orderByDesc('year')
@@ -167,6 +170,7 @@ class ManualJournalController extends Controller
                 'year' => $year,
                 'month' => $month,
                 'branch_id' => $branchId,
+                'status' => $statusFilter,
             ],
             'sort' => [
                 'by' => $sortBy,
