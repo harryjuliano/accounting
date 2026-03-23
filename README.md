@@ -35,6 +35,47 @@ email : raf@dev.com
 password : password
 ```
 
+## TROUBLESHOOTING IMPORT CSV (ERROR 413 REQUEST ENTITY TOO LARGE)
+
+Jika muncul halaman `413 Request Entity Too Large` saat import CSV (misalnya file ±1.2 MB), biasanya request ditolak di layer web server (Nginx), bukan di validasi Laravel.
+
+Penyebab umum:
+- `client_max_body_size` Nginx masih default kecil (sering `1m`).
+- `upload_max_filesize` / `post_max_size` PHP masih lebih kecil dari file upload.
+
+Contoh pengaturan yang disarankan:
+
+### Nginx
+```nginx
+server {
+    client_max_body_size 20M;
+}
+```
+
+### PHP (`php.ini`)
+```ini
+upload_max_filesize=20M
+post_max_size=20M
+max_execution_time=120
+max_input_time=120
+memory_limit=512M
+```
+
+Setelah perubahan:
+1. Reload/restart Nginx.
+2. Restart PHP-FPM.
+3. Coba upload ulang file CSV.
+
+Catatan: untuk import dengan jumlah baris sangat besar (contoh 50.000 baris), pertimbangkan proses bertahap/chunk atau queue agar tidak timeout.
+
+Parameter aplikasi yang bisa diatur via `.env`:
+```ini
+MANUAL_JOURNAL_IMPORT_MAX_UPLOAD_KB=20480
+MANUAL_JOURNAL_IMPORT_MAX_ROWS=50000
+```
+
+Panduan rekomendasi production (profil server + nilai siap pakai): `docs/manual-journal-import-production.md`.
+
 ## OVERVIEW APLIKASI
 <table>
   <tr>
