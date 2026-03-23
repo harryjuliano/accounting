@@ -69,6 +69,8 @@ Route::group(['prefix' => 'apps', 'as' => 'apps.' , 'middleware' => ['auth']], f
     // manual journals route
     Route::resource('/manual-journals', ManualJournalController::class)->except(['create', 'edit', 'show'])->parameters(['manual-journals' => 'manual_journal']);
     Route::post('/manual-journals/bulk-post', [ManualJournalController::class, 'bulkPost'])->name('manual-journals.bulk-post');
+    Route::post('/manual-journals/import', [ManualJournalController::class, 'importFromCsv'])->name('manual-journals.import');
+    Route::get('/manual-journals/import-template', [ManualJournalController::class, 'downloadImportTemplate'])->name('manual-journals.import-template');
     Route::get('/reports/general-ledger', GeneralLedgerReportController::class)->name('reports.general-ledger');
 });
 
