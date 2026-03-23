@@ -21,6 +21,11 @@ class ChartOfAccountController extends Controller
 
     public function index(Request $request)
     {
+        $viewType = $request->string('type')->value();
+        if (! in_array($viewType, ['master', 'transaction'], true)) {
+            $viewType = 'master';
+        }
+
         $baseQuery = ChartOfAccount::query()
             ->with(['company:id,name', 'accountGroup:id,name', 'parent:id,code,name', 'dimensions:id,company_id,name'])
             ->when($this->isCompanyAdmin(), fn ($query) => $query->where('company_id', $request->user()->company_id))
@@ -34,6 +39,7 @@ class ChartOfAccountController extends Controller
             });
 
         $masterChartOfAccounts = (clone $baseQuery)
+            ->where('level', '<=', 3)
             ->latest()
             ->paginate(10, ['*'], 'master_page')
             ->withQueryString();
@@ -59,6 +65,7 @@ class ChartOfAccountController extends Controller
             ->orderBy('name')->get();
 
         return inertia('Apps/ChartOfAccounts/Index', [
+            'viewType' => $viewType,
             'masterChartOfAccounts' => $masterChartOfAccounts,
             'transactionChartOfAccounts' => $transactionChartOfAccounts,
             'companies' => $companies,
