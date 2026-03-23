@@ -341,8 +341,10 @@ class ManualJournalController extends Controller
         }
 
         $groupedRows = collect($rows)->groupBy(fn (array $row) => $row['journal_no']);
+        $importedJournalCount = 0;
+        $importedPostingDates = [];
 
-        DB::transaction(function () use ($groupedRows, $request, $companyId): void {
+        DB::transaction(function () use ($groupedRows, $request, $companyId, &$importedJournalCount, &$importedPostingDates): void {
             foreach ($groupedRows as $journalRows) {
                 $firstRow = $journalRows->first();
                 $journalNo = $firstRow['journal_no'];
@@ -470,10 +472,24 @@ class ManualJournalController extends Controller
                         (float) $firstRow['exchange_rate']
                     ));
                 }
+
+                $importedJournalCount++;
+                $importedPostingDates[] = $firstRow['posting_date'];
             }
         });
 
-        return back()->with('success', 'Import manual jurnal berhasil diproses.');
+        $message = "Import manual jurnal berhasil diproses ({$importedJournalCount} jurnal).";
+
+        if ($importedJournalCount > 0) {
+            $minPostingDate = collect($importedPostingDates)->min();
+            $maxPostingDate = collect($importedPostingDates)->max();
+
+            $message .= $minPostingDate === $maxPostingDate
+                ? " Jika data belum terlihat, sesuaikan filter Tahun/Bulan ke periode posting {$minPostingDate}."
+                : " Jika data belum terlihat, sesuaikan filter Tahun/Bulan ke rentang posting {$minPostingDate} s.d. {$maxPostingDate}.";
+        }
+
+        return back()->with('success', $message);
     }
 
     public function downloadImportTemplate(Request $request)
@@ -560,8 +576,8 @@ class ManualJournalController extends Controller
     {
         $normalized = [
             'journal_no' => trim((string) ($row['journal_no'] ?? '')),
-            'entry_date' => trim((string) ($row['entry_date'] ?? '')),
-            'posting_date' => trim((string) ($row['posting_date'] ?? '')),
+            'entry_date' => $this->normalizeCsvDate((string) ($row['entry_date'] ?? ''), 'entry_date', $rowNumber),
+            'posting_date' => $this->normalizeCsvDate((string) ($row['posting_date'] ?? ''), 'posting_date', $rowNumber),
             'reference_no' => trim((string) ($row['reference_no'] ?? '')),
             'description' => trim((string) ($row['description'] ?? '')),
             'currency_code' => trim((string) ($row['currency_code'] ?? '')),
@@ -593,12 +609,6 @@ class ManualJournalController extends Controller
             ]);
         }
 
-        if (! preg_match('/^\d{4}-\d{2}-\d{2}$/', $normalized['entry_date']) || ! preg_match('/^\d{4}-\d{2}-\d{2}$/', $normalized['posting_date'])) {
-            throw ValidationException::withMessages([
-                'file' => "Format entry_date / posting_date harus Y-m-d pada baris {$rowNumber}.",
-            ]);
-        }
-
         if ($normalized['exchange_rate'] <= 0) {
             throw ValidationException::withMessages([
                 'file' => "exchange_rate harus lebih dari 0 pada baris {$rowNumber}.",
@@ -606,6 +616,31 @@ class ManualJournalController extends Controller
         }
 
         return $normalized;
+    }
+
+    private function normalizeCsvDate(string $value, string $field, int $rowNumber): string
+    {
+        $value = trim($value);
+
+        if ($value === '') {
+            return '';
+        }
+
+        foreach (['Y-m-d', 'd/m/Y', 'd-m-Y'] as $format) {
+            try {
+                $date = Carbon::createFromFormat('!' . $format, $value);
+            } catch (\Throwable) {
+                continue;
+            }
+
+            if ($date !== false && $date->format($format) === $value) {
+                return $date->format('Y-m-d');
+            }
+        }
+
+        throw ValidationException::withMessages([
+            'file' => "Format {$field} tidak valid pada baris {$rowNumber}. Gunakan format YYYY-MM-DD atau DD/MM/YYYY.",
+        ]);
     }
 
     private function resolveLoggedInCompanyId(Request $request): int
