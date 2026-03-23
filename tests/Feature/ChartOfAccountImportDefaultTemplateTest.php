@@ -243,6 +243,66 @@ it('exports then imports transaction coa template with the same format', functio
     ]);
 });
 
+it('imports transaction coa template with semicolon delimiter', function () {
+    $user = User::factory()->create();
+    $company = Company::create([
+        'code' => 'CMP-SEMICOLON',
+        'name' => 'PT Semicolon',
+        'base_currency_code' => 'IDR',
+        'country_code' => 'ID',
+    ]);
+
+    $assetGroup = AccountGroup::create([
+        'company_id' => $company->id,
+        'code' => 'AST',
+        'name' => 'Assets',
+        'type' => 'asset',
+    ]);
+
+    $parent = ChartOfAccount::create([
+        'company_id' => $company->id,
+        'account_group_id' => $assetGroup->id,
+        'parent_id' => null,
+        'code' => '1110',
+        'name' => 'Cash on Hand',
+        'alias_name' => 'Kas',
+        'level' => 3,
+        'account_type' => 'assets',
+        'normal_balance' => 'debit',
+        'financial_statement_group' => 'balance_sheet',
+        'cashflow_group' => null,
+        'allow_manual_posting' => false,
+        'allow_reconciliation' => false,
+        'requires_dimension' => false,
+        'is_control_account' => false,
+        'is_active' => true,
+    ]);
+
+    $csvContent = implode("\n", [
+        'parent_code;code;name;alias_name;normal_balance;is_active;allow_manual_posting;allow_reconciliation;requires_dimension;is_control_account',
+        '1110;1110-010;Petty Cash;Kas Kecil;debit;1;1;0;0;0',
+    ]);
+
+    $file = UploadedFile::fake()->createWithContent('coa-template-semicolon.csv', $csvContent);
+
+    $importResponse = $this
+        ->actingAs($user)
+        ->post(route('apps.chart-of-accounts.import-transaction-template'), [
+            'company_id' => $company->id,
+            'file' => $file,
+        ]);
+
+    $importResponse->assertSessionHasNoErrors();
+
+    $this->assertDatabaseHas('chart_of_accounts', [
+        'company_id' => $company->id,
+        'code' => '1110-010',
+        'name' => 'Petty Cash',
+        'level' => 4,
+        'parent_id' => $parent->id,
+    ]);
+});
+
 it('exports master coa template as parent reference for custom transaction coa', function () {
     $user = User::factory()->create();
     $company = Company::create([
