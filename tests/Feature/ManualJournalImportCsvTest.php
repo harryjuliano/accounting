@@ -125,3 +125,31 @@ it('returns success message with posting period filter hint after import', funct
         ->assertSessionHasNoErrors()
         ->assertSessionHas('success', fn (string $message) => str_contains($message, 'sesuaikan filter Tahun/Bulan'));
 });
+
+it('imports edited excel csv format with non-padded date and scientific number', function () {
+    $ctx = createManualJournalImportContext();
+
+    $csv = implode("\n", [
+        'journal_no,entry_date,posting_date,reference_no,description,currency_code,exchange_rate,status,branch_code,account_code,line_description,debit,credit',
+        'JRN-030125,1/1/2025,1/1/2025,SIS-003,Saldo Awal Piutang 2025,IDR,1,posted,,1101,Piutang Usaha,1.066E+09,0',
+        'JRN-030125,1/1/2025,1/1/2025,SIS-003,Saldo Awal Piutang 2025,IDR,1,posted,,4101,Piutang Usaha,0,1066000000',
+    ]);
+
+    $file = UploadedFile::fake()->createWithContent('manual-journal-import-edited.csv', $csv);
+
+    $response = $this
+        ->actingAs($ctx['user'])
+        ->post(route('apps.manual-journals.import'), [
+            'file' => $file,
+        ]);
+
+    $response
+        ->assertRedirect()
+        ->assertSessionHasNoErrors()
+        ->assertSessionHas('success');
+
+    $journal = JournalEntry::query()->where('journal_no', 'JRN-030125')->firstOrFail();
+    expect($journal->lines()->count())->toBe(2);
+    expect((float) $journal->lines()->sum('debit'))->toBe(1066000000.0);
+    expect((float) $journal->lines()->sum('credit'))->toBe(1066000000.0);
+});

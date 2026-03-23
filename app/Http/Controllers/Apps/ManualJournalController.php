@@ -590,13 +590,13 @@ class ManualJournalController extends Controller
             'reference_no' => trim((string) ($row['reference_no'] ?? '')),
             'description' => trim((string) ($row['description'] ?? '')),
             'currency_code' => trim((string) ($row['currency_code'] ?? '')),
-            'exchange_rate' => (float) trim((string) ($row['exchange_rate'] ?? '0')),
+            'exchange_rate' => $this->normalizeCsvNumber($row['exchange_rate'] ?? '0'),
             'status' => strtolower(trim((string) ($row['status'] ?? 'draft'))),
             'branch_code' => trim((string) ($row['branch_code'] ?? '')),
             'account_code' => trim((string) ($row['account_code'] ?? '')),
             'line_description' => trim((string) ($row['line_description'] ?? '')),
-            'debit' => (float) trim((string) ($row['debit'] ?? '0')),
-            'credit' => (float) trim((string) ($row['credit'] ?? '0')),
+            'debit' => $this->normalizeCsvNumber($row['debit'] ?? '0'),
+            'credit' => $this->normalizeCsvNumber($row['credit'] ?? '0'),
         ];
 
         if (
@@ -635,7 +635,15 @@ class ManualJournalController extends Controller
             return '';
         }
 
-        foreach (['Y-m-d', 'd/m/Y', 'd-m-Y'] as $format) {
+        if (preg_match('/^\d+(?:\.0+)?$/', $value) === 1) {
+            $excelSerial = (int) round((float) $value);
+
+            if ($excelSerial > 0) {
+                return Carbon::create(1899, 12, 30)->addDays($excelSerial)->format('Y-m-d');
+            }
+        }
+
+        foreach (['Y-m-d', 'Y/n/j', 'd/m/Y', 'j/n/Y', 'd-m-Y', 'j-n-Y', 'm/d/Y', 'n/j/Y', 'm-d-Y', 'n-j-Y'] as $format) {
             try {
                 $date = Carbon::createFromFormat('!' . $format, $value);
             } catch (\Throwable) {
@@ -648,8 +656,53 @@ class ManualJournalController extends Controller
         }
 
         throw ValidationException::withMessages([
-            'file' => "Format {$field} tidak valid pada baris {$rowNumber}. Gunakan format YYYY-MM-DD atau DD/MM/YYYY.",
+            'file' => "Format {$field} tidak valid pada baris {$rowNumber}. Gunakan format tanggal seperti YYYY-MM-DD atau DD/MM/YYYY.",
         ]);
+    }
+
+    private function normalizeCsvNumber(mixed $value): float
+    {
+        $rawValue = trim((string) $value);
+        if ($rawValue === '') {
+            return 0.0;
+        }
+
+        $normalized = str_replace(["\u{00A0}", ' '], '', $rawValue);
+        $lowered = strtolower($normalized);
+
+        if (str_contains($lowered, 'e')) {
+            return (float) str_replace(',', '.', $normalized);
+        }
+
+        if (str_contains($normalized, ',') && str_contains($normalized, '.')) {
+            $lastComma = strrpos($normalized, ',');
+            $lastDot = strrpos($normalized, '.');
+
+            if ($lastComma !== false && $lastDot !== false && $lastComma > $lastDot) {
+                $normalized = str_replace('.', '', $normalized);
+                $normalized = str_replace(',', '.', $normalized);
+            } else {
+                $normalized = str_replace(',', '', $normalized);
+            }
+
+            return (float) $normalized;
+        }
+
+        if (str_contains($normalized, ',')) {
+            if (preg_match('/,\d{1,2}$/', $normalized) === 1) {
+                $normalized = str_replace(',', '.', $normalized);
+            } else {
+                $normalized = str_replace(',', '', $normalized);
+            }
+
+            return (float) $normalized;
+        }
+
+        if (preg_match('/\.\d{3}(\.|$)/', $normalized) === 1 && preg_match('/\.\d{1,2}$/', $normalized) !== 1) {
+            $normalized = str_replace('.', '', $normalized);
+        }
+
+        return (float) $normalized;
     }
 
     private function resolveLoggedInCompanyId(Request $request): int

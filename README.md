@@ -101,6 +101,7 @@ MANUAL_JOURNAL_IMPORT_MAX_ROWS=50000
 ```
 
 Panduan rekomendasi production (profil server + nilai siap pakai): `docs/manual-journal-import-production.md`.
+Template siap tempel + panduan step-by-step Nginx/PHP-FPM: `docs/nginx-phpfpm-413-playbook.md`.
 
 ## OVERVIEW APLIKASI
 <table>
