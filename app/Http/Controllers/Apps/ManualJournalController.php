@@ -327,12 +327,21 @@ class ManualJournalController extends Controller
 
     public function importFromCsv(Request $request)
     {
+        $maxUploadKb = max(1, (int) config('imports.manual_journals.max_upload_kb', 20 * 1024));
+        $maxRows = max(2, (int) config('imports.manual_journals.max_rows', 50000));
+
         $payload = $request->validate([
-            'file' => ['required', 'file', 'mimes:csv,txt'],
+            'file' => ['required', 'file', 'mimes:csv,txt', "max:{$maxUploadKb}"],
         ]);
         $companyId = $this->resolveLoggedInCompanyId($request);
 
         $rows = $this->parseManualJournalCsv($payload['file']);
+
+        if (count($rows) > $maxRows) {
+            throw ValidationException::withMessages([
+                'file' => "Jumlah baris CSV melebihi batas {$maxRows} baris per import.",
+            ]);
+        }
 
         if (count($rows) < 2) {
             throw ValidationException::withMessages([
