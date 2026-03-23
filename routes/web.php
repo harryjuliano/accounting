@@ -6,6 +6,7 @@ use App\Http\Controllers\Apps\ChartOfAccountController;
 use App\Http\Controllers\Apps\CurrencyController;
 use App\Http\Controllers\Apps\DashboardController;
 use App\Http\Controllers\Apps\ExchangeRateController;
+use App\Http\Controllers\Apps\GeneralLedgerReportController;
 use App\Http\Controllers\Apps\DimensionController;
 use App\Http\Controllers\Apps\FiscalPeriodController;
 use App\Http\Controllers\Apps\ManualJournalController;
@@ -68,6 +69,7 @@ Route::group(['prefix' => 'apps', 'as' => 'apps.' , 'middleware' => ['auth']], f
     // manual journals route
     Route::resource('/manual-journals', ManualJournalController::class)->except(['create', 'edit', 'show'])->parameters(['manual-journals' => 'manual_journal']);
     Route::post('/manual-journals/bulk-post', [ManualJournalController::class, 'bulkPost'])->name('manual-journals.bulk-post');
+    Route::get('/reports/general-ledger', GeneralLedgerReportController::class)->name('reports.general-ledger');
 });
 
 require __DIR__.'/auth.php';

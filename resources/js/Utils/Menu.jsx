@@ -259,8 +259,8 @@ export default function Menu() {
                 },
                 {
                     title: 'General Ledger',
-                    href: '#general-ledger',
-                    active: false,
+                    href: '/apps/reports/general-ledger',
+                    active: url.startsWith('/apps/reports/general-ledger'),
                     icon: <IconBooks size={20} strokeWidth={1.5} />,
                     permissions: accountingAccess,
                 },
