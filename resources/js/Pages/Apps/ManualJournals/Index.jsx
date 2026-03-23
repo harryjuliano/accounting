@@ -128,6 +128,7 @@ export default function Index() {
         year: Number(filters?.year ?? new Date().getFullYear()),
         month: `${filters?.month ?? (new Date().getMonth() + 1)}`,
         branch_id: filters?.branch_id ?? 'all',
+        status: filters?.status ?? 'all',
     });
     const [selectedJournalIds, setSelectedJournalIds] = React.useState([]);
 
@@ -275,13 +276,14 @@ export default function Index() {
 
     const totalDebit = data.lines.reduce((sum, line) => sum + Number(line.debit || 0), 0);
     const totalCredit = data.lines.reduce((sum, line) => sum + Number(line.credit || 0), 0);
-    const currentSortBy = sort?.by ?? 'entry_date';
+    const currentSortBy = sort?.by ?? 'posting_date';
     const currentSortDirection = sort?.direction ?? 'desc';
     const serializedFilters = React.useMemo(() => ({
         search: listFilters.search,
         year: Number(listFilters.year),
         month: listFilters.month,
         branch_id: listFilters.branch_id || 'all',
+        status: listFilters.status || 'all',
     }), [listFilters]);
 
     const applyListFilters = React.useCallback((nextFilters) => {
@@ -310,6 +312,7 @@ export default function Index() {
                 year: Number(nextFilters.year),
                 month: nextFilters.month,
                 branch_id: nextFilters.branch_id || 'all',
+                status: nextFilters.status || 'all',
             });
         }
     };
@@ -391,9 +394,18 @@ export default function Index() {
                     <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={listFilters.month} onChange={(event) => updateFilter('month', event.target.value)}>
                         {monthOptions.map((month) => <option key={month.value} value={month.value}>{month.label}</option>)}
                     </select>
-                    <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800 md:col-span-4' value={listFilters.branch_id} onChange={(event) => updateFilter('branch_id', event.target.value)}>
+                    <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800 md:col-span-2' value={listFilters.branch_id} onChange={(event) => updateFilter('branch_id', event.target.value)}>
                         <option value='all'>Semua Branch</option>
                         {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.code} - {branch.name}</option>)}
+                    </select>
+                    <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800 md:col-span-2' value={listFilters.status} onChange={(event) => updateFilter('status', event.target.value)}>
+                        <option value='all'>Semua Status</option>
+                        <option value='draft'>Draft</option>
+                        <option value='pending_approval'>Pending Approval</option>
+                        <option value='approved'>Approved</option>
+                        <option value='posted'>Posted</option>
+                        <option value='reversed'>Reversed</option>
+                        <option value='cancelled'>Cancelled</option>
                     </select>
                 </form>
             </div>
@@ -670,7 +682,7 @@ export default function Index() {
                             <SortableHeader field='company' label='Company' />
                             <SortableHeader field='branch' label='Branch' />
                             <SortableHeader field='journal_no' label='No Jurnal' />
-                            <SortableHeader field='entry_date' label='Tanggal' />
+                            <SortableHeader field='posting_date' label='Tanggal' />
                             <SortableHeader field='description' label='Deskripsi' />
                             <SortableHeader field='currency' label='Currency' />
                             <SortableHeader field='original_amount' label='Original Amount' />
@@ -694,7 +706,7 @@ export default function Index() {
                                 <Table.Td>{journal.company?.name}</Table.Td>
                                 <Table.Td>{journal.branch ? `${journal.branch.code} - ${journal.branch.name}` : '-'}</Table.Td>
                                 <Table.Td>{journal.journal_no}</Table.Td>
-                                <Table.Td>{formatDateByTimezone(journal.entry_date, journal.company?.timezone ?? 'UTC')}</Table.Td>
+                                <Table.Td>{formatDateByTimezone(journal.posting_date, journal.company?.timezone ?? 'UTC')}</Table.Td>
                                 <Table.Td>{journal.description}</Table.Td>
                                 <Table.Td>{journal.currency_code}</Table.Td>
                                 <Table.Td>{formatAmount(journal.total_debit, decimalPlaces)}</Table.Td>
