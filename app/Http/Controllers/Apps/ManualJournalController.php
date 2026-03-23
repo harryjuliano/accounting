@@ -242,6 +242,9 @@ class ManualJournalController extends Controller
                 'accounting_period_id' => $accountingPeriod->id,
                 'journal_no' => $validated['journal_no'],
                 'journal_type' => 'manual',
+                'source_module' => 'manual_journal_form',
+                'source_event' => 'form_input',
+                'source_document_type' => 'manual_journal',
                 'entry_date' => $validated['entry_date'],
                 'posting_date' => $validated['posting_date'],
                 'reference_no' => $validated['reference_no'] ?? null,
@@ -327,6 +330,7 @@ class ManualJournalController extends Controller
         $payload = $request->validate([
             'file' => ['required', 'file', 'mimes:csv,txt'],
         ]);
+        $companyId = $this->resolveLoggedInCompanyId($request);
 
         $rows = $this->parseManualJournalCsv($payload['file']);
 
@@ -336,20 +340,12 @@ class ManualJournalController extends Controller
             ]);
         }
 
-        $groupedRows = collect($rows)->groupBy(fn (array $row) => $row['company_id'] . '|' . $row['journal_no']);
+        $groupedRows = collect($rows)->groupBy(fn (array $row) => $row['journal_no']);
 
-        DB::transaction(function () use ($groupedRows, $request): void {
+        DB::transaction(function () use ($groupedRows, $request, $companyId): void {
             foreach ($groupedRows as $journalRows) {
                 $firstRow = $journalRows->first();
                 $journalNo = $firstRow['journal_no'];
-                $companyId = (int) $firstRow['company_id'];
-                $this->enforceCompanyAccess($companyId);
-
-                if (! Company::query()->where('id', $companyId)->exists()) {
-                    throw ValidationException::withMessages([
-                        'file' => "Company ID {$companyId} pada jurnal {$journalNo} tidak ditemukan.",
-                    ]);
-                }
 
                 if (! Currency::query()->where('code', $firstRow['currency_code'])->exists()) {
                     throw ValidationException::withMessages([
@@ -451,6 +447,9 @@ class ManualJournalController extends Controller
                     'accounting_period_id' => $accountingPeriod->id,
                     'journal_no' => $journalNo,
                     'journal_type' => 'manual',
+                    'source_module' => 'manual_journal_import',
+                    'source_event' => 'csv_import',
+                    'source_document_type' => 'manual_journal_template',
                     'entry_date' => $firstRow['entry_date'],
                     'posting_date' => $firstRow['posting_date'],
                     'reference_no' => $firstRow['reference_no'] ?: null,
@@ -477,16 +476,17 @@ class ManualJournalController extends Controller
         return back()->with('success', 'Import manual jurnal berhasil diproses.');
     }
 
-    public function downloadImportTemplate()
+    public function downloadImportTemplate(Request $request)
     {
         $headers = $this->manualJournalTemplateHeaders();
+        $this->resolveLoggedInCompanyId($request);
         $sampleRows = [
-            ['1', 'JRN-0001', '2026-03-01', '2026-03-01', 'REF-001', 'Penjualan tunai', 'IDR', '1', 'draft', 'JKT', '1101', 'Kas', '1000000', '0'],
-            ['1', 'JRN-0001', '2026-03-01', '2026-03-01', 'REF-001', 'Penjualan tunai', 'IDR', '1', 'draft', 'JKT', '4101', 'Pendapatan penjualan', '0', '1000000'],
+            ['JRN-0001', '2026-03-01', '2026-03-01', 'REF-001', 'Penjualan tunai', 'IDR', '1', 'draft', 'JKT', '1101', 'Kas', '1000000', '0'],
+            ['JRN-0001', '2026-03-01', '2026-03-01', 'REF-001', 'Penjualan tunai', 'IDR', '1', 'draft', 'JKT', '4101', 'Pendapatan penjualan', '0', '1000000'],
         ];
 
         $stream = fopen('php://temp', 'wb+');
-        fwrite($stream, "ï»¿");
+        fwrite($stream, "\xEF\xBB\xBF");
         fputcsv($stream, $headers);
 
         foreach ($sampleRows as $row) {
@@ -506,7 +506,6 @@ class ManualJournalController extends Controller
     private function manualJournalTemplateHeaders(): array
     {
         return [
-            'company_id',
             'journal_no',
             'entry_date',
             'posting_date',
@@ -560,7 +559,6 @@ class ManualJournalController extends Controller
     private function normalizeManualJournalRow(array $row, int $rowNumber): array
     {
         $normalized = [
-            'company_id' => (int) trim((string) ($row['company_id'] ?? '0')),
             'journal_no' => trim((string) ($row['journal_no'] ?? '')),
             'entry_date' => trim((string) ($row['entry_date'] ?? '')),
             'posting_date' => trim((string) ($row['posting_date'] ?? '')),
@@ -577,8 +575,7 @@ class ManualJournalController extends Controller
         ];
 
         if (
-            $normalized['company_id'] <= 0
-            || $normalized['journal_no'] === ''
+            $normalized['journal_no'] === ''
             || $normalized['entry_date'] === ''
             || $normalized['posting_date'] === ''
             || $normalized['description'] === ''
@@ -611,6 +608,19 @@ class ManualJournalController extends Controller
         return $normalized;
     }
 
+    private function resolveLoggedInCompanyId(Request $request): int
+    {
+        $companyId = (int) ($request->user()?->company_id ?? 0);
+
+        if ($companyId <= 0 || ! Company::query()->where('id', $companyId)->exists()) {
+            throw ValidationException::withMessages([
+                'file' => 'User login belum terhubung ke company aktif. Hubungi admin untuk set company user sebelum import.',
+            ]);
+        }
+
+        return $companyId;
+    }
+
     private function detectCsvDelimiter($handle, array $expectedHeaders): string
     {
         $firstLine = fgets($handle);
@@ -620,7 +630,7 @@ class ManualJournalController extends Controller
             return ',';
         }
 
-        $firstLine = preg_replace('/^ï»¿/', '', $firstLine) ?? $firstLine;
+        $firstLine = preg_replace('/^\xEF\xBB\xBF/', '', $firstLine) ?? $firstLine;
         $delimiters = [',', ';', "	", '|'];
 
         foreach ($delimiters as $delimiter) {
@@ -642,7 +652,7 @@ class ManualJournalController extends Controller
         return array_map(static function ($header) {
             $normalized = trim((string) $header);
 
-            return preg_replace('/^ï»¿/', '', $normalized) ?? $normalized;
+            return preg_replace('/^\xEF\xBB\xBF/', '', $normalized) ?? $normalized;
         }, $headers);
     }
 
