@@ -528,8 +528,9 @@ class ChartOfAccountController extends Controller
     private function parseTransactionTemplateCsv(UploadedFile $file): array
     {
         $handle = fopen($file->getRealPath(), 'rb');
-        $headers = $this->normalizeCsvHeaders(fgetcsv($handle) ?: []);
         $expectedHeaders = $this->transactionTemplateHeaders();
+        $delimiter = $this->detectCsvDelimiter($handle, $expectedHeaders);
+        $headers = $this->normalizeCsvHeaders(fgetcsv($handle, 0, $delimiter) ?: []);
 
         if ($headers !== $expectedHeaders) {
             fclose($handle);
@@ -542,7 +543,7 @@ class ChartOfAccountController extends Controller
         $rows = [];
         $rowNumber = 1;
 
-        while (($line = fgetcsv($handle)) !== false) {
+        while (($line = fgetcsv($handle, 0, $delimiter)) !== false) {
             $rowNumber++;
             if (count(array_filter($line, fn ($value) => trim((string) $value) !== '')) === 0) {
                 continue;
@@ -555,6 +556,31 @@ class ChartOfAccountController extends Controller
         fclose($handle);
 
         return $rows;
+    }
+
+    private function detectCsvDelimiter($handle, array $expectedHeaders): string
+    {
+        $firstLine = fgets($handle);
+        if ($firstLine === false) {
+            rewind($handle);
+
+            return ',';
+        }
+
+        $firstLine = preg_replace('/^\xEF\xBB\xBF/', '', $firstLine) ?? $firstLine;
+        $delimiters = [',', ';', "\t", '|'];
+        foreach ($delimiters as $delimiter) {
+            $candidateHeaders = $this->normalizeCsvHeaders(str_getcsv($firstLine, $delimiter));
+            if ($candidateHeaders === $expectedHeaders) {
+                rewind($handle);
+
+                return $delimiter;
+            }
+        }
+
+        rewind($handle);
+
+        return ',';
     }
 
     private function normalizeCsvHeaders(array $headers): array
