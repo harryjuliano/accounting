@@ -528,7 +528,7 @@ class ChartOfAccountController extends Controller
     private function parseTransactionTemplateCsv(UploadedFile $file): array
     {
         $handle = fopen($file->getRealPath(), 'rb');
-        $headers = fgetcsv($handle) ?: [];
+        $headers = $this->normalizeCsvHeaders(fgetcsv($handle) ?: []);
         $expectedHeaders = $this->transactionTemplateHeaders();
 
         if ($headers !== $expectedHeaders) {
@@ -555,6 +555,19 @@ class ChartOfAccountController extends Controller
         fclose($handle);
 
         return $rows;
+    }
+
+    private function normalizeCsvHeaders(array $headers): array
+    {
+        return array_map(
+            static function ($header) {
+                $normalized = trim((string) $header);
+
+                // Remove UTF-8 BOM that Excel often adds on CSV header row.
+                return preg_replace('/^\xEF\xBB\xBF/', '', $normalized) ?? $normalized;
+            },
+            $headers
+        );
     }
 
     private function normalizeTransactionTemplateRow(array $row, int $rowNumber): array
