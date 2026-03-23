@@ -26,6 +26,12 @@ class ChartOfAccountController extends Controller
             $viewType = 'master';
         }
 
+        $sortBy = $request->string('sort_by')->value() ?: 'created_at';
+        $sortDir = strtolower($request->string('sort_dir')->value()) === 'asc' ? 'asc' : 'desc';
+        $levelFilter = $request->filled('level') ? (int) $request->input('level') : null;
+        $parentFilter = $request->filled('parent_id') ? (int) $request->input('parent_id') : null;
+        $statusFilter = $request->input('status');
+
         $baseQuery = ChartOfAccount::query()
             ->with(['company:id,name', 'accountGroup:id,name', 'parent:id,code,name', 'dimensions:id,company_id,name'])
             ->when($this->isCompanyAdmin(), fn ($query) => $query->where('company_id', $request->user()->company_id))
@@ -36,17 +42,38 @@ class ChartOfAccountController extends Controller
                         ->orWhere('account_type', 'like', '%' . $request->search . '%')
                         ->orWhereHas('company', fn ($companyQuery) => $companyQuery->where('name', 'like', '%' . $request->search . '%'));
                 });
-            });
+            })
+            ->when($levelFilter !== null, fn ($query) => $query->where('level', $levelFilter))
+            ->when($parentFilter !== null, fn ($query) => $query->where('parent_id', $parentFilter))
+            ->when($statusFilter !== null && in_array($statusFilter, ['1', '0'], true), fn ($query) => $query->where('is_active', $statusFilter === '1'));
+
+        $baseQuery = match ($sortBy) {
+            'company' => $baseQuery->orderBy(
+                Company::query()
+                    ->select('name')
+                    ->whereColumn('companies.id', 'chart_of_accounts.company_id')
+                    ->limit(1),
+                $sortDir
+            ),
+            'code', 'name', 'level', 'is_active' => $baseQuery->orderBy($sortBy, $sortDir),
+            'parent' => $baseQuery->orderBy(
+                ChartOfAccount::query()
+                    ->from('chart_of_accounts as parent_accounts')
+                    ->select('code')
+                    ->whereColumn('parent_accounts.id', 'chart_of_accounts.parent_id')
+                    ->limit(1),
+                $sortDir
+            ),
+            default => $baseQuery->orderBy('created_at', 'desc'),
+        };
 
         $masterChartOfAccounts = (clone $baseQuery)
             ->where('level', '<=', 3)
-            ->latest()
             ->paginate(10, ['*'], 'master_page')
             ->withQueryString();
 
         $transactionChartOfAccounts = (clone $baseQuery)
             ->where('level', 4)
-            ->latest()
             ->paginate(10, ['*'], 'transaction_page')
             ->withQueryString();
 
@@ -72,6 +99,16 @@ class ChartOfAccountController extends Controller
             'accountGroups' => $accountGroups,
             'parentAccounts' => $parentAccounts,
             'dimensions' => $dimensions,
+            'filters' => [
+                'search' => $request->search,
+                'level' => $request->input('level'),
+                'parent_id' => $request->input('parent_id'),
+                'status' => $request->input('status'),
+            ],
+            'sort' => [
+                'by' => $sortBy,
+                'dir' => $sortDir,
+            ],
         ]);
     }
 

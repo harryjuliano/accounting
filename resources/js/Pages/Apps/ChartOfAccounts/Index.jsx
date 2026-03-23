@@ -1,5 +1,5 @@
 import AppLayout from '@/Layouts/AppLayout';
-import { Head, useForm, usePage } from '@inertiajs/react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
 import React from 'react';
 import Button from '@/Components/Button';
 import Modal from '@/Components/Modal';
@@ -42,10 +42,73 @@ export default function Index() {
         accountGroups,
         parentAccounts,
         dimensions,
+        filters,
+        sort,
         errors,
     } = usePage().props;
     const isMasterView = viewType !== 'transaction';
-    const searchUrl = `${route('apps.chart-of-accounts.index')}?type=${isMasterView ? 'master' : 'transaction'}`;
+    const activeSortBy = sort?.by ?? 'created_at';
+    const activeSortDir = sort?.dir ?? 'desc';
+    const activeFilters = {
+        level: filters?.level ?? '',
+        parent_id: filters?.parent_id ?? '',
+        status: filters?.status ?? '',
+    };
+    const searchQuery = new URLSearchParams({
+        type: isMasterView ? 'master' : 'transaction',
+        ...(activeFilters.level ? { level: activeFilters.level } : {}),
+        ...(activeFilters.parent_id ? { parent_id: activeFilters.parent_id } : {}),
+        ...(activeFilters.status ? { status: activeFilters.status } : {}),
+        ...(activeSortBy ? { sort_by: activeSortBy } : {}),
+        ...(activeSortDir ? { sort_dir: activeSortDir } : {}),
+    }).toString();
+    const searchUrl = `${route('apps.chart-of-accounts.index')}?${searchQuery}`;
+
+    const applyListQuery = (params = {}) => {
+        const query = {
+            type: isMasterView ? 'master' : 'transaction',
+            search: filters?.search ?? '',
+            level: activeFilters.level,
+            parent_id: activeFilters.parent_id,
+            status: activeFilters.status,
+            sort_by: activeSortBy,
+            sort_dir: activeSortDir,
+            ...params,
+        };
+
+        Object.keys(query).forEach((key) => {
+            if (query[key] === '' || query[key] === null || query[key] === undefined) {
+                delete query[key];
+            }
+        });
+
+        router.get(route('apps.chart-of-accounts.index'), query, {
+            preserveScroll: true,
+            preserveState: true,
+            replace: true,
+        });
+    };
+
+    const toggleSort = (column) => {
+        const nextDir = activeSortBy === column && activeSortDir === 'asc' ? 'desc' : 'asc';
+        applyListQuery({
+            sort_by: column,
+            sort_dir: nextDir,
+            master_page: 1,
+            transaction_page: 1,
+        });
+    };
+
+    const renderSortableHeader = (label, column) => {
+        const indicator = activeSortBy === column ? (activeSortDir === 'asc' ? '↑' : '↓') : '↕';
+
+        return (
+            <button type='button' className='inline-flex items-center gap-1' onClick={() => toggleSort(column)}>
+                <span>{label}</span>
+                <span className='text-xs'>{indicator}</span>
+            </button>
+        );
+    };
 
     const { data, setData, post, transform } = useForm({
         ...INITIAL_FORM,
@@ -232,6 +295,35 @@ export default function Index() {
                 <div className='w-full md:w-4/12'>
                     <Search url={searchUrl} placeholder='Cari akun...' />
                 </div>
+            </div>
+            <div className='mb-3 grid grid-cols-1 md:grid-cols-3 gap-2'>
+                <select
+                    className='w-full px-3 py-2 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800'
+                    value={activeFilters.level}
+                    onChange={(e) => applyListQuery({ level: e.target.value, master_page: 1, transaction_page: 1 })}
+                >
+                    <option value=''>Filter Level (Semua)</option>
+                    {[1, 2, 3, 4].map((level) => <option key={level} value={level}>{`Level ${level}`}</option>)}
+                </select>
+                <select
+                    className='w-full px-3 py-2 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800'
+                    value={activeFilters.parent_id}
+                    onChange={(e) => applyListQuery({ parent_id: e.target.value, master_page: 1, transaction_page: 1 })}
+                >
+                    <option value=''>Filter Parent (Semua)</option>
+                    {parentAccounts.map((account) => (
+                        <option key={account.id} value={account.id}>{account.code} - {account.name}</option>
+                    ))}
+                </select>
+                <select
+                    className='w-full px-3 py-2 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800'
+                    value={activeFilters.status}
+                    onChange={(e) => applyListQuery({ status: e.target.value, master_page: 1, transaction_page: 1 })}
+                >
+                    <option value=''>Filter Status (Semua)</option>
+                    <option value='1'>Aktif</option>
+                    <option value='0'>Nonaktif</option>
+                </select>
             </div>
 
             <Modal show={data.isOpen} onClose={resetForm} title={data.isUpdate ? `Ubah ${data.form_type === 'transaction' ? 'COA Transaksi' : 'Master COA'}` : `Tambah ${data.form_type === 'transaction' ? 'COA Transaksi' : 'Master COA'}`} icon={<IconBook2 size={20} strokeWidth={1.5} />}>
@@ -422,11 +514,12 @@ export default function Index() {
                     <Table.Thead>
                         <tr>
                             <Table.Th>No</Table.Th>
-                            <Table.Th>Company</Table.Th>
-                            <Table.Th>Kode</Table.Th>
-                            <Table.Th>Nama Akun</Table.Th>
-                            <Table.Th>Level</Table.Th>
-                            <Table.Th>Status</Table.Th>
+                            <Table.Th>{renderSortableHeader('Company', 'company')}</Table.Th>
+                            <Table.Th>{renderSortableHeader('Kode', 'code')}</Table.Th>
+                            <Table.Th>{renderSortableHeader('Nama Akun', 'name')}</Table.Th>
+                            <Table.Th>{renderSortableHeader('Level', 'level')}</Table.Th>
+                            <Table.Th>{renderSortableHeader('Parent', 'parent')}</Table.Th>
+                            <Table.Th>{renderSortableHeader('Status', 'is_active')}</Table.Th>
                             <Table.Th className='w-40'></Table.Th>
                         </tr>
                     </Table.Thead>
@@ -438,6 +531,7 @@ export default function Index() {
                                 <Table.Td>{account.code}</Table.Td>
                                 <Table.Td>{account.name}</Table.Td>
                                 <Table.Td>{account.level}</Table.Td>
+                                <Table.Td>{account.parent ? `${account.parent.code} - ${account.parent.name}` : '-'}</Table.Td>
                                 <Table.Td>{account.is_active ? 'Aktif' : 'Nonaktif'}</Table.Td>
                                 <Table.Td>
                                     <div className='flex gap-2'>
@@ -452,7 +546,7 @@ export default function Index() {
                                 </Table.Td>
                             </tr>
                         )) : (
-                            <Table.Empty colSpan={7} message={<><div className='flex justify-center mb-2'><IconDatabaseOff size={24} /></div><span>Data Master COA tidak ditemukan.</span></>} />
+                            <Table.Empty colSpan={8} message={<><div className='flex justify-center mb-2'><IconDatabaseOff size={24} /></div><span>Data Master COA tidak ditemukan.</span></>} />
                         )}
                     </Table.Tbody>
                 </Table>
@@ -468,11 +562,11 @@ export default function Index() {
                     <Table.Thead>
                         <tr>
                             <Table.Th>No</Table.Th>
-                            <Table.Th>Company</Table.Th>
-                            <Table.Th>Kode</Table.Th>
-                            <Table.Th>Nama Akun</Table.Th>
-                            <Table.Th>Parent</Table.Th>
-                            <Table.Th>Status</Table.Th>
+                            <Table.Th>{renderSortableHeader('Company', 'company')}</Table.Th>
+                            <Table.Th>{renderSortableHeader('Kode', 'code')}</Table.Th>
+                            <Table.Th>{renderSortableHeader('Nama Akun', 'name')}</Table.Th>
+                            <Table.Th>{renderSortableHeader('Parent', 'parent')}</Table.Th>
+                            <Table.Th>{renderSortableHeader('Status', 'is_active')}</Table.Th>
                             <Table.Th className='w-40'></Table.Th>
                         </tr>
                     </Table.Thead>
