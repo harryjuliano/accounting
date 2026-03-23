@@ -42,12 +42,21 @@ Jika muncul halaman `413 Request Entity Too Large` saat import CSV (misalnya fil
 Penyebab umum:
 - `client_max_body_size` Nginx masih default kecil (sering `1m`).
 - `upload_max_filesize` / `post_max_size` PHP masih lebih kecil dari file upload.
+- Konfigurasi diubah di file yang tidak dipakai (misalnya edit `nginx.conf`, tapi request masuk lewat vhost/container lain).
+- Ada reverse proxy di depan app (Cloudflare/Nginx Proxy Manager/load balancer) yang masih membatasi body size.
 
 Contoh pengaturan yang disarankan:
 
 ### Nginx
 ```nginx
 server {
+    client_max_body_size 20M;
+}
+```
+
+Untuk memastikan semua request (termasuk endpoint import) ikut limit ini, bisa set juga di level `http`:
+```nginx
+http {
     client_max_body_size 20M;
 }
 ```
@@ -66,6 +75,23 @@ Setelah perubahan:
 2. Restart PHP-FPM.
 3. Coba upload ulang file CSV.
 
+Checklist verifikasi cepat (penting jika sudah restart tapi masih 413):
+
+```bash
+# cek config efektif nginx (pastikan nilai muncul di server yang benar)
+sudo nginx -T | grep -n client_max_body_size
+
+# cek binary nginx aktif dan file unit service
+ps -ef | grep nginx
+systemctl status nginx --no-pager
+
+# cek php.ini yang benar-benar dipakai FPM
+php -i | grep "Loaded Configuration File"
+php -i | grep -E "upload_max_filesize|post_max_size"
+```
+
+Jika masih 413 setelah semua benar, hampir pasti limit berasal dari proxy di depan aplikasi.
+
 Catatan: untuk import dengan jumlah baris sangat besar (contoh 50.000 baris), pertimbangkan proses bertahap/chunk atau queue agar tidak timeout.
 
 Parameter aplikasi yang bisa diatur via `.env`:
@@ -75,6 +101,7 @@ MANUAL_JOURNAL_IMPORT_MAX_ROWS=50000
 ```
 
 Panduan rekomendasi production (profil server + nilai siap pakai): `docs/manual-journal-import-production.md`.
+Template siap tempel + panduan step-by-step Nginx/PHP-FPM: `docs/nginx-phpfpm-413-playbook.md`.
 
 ## OVERVIEW APLIKASI
 <table>
