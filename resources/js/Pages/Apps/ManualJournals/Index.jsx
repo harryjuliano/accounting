@@ -438,7 +438,7 @@ export default function Index() {
                         <Input label='Referensi' type='text' value={data.reference_no} onChange={(e) => setData('reference_no', e.target.value)} errors={errors.reference_no} />
                     </div>
                     <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
-                        <Input label='Tanggal Entry' type='date' value={data.entry_date} readOnly disabled onChange={(e) => setData('entry_date', e.target.value)} errors={errors.entry_date} />
+                        <Input label='Tanggal Entry' type='date' value={data.entry_date} onChange={(e) => setData('entry_date', e.target.value)} errors={errors.entry_date} />
                         <Input label='Tanggal Posting' type='date' value={data.posting_date} onChange={(e) => updatePostingDate(e.target.value)} errors={errors.posting_date} />
                     </div>
                     <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
