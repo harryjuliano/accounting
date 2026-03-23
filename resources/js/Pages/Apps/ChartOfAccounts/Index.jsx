@@ -135,6 +135,14 @@ export default function Index() {
         window.location.href = `${route('apps.chart-of-accounts.export-transaction-template')}?company_id=${importData.company_id}`;
     };
 
+    const exportMasterTemplate = () => {
+        if (!importData.company_id) {
+            return;
+        }
+
+        window.location.href = `${route('apps.chart-of-accounts.export-master-template')}?company_id=${importData.company_id}`;
+    };
+
     const openImportFileModal = () => {
         setImportFileData({
             company_id: importData.company_id || companies[0]?.id || '',
@@ -179,6 +187,13 @@ export default function Index() {
                                 variant='gray'
                                 label='Import Template Master COA'
                                 onClick={importMasterTemplate}
+                            />
+                            <Button
+                                type='button'
+                                icon={<IconDatabaseExport size={20} strokeWidth={1.5} />}
+                                variant='gray'
+                                label='Export Master COA'
+                                onClick={exportMasterTemplate}
                             />
                         </>
                     ) : (

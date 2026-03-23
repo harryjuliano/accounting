@@ -242,3 +242,68 @@ it('exports then imports transaction coa template with the same format', functio
         'parent_id' => $parent->id,
     ]);
 });
+
+it('exports master coa template as parent reference for custom transaction coa', function () {
+    $user = User::factory()->create();
+    $company = Company::create([
+        'code' => 'CMP-MASTER-EXP',
+        'name' => 'PT Master Export',
+        'base_currency_code' => 'IDR',
+        'country_code' => 'ID',
+    ]);
+
+    $assetGroup = AccountGroup::create([
+        'company_id' => $company->id,
+        'code' => 'AST',
+        'name' => 'Assets',
+        'type' => 'asset',
+    ]);
+
+    $level2 = ChartOfAccount::create([
+        'company_id' => $company->id,
+        'account_group_id' => $assetGroup->id,
+        'parent_id' => null,
+        'code' => '1100',
+        'name' => 'Current Assets',
+        'alias_name' => 'Aktiva Lancar',
+        'level' => 2,
+        'account_type' => 'assets',
+        'normal_balance' => 'debit',
+        'financial_statement_group' => 'balance_sheet',
+        'cashflow_group' => null,
+        'allow_manual_posting' => false,
+        'allow_reconciliation' => false,
+        'requires_dimension' => false,
+        'is_control_account' => false,
+        'is_active' => true,
+    ]);
+
+    ChartOfAccount::create([
+        'company_id' => $company->id,
+        'account_group_id' => $assetGroup->id,
+        'parent_id' => $level2->id,
+        'code' => '1110',
+        'name' => 'Cash on Hand',
+        'alias_name' => 'Kas',
+        'level' => 3,
+        'account_type' => 'assets',
+        'normal_balance' => 'debit',
+        'financial_statement_group' => 'balance_sheet',
+        'cashflow_group' => null,
+        'allow_manual_posting' => false,
+        'allow_reconciliation' => false,
+        'requires_dimension' => false,
+        'is_control_account' => false,
+        'is_active' => true,
+    ]);
+
+    $response = $this->actingAs($user)->get(route('apps.chart-of-accounts.export-master-template', [
+        'company_id' => $company->id,
+    ]));
+
+    $response->assertOk();
+    $content = $response->streamedContent();
+
+    expect($content)->toContain('parent_code,code,name,alias_name,level,account_type,financial_statement_group,is_active');
+    expect($content)->toContain('1100,1110,Cash on Hand,Kas,3,assets,balance_sheet,1');
+});
