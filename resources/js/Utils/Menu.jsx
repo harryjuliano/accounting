@@ -218,6 +218,54 @@ export default function Menu() {
                 },
             ],
         },
+        {
+            title: 'Laporan Keuangan',
+            permissions: accountingAccess,
+            details: [
+                {
+                    title: 'Neraca',
+                    href: '#neraca',
+                    active: false,
+                    icon: <IconChartBar size={20} strokeWidth={1.5} />,
+                    permissions: accountingAccess,
+                },
+                {
+                    title: 'Rugi Laba',
+                    href: '#rugi-laba',
+                    active: false,
+                    icon: <IconChartBar size={20} strokeWidth={1.5} />,
+                    permissions: accountingAccess,
+                },
+                {
+                    title: 'Perubahan Modal',
+                    href: '#perubahan-modal',
+                    active: false,
+                    icon: <IconChartBar size={20} strokeWidth={1.5} />,
+                    permissions: accountingAccess,
+                },
+                {
+                    title: 'Arus Kas Tidak Langsung',
+                    href: '#arus-kas-tidak-langsung',
+                    active: false,
+                    icon: <IconChartBar size={20} strokeWidth={1.5} />,
+                    permissions: accountingAccess,
+                },
+                {
+                    title: 'Trial Balance',
+                    href: '#trial-balance-financial',
+                    active: false,
+                    icon: <IconChartBar size={20} strokeWidth={1.5} />,
+                    permissions: accountingAccess,
+                },
+                {
+                    title: 'General Ledger',
+                    href: '#general-ledger',
+                    active: false,
+                    icon: <IconBooks size={20} strokeWidth={1.5} />,
+                    permissions: accountingAccess,
+                },
+            ],
+        },
     ];
 
     return menuNavigation;
