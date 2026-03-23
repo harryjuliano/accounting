@@ -280,6 +280,48 @@ class ChartOfAccountController extends Controller
         ]);
     }
 
+    public function exportMasterTemplate(Request $request)
+    {
+        $payload = $request->validate([
+            'company_id' => ['required', 'integer', 'exists:companies,id'],
+        ]);
+
+        $companyId = (int) $payload['company_id'];
+        $this->enforceCompanyAccess($companyId);
+
+        $companyName = Company::query()->whereKey($companyId)->value('name') ?? 'company';
+        $rows = ChartOfAccount::query()
+            ->with('parent:id,code')
+            ->where('company_id', $companyId)
+            ->where('level', '<=', 3)
+            ->orderBy('code')
+            ->get();
+
+        $headers = $this->masterTemplateHeaders();
+
+        return response()->streamDownload(function () use ($rows, $headers): void {
+            $handle = fopen('php://output', 'wb');
+            fputcsv($handle, $headers);
+
+            foreach ($rows as $row) {
+                fputcsv($handle, [
+                    $row->parent?->code ?? '',
+                    $row->code,
+                    $row->name,
+                    $row->alias_name,
+                    $row->level,
+                    $row->account_type,
+                    $row->financial_statement_group,
+                    $row->is_active ? '1' : '0',
+                ]);
+            }
+
+            fclose($handle);
+        }, sprintf('master-coa-reference-%s.csv', str($companyName)->slug()->toString()), [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
+    }
+
     public function importTransactionTemplate(Request $request)
     {
         $payload = $request->validate([
@@ -429,6 +471,20 @@ class ChartOfAccountController extends Controller
             'allow_reconciliation',
             'requires_dimension',
             'is_control_account',
+        ];
+    }
+
+    private function masterTemplateHeaders(): array
+    {
+        return [
+            'parent_code',
+            'code',
+            'name',
+            'alias_name',
+            'level',
+            'account_type',
+            'financial_statement_group',
+            'is_active',
         ];
     }
 

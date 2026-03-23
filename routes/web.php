@@ -55,6 +55,7 @@ Route::group(['prefix' => 'apps', 'as' => 'apps.' , 'middleware' => ['auth']], f
     Route::post('/chart-of-accounts/import-master-template', [ChartOfAccountController::class, 'importMasterTemplate'])->name('chart-of-accounts.import-master-template');
     Route::post('/chart-of-accounts/import-default-template', [ChartOfAccountController::class, 'importDefaultTemplate'])->name('chart-of-accounts.import-default-template');
     Route::post('/chart-of-accounts/import-transaction-template', [ChartOfAccountController::class, 'importTransactionTemplate'])->name('chart-of-accounts.import-transaction-template');
+    Route::get('/chart-of-accounts/export-master-template', [ChartOfAccountController::class, 'exportMasterTemplate'])->name('chart-of-accounts.export-master-template');
     Route::get('/chart-of-accounts/export-transaction-template', [ChartOfAccountController::class, 'exportTransactionTemplate'])->name('chart-of-accounts.export-transaction-template');
     // dimensions route
     Route::resource('/dimensions', DimensionController::class)->except(['create', 'edit', 'show']);
