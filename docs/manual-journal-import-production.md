@@ -18,6 +18,8 @@ QUEUE_CONNECTION=database
 client_max_body_size 50M;
 ```
 
+> Jika memakai reverse proxy berlapis (mis. Cloudflare, Nginx Proxy Manager, ingress), limit upload harus dinaikkan di tiap layer.
+
 ### PHP (`php.ini`)
 ```ini
 upload_max_filesize=50M
@@ -49,3 +51,12 @@ php artisan queue:work --tries=3 --timeout=180
 ```
 
 > Jika traffic tinggi, jalankan lebih dari 1 worker dan atur monitoring (CPU, RAM, durasi job).
+
+## Verifikasi jika masih muncul 413 setelah restart
+
+```bash
+sudo nginx -T | grep -n client_max_body_size
+php -i | grep -E "Loaded Configuration File|upload_max_filesize|post_max_size"
+```
+
+Pastikan output menunjukkan nilai yang sama dengan target production, dan berasal dari service/container yang benar.
