@@ -157,11 +157,6 @@ export default function Index() {
     const filteredAccounts = accounts.filter((account) => account.company_id === Number(data.company_id) && Number(account.level) === 4);
     const selectedCurrency = currencies.find((currency) => currency.code === data.currency_code);
     const decimalPlaces = Number(selectedCurrency?.decimal_places ?? 2);
-    const selectedPeriod = filteredPeriods.find((period) => {
-        if (!data.posting_date) return false;
-
-        return data.posting_date >= period.start_date && data.posting_date <= period.end_date;
-    });
     const selectedAccountsById = Object.fromEntries(filteredAccounts.map((account) => [Number(account.id), account]));
 
     const updateLine = (index, field, value) => {
@@ -417,56 +412,54 @@ export default function Index() {
                 title={data.isUpdate ? 'Ubah Manual Jurnal' : 'Tambah Manual Jurnal'}
                 icon={<IconNotes size={20} strokeWidth={1.5} />}
             >
-                <form onSubmit={submit} className='space-y-4'>
-                    <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
-                        <div className='flex flex-col gap-2'>
-                            <label className='text-gray-600 text-sm'>Company</label>
-                            <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={data.company_id} onChange={(e) => {
-                                setData({ ...data, company_id: Number(e.target.value), branch_id: '', accounting_period_id: '', posting_date: '', lines: [{ ...emptyLine }, { ...emptyLine }] });
-                                setAccountSearchTerms(['', '']);
-                                setAmountInputValues([
-                                    { debit: formatAmount(0, decimalPlaces), credit: formatAmount(0, decimalPlaces) },
-                                    { debit: formatAmount(0, decimalPlaces), credit: formatAmount(0, decimalPlaces) },
-                                ]);
-                            }}>{companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}</select>
-                            {errors.company_id && <small className='text-xs text-red-500'>{errors.company_id}</small>}
+                <form onSubmit={submit} className='max-h-[80vh] overflow-y-auto'>
+                    <div className='sticky top-0 z-10 space-y-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-950 pb-4'>
+                        <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
+                            <div className='flex flex-col gap-2'>
+                                <label className='text-gray-600 text-sm'>Company</label>
+                                <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={data.company_id} onChange={(e) => {
+                                    setData({ ...data, company_id: Number(e.target.value), branch_id: '', accounting_period_id: '', posting_date: '', lines: [{ ...emptyLine }, { ...emptyLine }] });
+                                    setAccountSearchTerms(['', '']);
+                                    setAmountInputValues([
+                                        { debit: formatAmount(0, decimalPlaces), credit: formatAmount(0, decimalPlaces) },
+                                        { debit: formatAmount(0, decimalPlaces), credit: formatAmount(0, decimalPlaces) },
+                                    ]);
+                                }}>{companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}</select>
+                                {errors.company_id && <small className='text-xs text-red-500'>{errors.company_id}</small>}
+                            </div>
+                            <div className='flex flex-col gap-2'>
+                                <label className='text-gray-600 text-sm'>Branch</label>
+                                <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={data.branch_id} onChange={(e) => setData('branch_id', e.target.value ? Number(e.target.value) : '')}>
+                                    <option value=''>Tidak Spesifik</option>
+                                    {filteredBranches.map((branch) => <option key={branch.id} value={branch.id}>{branch.code} - {branch.name}</option>)}
+                                </select>
+                                {errors.branch_id && <small className='text-xs text-red-500'>{errors.branch_id}</small>}
+                            </div>
+                            <Input label='Nomor Jurnal' type='text' value={data.journal_no} onChange={(e) => setData('journal_no', e.target.value)} errors={errors.journal_no} />
                         </div>
-                        <div className='flex flex-col gap-2'>
-                            <label className='text-gray-600 text-sm'>Branch</label>
-                            <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={data.branch_id} onChange={(e) => setData('branch_id', e.target.value ? Number(e.target.value) : '')}>
-                                <option value=''>Tidak Spesifik</option>
-                                {filteredBranches.map((branch) => <option key={branch.id} value={branch.id}>{branch.code} - {branch.name}</option>)}
-                            </select>
-                            {errors.branch_id && <small className='text-xs text-red-500'>{errors.branch_id}</small>}
-                        </div>
-                        <div className='flex flex-col gap-2'>
-                            <label className='text-gray-600 text-sm'>Periode</label>
-                            <input type='text' readOnly value={selectedPeriod ? `${selectedPeriod.period_name} (${selectedPeriod.start_date} s/d ${selectedPeriod.end_date})` : 'Pilih tanggal posting terlebih dahulu'} className='w-full px-3 py-1.5 border text-sm rounded-md bg-gray-100 text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800 cursor-not-allowed' />
-                            {errors.accounting_period_id && <small className='text-xs text-red-500'>{errors.accounting_period_id}</small>}
-                        </div>
-                    </div>
-                    <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
-                        <Input label='Nomor Jurnal' type='text' value={data.journal_no} onChange={(e) => setData('journal_no', e.target.value)} errors={errors.journal_no} />
-                        <Input label='Referensi' type='text' value={data.reference_no} onChange={(e) => setData('reference_no', e.target.value)} errors={errors.reference_no} />
-                    </div>
-                    <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
-                        <Input label='Tanggal Entry' type='date' value={data.entry_date} onChange={(e) => setData('entry_date', e.target.value)} errors={errors.entry_date} />
-                        <Input label='Tanggal Posting' type='date' value={data.posting_date} onChange={(e) => updatePostingDate(e.target.value)} errors={errors.posting_date} />
-                    </div>
-                    <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
-                        <div className='flex flex-col gap-2'>
-                            <label className='text-gray-600 text-sm'>Currency</label>
-                            <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={data.currency_code} onChange={(e) => setData('currency_code', e.target.value)}>{currencies.map((currency) => <option key={currency.code} value={currency.code}>{currency.code} - {currency.name}</option>)}</select>
-                        </div>
-                        <Input label='Kurs' type='number' min='0.0000000001' step='0.0000000001' value={data.exchange_rate} onChange={(e) => setData('exchange_rate', e.target.value)} errors={errors.exchange_rate} />
-                        <div className='flex flex-col gap-2'>
-                            <label className='text-gray-600 text-sm'>Status</label>
-                            <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={data.status} onChange={(e) => setData('status', e.target.value)}>{['draft', 'pending_approval', 'approved', 'posted', 'reversed', 'cancelled'].map((status) => <option key={status} value={status}>{status}</option>)}</select>
-                        </div>
-                    </div>
-                    <Input label='Deskripsi' type='text' value={data.description} onChange={(e) => setData('description', e.target.value)} errors={errors.description} />
 
-                    <div className='space-y-2'>
+                        <div className='grid grid-cols-1 md:grid-cols-4 gap-3'>
+                            <Input label='Tanggal Posting' type='date' value={data.posting_date} onChange={(e) => updatePostingDate(e.target.value)} errors={errors.posting_date} />
+                            <div className='flex flex-col gap-2'>
+                                <label className='text-gray-600 text-sm'>Currency</label>
+                                <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={data.currency_code} onChange={(e) => setData('currency_code', e.target.value)}>{currencies.map((currency) => <option key={currency.code} value={currency.code}>{currency.code} - {currency.name}</option>)}</select>
+                            </div>
+                            <Input label='Rate' type='number' min='0.0000000001' step='0.0000000001' value={data.exchange_rate} onChange={(e) => setData('exchange_rate', e.target.value)} errors={errors.exchange_rate} />
+                            <div className='flex flex-col gap-2'>
+                                <label className='text-gray-600 text-sm'>Status</label>
+                                <select className='w-full px-3 py-1.5 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800' value={data.status} onChange={(e) => setData('status', e.target.value)}>{['draft', 'pending_approval', 'approved', 'posted', 'reversed', 'cancelled'].map((status) => <option key={status} value={status}>{status}</option>)}</select>
+                            </div>
+                        </div>
+
+                        <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
+                            <Input label='Referensi' type='text' value={data.reference_no} onChange={(e) => setData('reference_no', e.target.value)} errors={errors.reference_no} />
+                            <Input label='Deskripsi' type='text' value={data.description} onChange={(e) => setData('description', e.target.value)} errors={errors.description} />
+                        </div>
+
+                        {errors.accounting_period_id && <small className='text-xs text-red-500'>{errors.accounting_period_id}</small>}
+                    </div>
+
+                    <div className='space-y-2 pt-4 border-b border-gray-200 dark:border-gray-800 pb-4'>
                         <div className='flex justify-between items-center'>
                             <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>Baris Jurnal</h4>
                             <Button type='button' variant='blue' icon={<IconPlus size={16} strokeWidth={1.5} />} label='Tambah Baris' onClick={addLine} />
@@ -556,7 +549,9 @@ export default function Index() {
                         {(errors.lines || errors['lines.0.debit']) && <small className='text-xs text-red-500'>{errors.lines || errors['lines.0.debit']}</small>}
                         <div className='text-sm text-gray-600 dark:text-gray-300'>Total Debit: <b>{formatAmount(totalDebit, decimalPlaces)}</b> | Total Kredit: <b>{formatAmount(totalCredit, decimalPlaces)}</b></div>
                     </div>
-                    <Button type='submit' variant='gray' icon={<IconPencilCheck size={20} strokeWidth={1.5} />} label='Simpan' />
+                    <div className='pt-4 border-t border-gray-200 dark:border-gray-800'>
+                        <Button type='submit' variant='gray' icon={<IconPencilCheck size={20} strokeWidth={1.5} />} label='Simpan' />
+                    </div>
                 </form>
             </Modal>
 
