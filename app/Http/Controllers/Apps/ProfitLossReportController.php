@@ -186,6 +186,7 @@ class ProfitLossReportController extends Controller
                     'coa_level_3' => $drillLevel >= 3 ? ($first['coa_level_3'] ?? null) : null,
                     'coa_level_4' => $drillLevel >= 4 ? ($first['coa_level_4'] ?? null) : null,
                     'coa_code' => $drillLevel >= 4 ? ($first['coa_code'] ?? null) : null,
+                    'account_group_type' => $first['account_group_type'] ?? null,
                     'current_year' => (float) $items->sum('current_year'),
                     'previous_year' => (float) $items->sum('previous_year'),
                     'variance' => (float) $items->sum('variance'),
