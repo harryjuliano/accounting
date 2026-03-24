@@ -29,6 +29,32 @@ const monthOptions = [
     { value: 12, label: 'Des' },
 ];
 
+const getDisplayLabel = (row, drillLevel) => {
+    if (drillLevel >= 4) return row.coa_level_4 || row.coa_level_3 || row.coa_level_2 || row.coa_level_1 || '-';
+    if (drillLevel === 3) return row.coa_level_3 || row.coa_level_2 || row.coa_level_1 || '-';
+    if (drillLevel === 2) return row.coa_level_2 || row.coa_level_1 || '-';
+
+    return row.coa_level_1 || '-';
+};
+
+const getRowTone = (row) => {
+    const label = `${row.coa_level_1 ?? ''} ${row.coa_level_2 ?? ''} ${row.coa_level_3 ?? ''} ${row.coa_level_4 ?? ''}`.toLowerCase();
+
+    if (label.includes('pendapatan') || label.includes('revenue')) {
+        return 'bg-blue-50/70 text-blue-900 dark:bg-blue-950/30 dark:text-blue-100';
+    }
+
+    if (label.includes('beban') || label.includes('expense') || label.includes('harga pokok') || label.includes('cogs')) {
+        return 'bg-rose-50/70 text-rose-900 dark:bg-rose-950/30 dark:text-rose-100';
+    }
+
+    return 'bg-white text-gray-800 dark:bg-gray-950 dark:text-gray-100';
+};
+
+const getAmountClass = (value) => Number(value || 0) < 0
+    ? 'text-right font-medium text-rose-600 dark:text-rose-300'
+    : 'text-right font-medium text-gray-800 dark:text-gray-100';
+
 export default function Index() {
     const { rows, summary, companies, branches, statusOptions, filters, yearOptions = [] } = usePage().props;
     const now = new Date();
@@ -153,11 +179,7 @@ export default function Index() {
                     <Table>
                         <Table.Thead>
                             <tr>
-                                <Table.Th>COA Level 1</Table.Th>
-                                <Table.Th>COA Level 2</Table.Th>
-                                <Table.Th>COA Level 3</Table.Th>
-                                <Table.Th>COA Level 4</Table.Th>
-                                <Table.Th>Kode COA</Table.Th>
+                                <Table.Th>COA</Table.Th>
                                 <Table.Th className='text-right'>Current Year</Table.Th>
                                 <Table.Th className='text-right'>% Total Sales</Table.Th>
                                 <Table.Th className='text-right'>Tahun Sebelumnya</Table.Th>
@@ -168,21 +190,22 @@ export default function Index() {
                         </Table.Thead>
                         <Table.Tbody>
                             {rows.length > 0 ? rows.map((row, index) => (
-                                <tr key={`${row.coa_code ?? row.coa_level_1}-${index}`}>
-                                    <Table.Td>{row.coa_level_1 || '-'}</Table.Td>
-                                    <Table.Td>{row.coa_level_2 || '-'}</Table.Td>
-                                    <Table.Td>{row.coa_level_3 || '-'}</Table.Td>
-                                    <Table.Td>{row.coa_level_4 || '-'}</Table.Td>
-                                    <Table.Td>{row.coa_code || '-'}</Table.Td>
-                                    <Table.Td className='text-right'>{formatAmount(row.current_year)}</Table.Td>
+                                <tr key={`${row.coa_code ?? row.coa_level_1}-${index}`} className={getRowTone(row)}>
+                                    <Table.Td>
+                                        <div className='flex items-center gap-2'>
+                                            <span className='inline-block h-2 w-2 rounded-full bg-current opacity-50' />
+                                            <span className='font-medium'>{getDisplayLabel(row, listFilters.drill_level)}</span>
+                                        </div>
+                                    </Table.Td>
+                                    <Table.Td className={getAmountClass(row.current_year)}>{formatAmount(row.current_year)}</Table.Td>
                                     <Table.Td className='text-right'>{formatPercent(row.current_year_percent_sales)}</Table.Td>
-                                    <Table.Td className='text-right'>{formatAmount(row.previous_year)}</Table.Td>
+                                    <Table.Td className={getAmountClass(row.previous_year)}>{formatAmount(row.previous_year)}</Table.Td>
                                     <Table.Td className='text-right'>{formatPercent(row.previous_year_percent_sales)}</Table.Td>
-                                    <Table.Td className='text-right font-medium'>{formatAmount(row.variance)}</Table.Td>
+                                    <Table.Td className={getAmountClass(row.variance)}>{formatAmount(row.variance)}</Table.Td>
                                     <Table.Td className='text-right'>{formatPercent(row.variance_percent_sales)}</Table.Td>
                                 </tr>
                             )) : (
-                                <Table.Empty colSpan={11} message={
+                                <Table.Empty colSpan={7} message={
                                     <div className='flex flex-col items-center gap-1 text-sm text-gray-500 dark:text-gray-300'>
                                         <IconDatabaseOff size={24} />
                                         <span>Data Laporan Rugi Laba tidak ditemukan.</span>
