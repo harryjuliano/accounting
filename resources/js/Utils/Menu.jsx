@@ -238,8 +238,8 @@ export default function Menu() {
                 },
                 {
                     title: 'Rugi Laba',
-                    href: '#rugi-laba',
-                    active: false,
+                    href: '/apps/reports/profit-loss',
+                    active: url.startsWith('/apps/reports/profit-loss'),
                     icon: <IconChartBar size={20} strokeWidth={1.5} />,
                     permissions: accountingAccess,
                 },

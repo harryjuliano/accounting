@@ -7,6 +7,7 @@ use App\Http\Controllers\Apps\CurrencyController;
 use App\Http\Controllers\Apps\DashboardController;
 use App\Http\Controllers\Apps\ExchangeRateController;
 use App\Http\Controllers\Apps\GeneralLedgerReportController;
+use App\Http\Controllers\Apps\ProfitLossReportController;
 use App\Http\Controllers\Apps\TrialBalanceReportController;
 use App\Http\Controllers\Apps\DimensionController;
 use App\Http\Controllers\Apps\FiscalPeriodController;
@@ -79,6 +80,7 @@ Route::group(['prefix' => 'apps', 'as' => 'apps.' , 'middleware' => ['auth']], f
     Route::get('/opening-balances/import-template', [OpeningBalanceCrudController::class, 'downloadImportTemplate'])->name('opening-balances.import-template');
     Route::get('/reports/general-ledger', GeneralLedgerReportController::class)->name('reports.general-ledger');
     Route::get('/reports/trial-balance', TrialBalanceReportController::class)->name('reports.trial-balance');
+    Route::get('/reports/profit-loss', ProfitLossReportController::class)->name('reports.profit-loss');
 });
 
 require __DIR__.'/auth.php';
