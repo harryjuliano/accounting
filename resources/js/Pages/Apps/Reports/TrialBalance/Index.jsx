@@ -50,6 +50,24 @@ export default function Index() {
     };
 
     const branchOptions = branches.filter((branch) => listFilters.company_id === 'all' || Number(branch.company_id) === Number(listFilters.company_id));
+    const getGeneralLedgerLink = (coaId) => {
+        const periodStart = new Date(Date.UTC(Number(listFilters.year), Number(listFilters.period) - 1, 1));
+        const periodEnd = new Date(Date.UTC(Number(listFilters.year), Number(listFilters.period), 0));
+        const dateFrom = listFilters.type === 'YTD'
+            ? `${listFilters.year}-01-01`
+            : periodStart.toISOString().slice(0, 10);
+        const dateTo = periodEnd.toISOString().slice(0, 10);
+
+        return route('apps.reports.general-ledger', {
+            year: listFilters.year,
+            date_from: dateFrom,
+            date_to: dateTo,
+            company_id: listFilters.company_id,
+            branch_id: listFilters.branch_id,
+            coa_id: coaId,
+            status: listFilters.status,
+        });
+    };
 
     return (
         <AppLayout>
@@ -123,8 +141,20 @@ export default function Index() {
                                     <Table.Td>{row.coa_level_1 || '-'}</Table.Td>
                                     <Table.Td>{row.coa_level_2 || '-'}</Table.Td>
                                     <Table.Td>{row.coa_level_3 || '-'}</Table.Td>
-                                    <Table.Td>{row.coa_level_4 || '-'}</Table.Td>
-                                    <Table.Td>{row.coa_code || '-'}</Table.Td>
+                                    <Table.Td>
+                                        {row.coa_level_4 ? (
+                                            <a href={getGeneralLedgerLink(row.coa_id)} className='text-blue-600 hover:underline dark:text-blue-400'>
+                                                {row.coa_level_4}
+                                            </a>
+                                        ) : '-'}
+                                    </Table.Td>
+                                    <Table.Td>
+                                        {row.coa_code ? (
+                                            <a href={getGeneralLedgerLink(row.coa_id)} className='text-blue-600 hover:underline dark:text-blue-400'>
+                                                {row.coa_code}
+                                            </a>
+                                        ) : '-'}
+                                    </Table.Td>
                                     <Table.Td className='text-right'>{formatAmount(row.opening_balance)}</Table.Td>
                                     <Table.Td className='text-right'>{formatAmount(row.mutation_debit)}</Table.Td>
                                     <Table.Td className='text-right'>{formatAmount(row.mutation_credit)}</Table.Td>
