@@ -209,8 +209,8 @@ class ProfitLossReportController extends Controller
         $totalOtherExpenseCurrent = (float) $baseRows->where('account_group_type', 'other_expense')->sum('current_year');
         $totalOtherExpensePrevious = (float) $baseRows->where('account_group_type', 'other_expense')->sum('previous_year');
 
-        $netProfitBeforeTaxCurrent = $grossProfitCurrent - $totalOperatingExpenseCurrent + $totalOtherIncomeCurrent - $totalOtherExpenseCurrent;
-        $netProfitBeforeTaxPrevious = $grossProfitPrevious - $totalOperatingExpensePrevious + $totalOtherIncomePrevious - $totalOtherExpensePrevious;
+        $netProfitBeforeTaxCurrent = $grossProfitCurrent - $totalOperatingExpenseCurrent - $totalOtherIncomeCurrent - $totalOtherExpenseCurrent;
+        $netProfitBeforeTaxPrevious = $grossProfitPrevious - $totalOperatingExpensePrevious - $totalOtherIncomePrevious - $totalOtherExpensePrevious;
 
         $incomeTaxCurrent = 0.0;
         $incomeTaxPrevious = 0.0;
