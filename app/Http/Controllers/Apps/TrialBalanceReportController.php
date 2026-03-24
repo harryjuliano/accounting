@@ -113,6 +113,7 @@ class TrialBalanceReportController extends Controller
             $level1 = $level2?->parent;
 
             return [
+                'coa_id' => $account->id,
                 'coa_level_1' => $level1?->name,
                 'coa_level_2' => $level2?->name,
                 'coa_level_3' => $level3?->name,
