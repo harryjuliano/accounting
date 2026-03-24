@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\InteractsWithCompanyScope;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\ChartOfAccount;
+use App\Models\JournalEntry;
 use App\Models\JournalLine;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -173,6 +174,19 @@ class GeneralLedgerReportController extends Controller
         ];
         $summary['closing_balance'] = $summary['opening_balance'] + $summary['total_debit'] - $summary['total_credit'];
 
+        $yearOptions = JournalEntry::query()
+            ->selectRaw('DISTINCT YEAR(posting_date) as year')
+            ->when($this->isCompanyAdmin(), fn (Builder $query) => $query->where('company_id', $request->user()->company_id))
+            ->whereNotNull('posting_date')
+            ->orderByDesc('year')
+            ->pluck('year')
+            ->map(fn ($value) => (int) $value)
+            ->values();
+
+        if ($yearOptions->isEmpty()) {
+            $yearOptions = collect([$now->year]);
+        }
+
         $ledgerLines->setCollection(
             $ledgerLines->getCollection()->map(function (JournalLine $line, int $index) use ($ledgerLines) {
                 $debit = (float) $line->base_currency_debit;
@@ -201,6 +215,7 @@ class GeneralLedgerReportController extends Controller
         return inertia('Apps/Reports/GeneralLedger/Index', [
             'ledgerLines' => $ledgerLines,
             'summary' => $summary,
+            'yearOptions' => $yearOptions,
             'companies' => $this->getAccessibleCompanies(),
             'branches' => Branch::query()
                 ->select('id', 'company_id', 'code', 'name')
