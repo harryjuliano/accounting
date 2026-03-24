@@ -24,7 +24,7 @@ const formatDate = (value) => {
 };
 
 export default function Index() {
-    const { ledgerLines, summary, companies, branches, accounts, filters, sort } = usePage().props;
+    const { ledgerLines, summary, companies, branches, accounts, statusOptions, filters, sort } = usePage().props;
 
     const [listFilters, setListFilters] = React.useState({
         year: `${filters?.year ?? new Date().getUTCFullYear()}`,
@@ -33,6 +33,7 @@ export default function Index() {
         company_id: `${filters?.company_id ?? 'all'}`,
         branch_id: `${filters?.branch_id ?? 'all'}`,
         coa_id: `${filters?.coa_id ?? ''}`,
+        status: filters?.status ?? 'posted',
         search: filters?.search ?? '',
     });
 
@@ -117,7 +118,7 @@ export default function Index() {
                 </div>
 
                 <div className='rounded-lg border bg-white p-4 dark:border-gray-900 dark:bg-gray-950'>
-                    <div className='grid grid-cols-1 gap-3 md:grid-cols-7'>
+                    <div className='grid grid-cols-1 gap-3 md:grid-cols-8'>
                         <div>
                             <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>Year</label>
                             <input type='number' min='2000' max='2100' className='w-full rounded border-gray-300 bg-white text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100' value={listFilters.year} onChange={(e) => updateFilter('year', e.target.value)} />
@@ -148,6 +149,12 @@ export default function Index() {
                             <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>COA</label>
                             <select className='w-full rounded border-gray-300 bg-white text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100' value={listFilters.coa_id} onChange={(e) => updateFilter('coa_id', e.target.value)}>
                                 {coaOptions.map((account) => <option key={account.id} value={account.id}>{account.code} - {account.name}</option>)}
+                            </select>
+                        </div>
+                        <div>
+                            <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>Status</label>
+                            <select className='w-full rounded border-gray-300 bg-white text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100' value={listFilters.status} onChange={(e) => updateFilter('status', e.target.value)}>
+                                {statusOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                             </select>
                         </div>
                         <div>
@@ -196,7 +203,6 @@ export default function Index() {
                                 <Table.Th className='text-right'><SortHeader field='original_amount' label='Original Amount' className='w-full justify-end' /></Table.Th>
                                 <Table.Th className='text-right'><SortHeader field='debit' label='Debet' className='w-full justify-end' /></Table.Th>
                                 <Table.Th className='text-right'><SortHeader field='credit' label='Kredit' className='w-full justify-end' /></Table.Th>
-                                <Table.Th className='text-right'>Saldo</Table.Th>
                                 <Table.Th><SortHeader field='detail_description' label='Deskripsi Detail' /></Table.Th>
                                 <Table.Th>COA</Table.Th>
                             </tr>
@@ -215,12 +221,11 @@ export default function Index() {
                                     <Table.Td className='text-right'>{formatAmount(line.original_amount)}</Table.Td>
                                     <Table.Td className='text-right'>{formatAmount(line.debit)}</Table.Td>
                                     <Table.Td className='text-right'>{formatAmount(line.credit)}</Table.Td>
-                                    <Table.Td className='text-right font-medium'>{formatAmount(line.balance)}</Table.Td>
                                     <Table.Td className='max-w-56 truncate'>{line.detail_description || '-'}</Table.Td>
                                     <Table.Td>{line.coa || '-'}</Table.Td>
                                 </tr>
                             )) : (
-                                <Table.Empty colSpan={14} message={
+                                <Table.Empty colSpan={13} message={
                                     <div className='flex flex-col items-center gap-1 text-sm text-gray-500 dark:text-gray-300'>
                                         <IconDatabaseOff size={24} />
                                         <span>Data General Ledger tidak ditemukan.</span>

@@ -172,12 +172,10 @@ class GeneralLedgerReportController extends Controller
         ];
         $summary['closing_balance'] = $summary['opening_balance'] + $summary['total_debit'] - $summary['total_credit'];
 
-        $runningBalance = $openingBalance;
         $ledgerLines->setCollection(
-            $ledgerLines->getCollection()->map(function (JournalLine $line, int $index) use (&$runningBalance, $ledgerLines) {
+            $ledgerLines->getCollection()->map(function (JournalLine $line, int $index) use ($ledgerLines) {
                 $debit = (float) $line->base_currency_debit;
                 $credit = (float) $line->base_currency_credit;
-                $runningBalance += ($debit - $credit);
 
                 return [
                     'no' => (($ledgerLines->currentPage() - 1) * $ledgerLines->perPage()) + $index + 1,
@@ -191,7 +189,6 @@ class GeneralLedgerReportController extends Controller
                     'original_amount' => (float) $line->original_currency_amount,
                     'debit' => $debit,
                     'credit' => $credit,
-                    'balance' => $runningBalance,
                     'detail_description' => $line->description,
                     'coa' => trim(($line->account?->code ? $line->account->code . ' - ' : '') . ($line->account?->name ?? '-')),
                 ];
@@ -209,6 +206,15 @@ class GeneralLedgerReportController extends Controller
                 ->orderBy('code')
                 ->get(),
             'accounts' => $accounts,
+            'statusOptions' => [
+                ['value' => 'all', 'label' => 'All'],
+                ['value' => 'draft', 'label' => 'Draft'],
+                ['value' => 'pending_approval', 'label' => 'Pending Approval'],
+                ['value' => 'approved', 'label' => 'Approved'],
+                ['value' => 'posted', 'label' => 'Posted'],
+                ['value' => 'reversed', 'label' => 'Reversed'],
+                ['value' => 'cancelled', 'label' => 'Cancelled'],
+            ],
             'filters' => [
                 'year' => $year,
                 'date_from' => $dateFrom->toDateString(),
