@@ -45,6 +45,11 @@ class GeneralLedgerReportController extends Controller
         $branchId = $request->input('branch_id', 'all');
         $coaId = $request->input('coa_id');
         $search = $request->string('search')->toString();
+        $status = strtolower($request->string('status')->toString() ?: 'posted');
+        $allowedStatuses = ['all', 'draft', 'pending_approval', 'approved', 'posted', 'reversed', 'cancelled'];
+        if (! in_array($status, $allowedStatuses, true)) {
+            $status = 'posted';
+        }
 
         $sortBy = $request->string('sort_by')->toString() ?: 'date';
         $sortDirection = strtolower($request->string('sort_direction')->toString() ?: 'asc');
@@ -82,6 +87,7 @@ class GeneralLedgerReportController extends Controller
             ->when($this->isCompanyAdmin(), fn (Builder $q) => $q->where('journal_entries.company_id', $request->user()->company_id))
             ->when($companyId !== 'all', fn (Builder $q) => $q->where('journal_entries.company_id', $companyId))
             ->when($branchId !== 'all', fn (Builder $q) => $q->where('journal_entries.branch_id', $branchId))
+            ->when($status !== 'all', fn (Builder $q) => $q->where('journal_entries.status', $status))
             ->when($resolvedCoaId, fn (Builder $q) => $q->where('journal_lines.account_id', $resolvedCoaId));
 
         $openingEntryBalance = JournalLine::query()
@@ -109,7 +115,7 @@ class GeneralLedgerReportController extends Controller
         $openingBalance = ((float) ($openingEntryBalance?->debit ?? 0) - (float) ($openingEntryBalance?->credit ?? 0))
             + ((float) ($yearMovementBeforeFrom?->debit ?? 0) - (float) ($yearMovementBeforeFrom?->credit ?? 0));
 
-        $ledgerLines = JournalLine::query()
+        $ledgerLinesQuery = JournalLine::query()
             ->select('journal_lines.*')
             ->selectRaw('journal_entries.id as journal_entry_id')
             ->selectRaw('journal_entries.posting_date as posting_date')
@@ -142,7 +148,15 @@ class GeneralLedgerReportController extends Controller
                             ->where('code', 'like', '%' . $search . '%')
                             ->orWhere('name', 'like', '%' . $search . '%'));
                 });
-            })
+            });
+
+        $summaryRow = (clone $ledgerLinesQuery)
+            ->toBase()
+            ->selectRaw('COALESCE(SUM(journal_lines.base_currency_debit), 0) as total_debit')
+            ->selectRaw('COALESCE(SUM(journal_lines.base_currency_credit), 0) as total_credit')
+            ->first();
+
+        $ledgerLines = $ledgerLinesQuery
             ->orderBy($resolvedSortColumn, $sortDirection)
             ->orderBy('journal_entries.posting_date')
             ->orderBy('journal_entries.id')
@@ -152,8 +166,8 @@ class GeneralLedgerReportController extends Controller
 
         $summary = [
             'opening_balance' => $openingBalance,
-            'total_debit' => (float) $ledgerLines->sum('base_currency_debit'),
-            'total_credit' => (float) $ledgerLines->sum('base_currency_credit'),
+            'total_debit' => (float) ($summaryRow?->total_debit ?? 0),
+            'total_credit' => (float) ($summaryRow?->total_credit ?? 0),
         ];
         $summary['closing_balance'] = $summary['opening_balance'] + $summary['total_debit'] - $summary['total_credit'];
 
@@ -201,6 +215,7 @@ class GeneralLedgerReportController extends Controller
                 'company_id' => $companyId,
                 'branch_id' => $branchId,
                 'coa_id' => $resolvedCoaId,
+                'status' => $status,
                 'search' => $search,
             ],
             'sort' => [
