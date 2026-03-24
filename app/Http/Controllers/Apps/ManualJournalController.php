@@ -144,8 +144,19 @@ class ManualJournalController extends Controller
             $years->prepend($year);
         }
 
+        $deepLinkJournalId = $request->integer('edit_journal_id');
+        $deepLinkJournal = null;
+        if ($deepLinkJournalId > 0) {
+            $deepLinkJournal = JournalEntry::query()
+                ->with(['company:id,name,timezone', 'branch:id,company_id,code,name', 'accountingPeriod:id,period_name', 'lines.account:id,company_id,code,name,requires_dimension'])
+                ->where('journal_type', 'manual')
+                ->when($this->isCompanyAdmin(), fn ($query) => $query->where('company_id', $request->user()->company_id))
+                ->find($deepLinkJournalId);
+        }
+
         return inertia('Apps/ManualJournals/Index', [
             'manualJournals' => $manualJournals,
+            'deepLinkJournal' => $deepLinkJournal,
             'companies' => $this->getAccessibleCompanies(),
             'branches' => Branch::query()
                 ->select('id', 'company_id', 'code', 'name')
