@@ -118,6 +118,8 @@ class GeneralLedgerReportController extends Controller
 
         $ledgerLinesQuery = JournalLine::query()
             ->select('journal_lines.*')
+            ->selectRaw('journal_entries.id as journal_entry_id')
+            ->selectRaw('journal_entries.journal_type as journal_type')
             ->selectRaw('journal_entries.posting_date as posting_date')
             ->selectRaw('journal_entries.journal_no as journal_no')
             ->selectRaw('journal_entries.reference_no as reference_no')
@@ -180,6 +182,8 @@ class GeneralLedgerReportController extends Controller
                 return [
                     'no' => (($ledgerLines->currentPage() - 1) * $ledgerLines->perPage()) + $index + 1,
                     'date' => $line->posting_date ? Carbon::parse((string) $line->posting_date)->toDateString() : null,
+                    'journal_entry_id' => $line->journal_entry_id ? (int) $line->journal_entry_id : null,
+                    'journal_type' => $line->journal_type,
                     'company' => $line->company_name,
                     'branch' => trim(($line->branch_code ? $line->branch_code . ' - ' : '') . ($line->branch_name ?? '-')),
                     'journal_no' => $line->journal_no,

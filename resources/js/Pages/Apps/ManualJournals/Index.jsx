@@ -109,7 +109,7 @@ const formatDateByTimezone = (dateValue, timezone = 'UTC') => {
 };
 
 export default function Index() {
-    const { manualJournals, companies, branches, accountingPeriods, currencies, accounts, defaultEntryDate, errors, filters, sort, yearOptions, monthOptions } = usePage().props;
+    const { manualJournals, deepLinkJournal, companies, branches, accountingPeriods, currencies, accounts, defaultEntryDate, errors, filters, sort, yearOptions, monthOptions } = usePage().props;
     const fallbackEntryDate = defaultEntryDate || getTodayDate();
     const initialDecimalPlaces = Number(currencies[0]?.decimal_places ?? 2);
 
@@ -135,6 +135,13 @@ export default function Index() {
         status: filters?.status ?? 'all',
     });
     const [selectedJournalIds, setSelectedJournalIds] = React.useState([]);
+    const openedDeepLinkJournalId = React.useRef(null);
+    const filteredPeriods = accountingPeriods.filter((period) => period.company_id === Number(data.company_id));
+    const filteredBranches = branches.filter((branch) => branch.company_id === Number(data.company_id));
+    const filteredAccounts = accounts.filter((account) => account.company_id === Number(data.company_id) && Number(account.level) === 4);
+    const selectedCurrency = currencies.find((currency) => currency.code === data.currency_code);
+    const decimalPlaces = Number(selectedCurrency?.decimal_places ?? 2);
+    const selectedAccountsById = Object.fromEntries(filteredAccounts.map((account) => [Number(account.id), account]));
 
     transform((formData) => ({ ...formData, _method: formData.isUpdate ? 'put' : 'post' }));
 
@@ -156,12 +163,35 @@ export default function Index() {
         post(data.isUpdate ? route('apps.manual-journals.update', data.id) : route('apps.manual-journals.store'), { onSuccess: resetForm });
     };
 
-    const filteredPeriods = accountingPeriods.filter((period) => period.company_id === Number(data.company_id));
-    const filteredBranches = branches.filter((branch) => branch.company_id === Number(data.company_id));
-    const filteredAccounts = accounts.filter((account) => account.company_id === Number(data.company_id) && Number(account.level) === 4);
-    const selectedCurrency = currencies.find((currency) => currency.code === data.currency_code);
-    const decimalPlaces = Number(selectedCurrency?.decimal_places ?? 2);
-    const selectedAccountsById = Object.fromEntries(filteredAccounts.map((account) => [Number(account.id), account]));
+    const openJournalEditor = React.useCallback((journal) => {
+        const lines = journal.lines.map((line) => ({ account_id: line.account_id, description: line.description ?? '', debit: Number(line.debit), credit: Number(line.credit), dimension_details: normalizeDimensionDetails(line.dimension_details_json ?? line.dimension_details) }));
+        setData({
+            ...journal,
+            company_id: journal.company_id,
+            branch_id: journal.branch_id ?? '',
+            accounting_period_id: journal.accounting_period_id,
+            entry_date: normalizeFormDate(journal.entry_date, fallbackEntryDate),
+            posting_date: normalizeFormDate(journal.posting_date),
+            exchange_rate: Number(journal.exchange_rate),
+            lines,
+            isUpdate: true,
+            isOpen: true,
+        });
+        setAccountSearchTerms(lines.map(() => ''));
+        setAmountInputValues(lines.map((line) => ({
+            debit: formatAmount(line.debit, decimalPlaces),
+            credit: formatAmount(line.credit, decimalPlaces),
+        })));
+    }, [decimalPlaces, fallbackEntryDate, setData]);
+
+    React.useEffect(() => {
+        if (!deepLinkJournal?.id || openedDeepLinkJournalId.current === deepLinkJournal.id) {
+            return;
+        }
+
+        openJournalEditor(deepLinkJournal);
+        openedDeepLinkJournalId.current = deepLinkJournal.id;
+    }, [deepLinkJournal, openJournalEditor]);
 
     const updateLine = (index, field, value) => {
         const newLines = [...data.lines];
@@ -765,26 +795,7 @@ export default function Index() {
                                 <Table.Td>{formatAmount(journal.total_debit, decimalPlaces)}</Table.Td>
                                 <Table.Td>{formatAmount(Number(journal.total_debit || 0) * Number(journal.exchange_rate || 0), decimalPlaces)}</Table.Td>
                                 <Table.Td className='capitalize'>{journal.status.replace('_', ' ')}</Table.Td>
-                                <Table.Td><div className='flex gap-2'><Button type='modal' variant='orange' icon={<IconPencilCog size={16} strokeWidth={1.5} />} onClick={() => {
-                                    const lines = journal.lines.map((line) => ({ account_id: line.account_id, description: line.description ?? '', debit: Number(line.debit), credit: Number(line.credit), dimension_details: normalizeDimensionDetails(line.dimension_details_json ?? line.dimension_details) }));
-                                    setData({
-                                        ...journal,
-                                        company_id: journal.company_id,
-                                        branch_id: journal.branch_id ?? '',
-                                        accounting_period_id: journal.accounting_period_id,
-                                        entry_date: normalizeFormDate(journal.entry_date, fallbackEntryDate),
-                                        posting_date: normalizeFormDate(journal.posting_date),
-                                        exchange_rate: Number(journal.exchange_rate),
-                                        lines,
-                                        isUpdate: true,
-                                        isOpen: true,
-                                    });
-                                    setAccountSearchTerms(lines.map(() => ''));
-                                    setAmountInputValues(lines.map((line) => ({
-                                        debit: formatAmount(line.debit, decimalPlaces),
-                                        credit: formatAmount(line.credit, decimalPlaces),
-                                    })));
-                                }} /><Button type='delete' variant='rose' icon={<IconTrash size={16} strokeWidth={1.5} />} url={route('apps.manual-journals.destroy', journal.id)} /></div></Table.Td>
+                                <Table.Td><div className='flex gap-2'><Button type='modal' variant='orange' icon={<IconPencilCog size={16} strokeWidth={1.5} />} onClick={() => openJournalEditor(journal)} /><Button type='delete' variant='rose' icon={<IconTrash size={16} strokeWidth={1.5} />} url={route('apps.manual-journals.destroy', journal.id)} /></div></Table.Td>
                             </tr>
                         )) : <Table.Empty colSpan={12} message={<><div className='flex justify-center mb-2'><IconDatabaseOff size={24} /></div><span>Data manual jurnal tidak ditemukan.</span></>} />}
                     </Table.Tbody>

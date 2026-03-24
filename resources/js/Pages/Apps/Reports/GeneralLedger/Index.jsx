@@ -23,6 +23,24 @@ const formatDate = (value) => {
     }).format(d);
 };
 
+const buildManualJournalEditUrl = (line) => {
+    if (!line?.journal_entry_id || line?.journal_type !== 'manual') {
+        return null;
+    }
+
+    const postingDate = typeof line.date === 'string' ? line.date : '';
+    const [yearPart, monthPart] = postingDate.split('-');
+    const year = Number(yearPart);
+    const month = Number(monthPart);
+
+    return route('apps.manual-journals.index', {
+        year: Number.isFinite(year) && year > 0 ? year : new Date().getUTCFullYear(),
+        month: Number.isFinite(month) && month >= 1 && month <= 12 ? month : 'all',
+        status: 'all',
+        edit_journal_id: line.journal_entry_id,
+    });
+};
+
 export default function Index() {
     const { ledgerLines, summary, companies, branches, accounts, statusOptions, filters, sort } = usePage().props;
 
@@ -208,13 +226,22 @@ export default function Index() {
                             </tr>
                         </Table.Thead>
                         <Table.Tbody>
-                            {ledgerLines.data.length > 0 ? ledgerLines.data.map((line) => (
-                                <tr key={`${line.journal_no}-${line.no}`}>
+                            {ledgerLines.data.length > 0 ? ledgerLines.data.map((line) => {
+                                const editUrl = buildManualJournalEditUrl(line);
+
+                                return (
+                                    <tr key={`${line.journal_no}-${line.no}`}>
                                     <Table.Td>{line.no}</Table.Td>
                                     <Table.Td>{formatDate(line.date)}</Table.Td>
                                     <Table.Td>{line.company || '-'}</Table.Td>
                                     <Table.Td>{line.branch || '-'}</Table.Td>
-                                    <Table.Td>{line.journal_no || '-'}</Table.Td>
+                                    <Table.Td>
+                                        {editUrl ? (
+                                            <a href={editUrl} className='text-blue-600 hover:underline dark:text-blue-400'>
+                                                {line.journal_no || '-'}
+                                            </a>
+                                        ) : (line.journal_no || '-')}
+                                    </Table.Td>
                                     <Table.Td>{line.reference || '-'}</Table.Td>
                                     <Table.Td className='max-w-56 truncate'>{line.header_description || '-'}</Table.Td>
                                     <Table.Td>{line.currency || '-'}</Table.Td>
@@ -224,7 +251,8 @@ export default function Index() {
                                     <Table.Td className='max-w-56 truncate'>{line.detail_description || '-'}</Table.Td>
                                     <Table.Td>{line.coa || '-'}</Table.Td>
                                 </tr>
-                            )) : (
+                                );
+                            }) : (
                                 <Table.Empty colSpan={13} message={
                                     <div className='flex flex-col items-center gap-1 text-sm text-gray-500 dark:text-gray-300'>
                                         <IconDatabaseOff size={24} />
