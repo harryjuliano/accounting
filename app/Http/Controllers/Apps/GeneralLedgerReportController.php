@@ -18,13 +18,32 @@ class GeneralLedgerReportController extends Controller
     public function __invoke(Request $request)
     {
         $userTimezone = $request->user()?->company?->timezone ?? config('app.timezone', 'UTC');
-        $today = Carbon::now($userTimezone)->toDateString();
+        $now = Carbon::now($userTimezone);
 
-        $dateFrom = $request->string('date_from')->toString() ?: Carbon::parse($today)->startOfMonth()->toDateString();
-        $dateTo = $request->string('date_to')->toString() ?: $today;
+        $year = (int) ($request->input('year') ?: $now->year);
+        $yearStart = Carbon::create($year, 1, 1, 0, 0, 0, $userTimezone)->startOfDay();
+        $yearEnd = $yearStart->copy()->endOfYear();
+
+        $rawDateFrom = $request->string('date_from')->toString();
+        $rawDateTo = $request->string('date_to')->toString();
+        $defaultDateFrom = $yearStart->copy();
+        $defaultDateTo = $now->year === $year ? $now->copy()->startOfDay() : $yearEnd->copy();
+
+        $dateFrom = $rawDateFrom !== '' ? Carbon::parse($rawDateFrom, $userTimezone)->startOfDay() : $defaultDateFrom;
+        $dateTo = $rawDateTo !== '' ? Carbon::parse($rawDateTo, $userTimezone)->startOfDay() : $defaultDateTo;
+
+        // Date range must remain inside the selected year.
+        $dateFrom = $dateFrom->lt($yearStart) ? $yearStart->copy() : $dateFrom;
+        $dateFrom = $dateFrom->gt($yearEnd) ? $yearEnd->copy() : $dateFrom;
+        $dateTo = $dateTo->lt($yearStart) ? $yearStart->copy() : $dateTo;
+        $dateTo = $dateTo->gt($yearEnd) ? $yearEnd->copy() : $dateTo;
+        if ($dateTo->lt($dateFrom)) {
+            $dateTo = $dateFrom->copy();
+        }
+
         $companyId = $request->input('company_id', 'all');
         $branchId = $request->input('branch_id', 'all');
-        $coaId = $request->input('coa_id', 'all');
+        $coaId = $request->input('coa_id');
         $search = $request->string('search')->toString();
 
         $sortBy = $request->string('sort_by')->toString() ?: 'date';
@@ -48,6 +67,48 @@ class GeneralLedgerReportController extends Controller
 
         $resolvedSortColumn = $sortColumns[$sortBy] ?? $sortColumns['date'];
 
+        $accounts = ChartOfAccount::query()
+            ->select('id', 'company_id', 'code', 'name')
+            ->where('is_active', true)
+            ->where('level', 4)
+            ->when($this->isCompanyAdmin(), fn (Builder $query) => $query->where('company_id', $request->user()->company_id))
+            ->when($companyId !== 'all', fn (Builder $query) => $query->where('company_id', $companyId))
+            ->orderBy('code')
+            ->get();
+
+        $resolvedCoaId = $coaId ?: ($accounts->first()?->id ? (string) $accounts->first()->id : null);
+
+        $scope = fn (Builder $query) => $query
+            ->when($this->isCompanyAdmin(), fn (Builder $q) => $q->where('journal_entries.company_id', $request->user()->company_id))
+            ->when($companyId !== 'all', fn (Builder $q) => $q->where('journal_entries.company_id', $companyId))
+            ->when($branchId !== 'all', fn (Builder $q) => $q->where('journal_entries.branch_id', $branchId))
+            ->when($resolvedCoaId, fn (Builder $q) => $q->where('journal_lines.account_id', $resolvedCoaId));
+
+        $openingEntryBalance = JournalLine::query()
+            ->selectRaw('COALESCE(SUM(journal_lines.base_currency_debit), 0) as debit')
+            ->selectRaw('COALESCE(SUM(journal_lines.base_currency_credit), 0) as credit')
+            ->join('journal_entries', 'journal_entries.id', '=', 'journal_lines.journal_entry_id')
+            ->whereDate('journal_entries.posting_date', '>=', $yearStart->toDateString())
+            ->whereDate('journal_entries.posting_date', '<=', $yearEnd->toDateString())
+            ->where('journal_entries.journal_type', 'opening')
+            ->tap($scope)
+            ->first();
+
+        $yearMovementBeforeFrom = $dateFrom->gt($yearStart)
+            ? JournalLine::query()
+                ->selectRaw('COALESCE(SUM(journal_lines.base_currency_debit), 0) as debit')
+                ->selectRaw('COALESCE(SUM(journal_lines.base_currency_credit), 0) as credit')
+                ->join('journal_entries', 'journal_entries.id', '=', 'journal_lines.journal_entry_id')
+                ->whereDate('journal_entries.posting_date', '>=', $yearStart->toDateString())
+                ->whereDate('journal_entries.posting_date', '<=', $dateFrom->copy()->subDay()->toDateString())
+                ->whereNotIn('journal_entries.journal_type', ['opening', 'closing'])
+                ->tap($scope)
+                ->first()
+            : null;
+
+        $openingBalance = ((float) ($openingEntryBalance?->debit ?? 0) - (float) ($openingEntryBalance?->credit ?? 0))
+            + ((float) ($yearMovementBeforeFrom?->debit ?? 0) - (float) ($yearMovementBeforeFrom?->credit ?? 0));
+
         $ledgerLines = JournalLine::query()
             ->select('journal_lines.*')
             ->selectRaw('journal_entries.id as journal_entry_id')
@@ -62,12 +123,10 @@ class GeneralLedgerReportController extends Controller
             ->leftJoin('companies', 'companies.id', '=', 'journal_entries.company_id')
             ->leftJoin('branches', 'branches.id', '=', 'journal_entries.branch_id')
             ->with('account:id,company_id,code,name')
-            ->when($this->isCompanyAdmin(), fn (Builder $query) => $query->where('journal_entries.company_id', $request->user()->company_id))
-            ->whereDate('journal_entries.posting_date', '>=', $dateFrom)
-            ->whereDate('journal_entries.posting_date', '<=', $dateTo)
-            ->when($companyId !== 'all', fn (Builder $query) => $query->where('journal_entries.company_id', $companyId))
-            ->when($branchId !== 'all', fn (Builder $query) => $query->where('journal_entries.branch_id', $branchId))
-            ->when($coaId !== 'all', fn (Builder $query) => $query->where('journal_lines.account_id', $coaId))
+            ->whereDate('journal_entries.posting_date', '>=', $dateFrom->toDateString())
+            ->whereDate('journal_entries.posting_date', '<=', $dateTo->toDateString())
+            ->whereNotIn('journal_entries.journal_type', ['opening', 'closing'])
+            ->tap($scope)
             ->when($search !== '', function (Builder $query) use ($search) {
                 $query->where(function (Builder $searchQuery) use ($search) {
                     $searchQuery
@@ -91,7 +150,14 @@ class GeneralLedgerReportController extends Controller
             ->paginate(20)
             ->withQueryString();
 
-        $runningBalance = 0.0;
+        $summary = [
+            'opening_balance' => $openingBalance,
+            'total_debit' => (float) $ledgerLines->sum('base_currency_debit'),
+            'total_credit' => (float) $ledgerLines->sum('base_currency_credit'),
+        ];
+        $summary['closing_balance'] = $summary['opening_balance'] + $summary['total_debit'] - $summary['total_credit'];
+
+        $runningBalance = $openingBalance;
         $ledgerLines->setCollection(
             $ledgerLines->getCollection()->map(function (JournalLine $line, int $index) use (&$runningBalance, $ledgerLines) {
                 $debit = (float) $line->base_currency_debit;
@@ -119,6 +185,7 @@ class GeneralLedgerReportController extends Controller
 
         return inertia('Apps/Reports/GeneralLedger/Index', [
             'ledgerLines' => $ledgerLines,
+            'summary' => $summary,
             'companies' => $this->getAccessibleCompanies(),
             'branches' => Branch::query()
                 ->select('id', 'company_id', 'code', 'name')
@@ -126,19 +193,14 @@ class GeneralLedgerReportController extends Controller
                 ->when($this->isCompanyAdmin(), fn (Builder $query) => $query->where('company_id', $request->user()->company_id))
                 ->orderBy('code')
                 ->get(),
-            'accounts' => ChartOfAccount::query()
-                ->select('id', 'company_id', 'code', 'name')
-                ->where('is_active', true)
-                ->where('level', 4)
-                ->when($this->isCompanyAdmin(), fn (Builder $query) => $query->where('company_id', $request->user()->company_id))
-                ->orderBy('code')
-                ->get(),
+            'accounts' => $accounts,
             'filters' => [
-                'date_from' => $dateFrom,
-                'date_to' => $dateTo,
+                'year' => $year,
+                'date_from' => $dateFrom->toDateString(),
+                'date_to' => $dateTo->toDateString(),
                 'company_id' => $companyId,
                 'branch_id' => $branchId,
-                'coa_id' => $coaId,
+                'coa_id' => $resolvedCoaId,
                 'search' => $search,
             ],
             'sort' => [
