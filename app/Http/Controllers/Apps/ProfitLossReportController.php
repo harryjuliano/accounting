@@ -18,6 +18,21 @@ class ProfitLossReportController extends Controller
 
     public function __invoke(Request $request)
     {
+        $report = $this->buildReport($request);
+        $export = strtolower($request->string('export')->toString());
+
+        if ($export === 'pdf') {
+            return response()->view('reports.profit-loss.pdf', [
+                ...$report,
+                'generatedAt' => now()->format('d M Y H:i'),
+            ]);
+        }
+
+        return inertia('Apps/Reports/ProfitLoss/Index', $report);
+    }
+
+    private function buildReport(Request $request): array
+    {
         $timezone = $request->user()?->company?->timezone ?? config('app.timezone', 'UTC');
         $now = Carbon::now($timezone);
 
@@ -235,7 +250,7 @@ class ProfitLossReportController extends Controller
             'net_profit_margin_variance' => $netProfitMarginVariance,
         ];
 
-        return inertia('Apps/Reports/ProfitLoss/Index', [
+        return [
             'rows' => $rows,
             'summary' => $summary,
             'yearOptions' => $yearOptions,
@@ -264,6 +279,6 @@ class ProfitLossReportController extends Controller
                 'period' => $period,
                 'drill_level' => $drillLevel,
             ],
-        ]);
+        ];
     }
 }
