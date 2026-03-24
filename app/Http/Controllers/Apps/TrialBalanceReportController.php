@@ -126,8 +126,17 @@ class TrialBalanceReportController extends Controller
             ];
         })->values();
 
+
+        $summary = [
+            'opening_balance' => (float) $rows->sum('opening_balance'),
+            'mutation_debit' => (float) $rows->sum('mutation_debit'),
+            'mutation_credit' => (float) $rows->sum('mutation_credit'),
+            'closing_balance' => (float) $rows->sum('closing_balance'),
+        ];
+
         return inertia('Apps/Reports/TrialBalance/Index', [
             'rows' => $rows,
+            'summary' => $summary,
             'companies' => $this->getAccessibleCompanies(),
             'branches' => Branch::query()
                 ->select('id', 'company_id', 'code', 'name')

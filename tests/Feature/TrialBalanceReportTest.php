@@ -237,10 +237,16 @@ it('renders trial balance with fiscal-year opening balance logic', function () {
         ->assertOk();
 
     $ytdRows = $ytdResponse->json('props.rows');
+    $ytdSummary = $ytdResponse->json('props.summary');
+
     expect($ytdRows)->toHaveCount(1)
         ->and($ytdRows[0]['opening_balance'])->toBe(60.0)
         ->and($ytdRows[0]['mutation_debit'])->toBe(80.0)
-        ->and($ytdRows[0]['closing_balance'])->toBe(140.0);
+        ->and($ytdRows[0]['closing_balance'])->toBe(140.0)
+        ->and($ytdSummary['opening_balance'])->toBe(60.0)
+        ->and($ytdSummary['mutation_debit'])->toBe(80.0)
+        ->and($ytdSummary['mutation_credit'])->toBe(0.0)
+        ->and($ytdSummary['closing_balance'])->toBe(140.0);
 
     $mtdResponse = $this
         ->actingAs($user)
@@ -258,8 +264,14 @@ it('renders trial balance with fiscal-year opening balance logic', function () {
         ->assertOk();
 
     $mtdRows = $mtdResponse->json('props.rows');
+    $mtdSummary = $mtdResponse->json('props.summary');
+
     expect($mtdRows)->toHaveCount(1)
         ->and($mtdRows[0]['opening_balance'])->toBe(110.0)
         ->and($mtdRows[0]['mutation_debit'])->toBe(30.0)
-        ->and($mtdRows[0]['closing_balance'])->toBe(140.0);
+        ->and($mtdRows[0]['closing_balance'])->toBe(140.0)
+        ->and($mtdSummary['opening_balance'])->toBe(110.0)
+        ->and($mtdSummary['mutation_debit'])->toBe(30.0)
+        ->and($mtdSummary['mutation_credit'])->toBe(0.0)
+        ->and($mtdSummary['closing_balance'])->toBe(140.0);
 });
