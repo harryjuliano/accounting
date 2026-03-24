@@ -231,8 +231,8 @@ export default function Menu() {
             details: [
                 {
                     title: 'Neraca',
-                    href: '#neraca',
-                    active: false,
+                    href: '/apps/reports/balance-sheet',
+                    active: url.startsWith('/apps/reports/balance-sheet'),
                     icon: <IconChartBar size={20} strokeWidth={1.5} />,
                     permissions: accountingAccess,
                 },

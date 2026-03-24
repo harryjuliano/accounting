@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Apps\BalanceSheetReportController;
 use App\Http\Controllers\Apps\BranchController;
 use App\Http\Controllers\Apps\CompanyController;
 use App\Http\Controllers\Apps\ChartOfAccountController;
@@ -81,6 +82,7 @@ Route::group(['prefix' => 'apps', 'as' => 'apps.' , 'middleware' => ['auth']], f
     Route::get('/reports/general-ledger', GeneralLedgerReportController::class)->name('reports.general-ledger');
     Route::get('/reports/trial-balance', TrialBalanceReportController::class)->name('reports.trial-balance');
     Route::get('/reports/profit-loss', ProfitLossReportController::class)->name('reports.profit-loss');
+    Route::get('/reports/balance-sheet', BalanceSheetReportController::class)->name('reports.balance-sheet');
 });
 
 require __DIR__.'/auth.php';
