@@ -275,3 +275,136 @@ it('renders trial balance with fiscal-year opening balance logic', function () {
         ->and($mtdSummary['mutation_credit'])->toBe(0.0)
         ->and($mtdSummary['closing_balance'])->toBe(140.0);
 });
+
+it('defaults trial balance filter year to latest posting year and keeps YTD period aligned', function () {
+    $user = User::factory()->create();
+
+    $company = Company::create([
+        'code' => 'CMP-TB-2',
+        'name' => 'PT Trial Balance 2',
+        'base_currency_code' => 'IDR',
+        'country_code' => 'ID',
+    ]);
+
+    $branch = Branch::create([
+        'company_id' => $company->id,
+        'code' => 'BDG',
+        'name' => 'Bandung',
+        'is_active' => true,
+    ]);
+
+    Currency::firstOrCreate(['code' => 'IDR'], [
+        'name' => 'Rupiah',
+        'symbol' => 'Rp',
+        'decimal_places' => 2,
+        'is_active' => true,
+    ]);
+
+    $fiscalYear = FiscalYear::create([
+        'company_id' => $company->id,
+        'year_label' => '2025',
+        'start_date' => '2025-01-01',
+        'end_date' => '2025-12-31',
+        'status' => 'open',
+    ]);
+
+    $periodDec = AccountingPeriod::create([
+        'company_id' => $company->id,
+        'fiscal_year_id' => $fiscalYear->id,
+        'period_no' => 12,
+        'period_name' => 'December 2025',
+        'start_date' => '2025-12-01',
+        'end_date' => '2025-12-31',
+        'status' => 'open',
+    ]);
+
+    $coaLevel1 = ChartOfAccount::create([
+        'company_id' => $company->id,
+        'code' => '1000',
+        'name' => 'Assets',
+        'level' => 1,
+        'account_type' => 'assets',
+        'normal_balance' => 'debit',
+        'financial_statement_group' => 'balance_sheet',
+    ]);
+
+    $coaLevel2 = ChartOfAccount::create([
+        'company_id' => $company->id,
+        'parent_id' => $coaLevel1->id,
+        'code' => '1100',
+        'name' => 'Current Assets',
+        'level' => 2,
+        'account_type' => 'assets',
+        'normal_balance' => 'debit',
+        'financial_statement_group' => 'balance_sheet',
+    ]);
+
+    $coaLevel3 = ChartOfAccount::create([
+        'company_id' => $company->id,
+        'parent_id' => $coaLevel2->id,
+        'code' => '1110',
+        'name' => 'Cash',
+        'level' => 3,
+        'account_type' => 'assets',
+        'normal_balance' => 'debit',
+        'financial_statement_group' => 'balance_sheet',
+    ]);
+
+    $coaLevel4 = ChartOfAccount::create([
+        'company_id' => $company->id,
+        'parent_id' => $coaLevel3->id,
+        'code' => '111001',
+        'name' => 'Cash on Hand',
+        'level' => 4,
+        'account_type' => 'assets',
+        'normal_balance' => 'debit',
+        'financial_statement_group' => 'balance_sheet',
+    ]);
+
+    $entry = JournalEntry::create([
+        'company_id' => $company->id,
+        'branch_id' => $branch->id,
+        'accounting_period_id' => $periodDec->id,
+        'journal_no' => 'JV-2025-777',
+        'journal_type' => 'manual',
+        'entry_date' => '2025-12-20',
+        'posting_date' => '2025-12-20',
+        'description' => 'December 2025 mutation',
+        'currency_code' => 'IDR',
+        'exchange_rate' => 1,
+        'total_debit' => 75,
+        'total_credit' => 0,
+        'status' => 'posted',
+        'created_by' => $user->id,
+    ]);
+
+    JournalLine::create([
+        'journal_entry_id' => $entry->id,
+        'line_no' => 1,
+        'account_id' => $coaLevel4->id,
+        'base_currency_debit' => 75,
+        'base_currency_credit' => 0,
+        'debit' => 75,
+        'credit' => 0,
+        'original_currency_code' => 'IDR',
+        'original_currency_amount' => 75,
+    ]);
+
+    $response = $this
+        ->actingAs($user)
+        ->get(route('apps.reports.trial-balance', [
+            'type' => 'YTD',
+            'company_id' => $company->id,
+            'branch_id' => $branch->id,
+            'status' => 'posted',
+        ]), [
+            'X-Inertia' => 'true',
+            'X-Requested-With' => 'XMLHttpRequest',
+        ])
+        ->assertOk();
+
+    expect($response->json('props.filters.year'))->toBe(2025)
+        ->and($response->json('props.filters.period'))->toBe(12)
+        ->and($response->json('props.yearOptions.0'))->toBe(2025)
+        ->and($response->json('props.summary.mutation_debit'))->toBe(75.0);
+});

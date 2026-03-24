@@ -22,7 +22,24 @@ class GeneralLedgerReportController extends Controller
         $userTimezone = $request->user()?->company?->timezone ?? config('app.timezone', 'UTC');
         $now = Carbon::now($userTimezone);
 
-        $year = (int) ($request->input('year') ?: $now->year);
+        $yearOptions = JournalEntry::query()
+            ->selectRaw('DISTINCT YEAR(posting_date) as year')
+            ->when($this->isCompanyAdmin(), fn (Builder $query) => $query->where('company_id', $request->user()->company_id))
+            ->whereNotNull('posting_date')
+            ->orderByDesc('year')
+            ->pluck('year')
+            ->map(fn ($value) => (int) $value)
+            ->values();
+
+        $requestedYear = (int) $request->integer('year');
+        $year = $requestedYear > 0
+            ? $requestedYear
+            : ($yearOptions->first() ?: $now->year);
+
+        if (! $yearOptions->contains($year)) {
+            $yearOptions = $yearOptions->prepend($year)->unique()->sortDesc()->values();
+        }
+
         $yearStart = Carbon::create($year, 1, 1, 0, 0, 0, $userTimezone)->startOfDay();
         $yearEnd = $yearStart->copy()->endOfYear();
 
@@ -173,19 +190,6 @@ class GeneralLedgerReportController extends Controller
             'total_credit' => (float) ($summaryRow?->total_credit ?? 0),
         ];
         $summary['closing_balance'] = $summary['opening_balance'] + $summary['total_debit'] - $summary['total_credit'];
-
-        $yearOptions = JournalEntry::query()
-            ->selectRaw('DISTINCT YEAR(posting_date) as year')
-            ->when($this->isCompanyAdmin(), fn (Builder $query) => $query->where('company_id', $request->user()->company_id))
-            ->whereNotNull('posting_date')
-            ->orderByDesc('year')
-            ->pluck('year')
-            ->map(fn ($value) => (int) $value)
-            ->values();
-
-        if ($yearOptions->isEmpty()) {
-            $yearOptions = collect([$now->year]);
-        }
 
         $ledgerLines->setCollection(
             $ledgerLines->getCollection()->map(function (JournalLine $line, int $index) use ($ledgerLines) {

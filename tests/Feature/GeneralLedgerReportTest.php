@@ -175,3 +175,135 @@ it('uses posted entries by default and summarizes all rows across pages', functi
         ->and($response->json('props.ledgerLines.data'))->toHaveCount(20)
         ->and($response->json('props.filters.status'))->toBe('posted');
 });
+
+it('defaults to the latest available posting year so year filter stays in sync with date range', function () {
+    $user = User::factory()->create();
+
+    $company = Company::create([
+        'code' => 'CMP-GL-2',
+        'name' => 'PT General Ledger 2',
+        'base_currency_code' => 'IDR',
+        'country_code' => 'ID',
+    ]);
+
+    $branch = Branch::create([
+        'company_id' => $company->id,
+        'code' => 'SBY',
+        'name' => 'Surabaya',
+        'is_active' => true,
+    ]);
+
+    Currency::firstOrCreate(['code' => 'IDR'], [
+        'name' => 'Rupiah',
+        'symbol' => 'Rp',
+        'decimal_places' => 2,
+        'is_active' => true,
+    ]);
+
+    $fiscalYear = FiscalYear::create([
+        'company_id' => $company->id,
+        'year_label' => '2025',
+        'start_date' => '2025-01-01',
+        'end_date' => '2025-12-31',
+        'status' => 'open',
+    ]);
+
+    $periodJan = AccountingPeriod::create([
+        'company_id' => $company->id,
+        'fiscal_year_id' => $fiscalYear->id,
+        'period_no' => 1,
+        'period_name' => 'January 2025',
+        'start_date' => '2025-01-01',
+        'end_date' => '2025-01-31',
+        'status' => 'open',
+    ]);
+
+    $coaLevel1 = ChartOfAccount::create([
+        'company_id' => $company->id,
+        'code' => '1000',
+        'name' => 'Assets',
+        'level' => 1,
+        'account_type' => 'assets',
+        'normal_balance' => 'debit',
+        'financial_statement_group' => 'balance_sheet',
+    ]);
+
+    $coaLevel2 = ChartOfAccount::create([
+        'company_id' => $company->id,
+        'parent_id' => $coaLevel1->id,
+        'code' => '1100',
+        'name' => 'Current Assets',
+        'level' => 2,
+        'account_type' => 'assets',
+        'normal_balance' => 'debit',
+        'financial_statement_group' => 'balance_sheet',
+    ]);
+
+    $coaLevel3 = ChartOfAccount::create([
+        'company_id' => $company->id,
+        'parent_id' => $coaLevel2->id,
+        'code' => '1110',
+        'name' => 'Cash',
+        'level' => 3,
+        'account_type' => 'assets',
+        'normal_balance' => 'debit',
+        'financial_statement_group' => 'balance_sheet',
+    ]);
+
+    $coaLevel4 = ChartOfAccount::create([
+        'company_id' => $company->id,
+        'parent_id' => $coaLevel3->id,
+        'code' => '111001',
+        'name' => 'Cash on Hand',
+        'level' => 4,
+        'account_type' => 'assets',
+        'normal_balance' => 'debit',
+        'financial_statement_group' => 'balance_sheet',
+    ]);
+
+    $entry = JournalEntry::create([
+        'company_id' => $company->id,
+        'branch_id' => $branch->id,
+        'accounting_period_id' => $periodJan->id,
+        'journal_no' => 'JV-2025-001',
+        'journal_type' => 'manual',
+        'entry_date' => '2025-01-10',
+        'posting_date' => '2025-01-10',
+        'description' => 'Posted mutation 2025',
+        'currency_code' => 'IDR',
+        'exchange_rate' => 1,
+        'total_debit' => 10,
+        'total_credit' => 0,
+        'status' => 'posted',
+        'created_by' => $user->id,
+    ]);
+
+    JournalLine::create([
+        'journal_entry_id' => $entry->id,
+        'line_no' => 1,
+        'account_id' => $coaLevel4->id,
+        'base_currency_debit' => 10,
+        'base_currency_credit' => 0,
+        'debit' => 10,
+        'credit' => 0,
+        'original_currency_code' => 'IDR',
+        'original_currency_amount' => 10,
+    ]);
+
+    $response = $this
+        ->actingAs($user)
+        ->get(route('apps.reports.general-ledger', [
+            'company_id' => $company->id,
+            'branch_id' => $branch->id,
+            'coa_id' => $coaLevel4->id,
+        ]), [
+            'X-Inertia' => 'true',
+            'X-Requested-With' => 'XMLHttpRequest',
+        ])
+        ->assertOk();
+
+    expect($response->json('props.filters.year'))->toBe(2025)
+        ->and($response->json('props.filters.date_from'))->toBe('2025-01-01')
+        ->and($response->json('props.filters.date_to'))->toBe('2025-12-31')
+        ->and($response->json('props.yearOptions.0'))->toBe(2025);
+});

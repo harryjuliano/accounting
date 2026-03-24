@@ -74,11 +74,15 @@ export default function Index() {
 
     const normalizeRangeByYear = (nextFilters) => {
         const normalized = { ...nextFilters };
+        const selectedYear = Number.parseInt(`${normalized.year}`, 10);
+        const safeYear = Number.isFinite(selectedYear) && selectedYear > 0 ? selectedYear : new Date().getUTCFullYear();
+        const rangeStart = `${safeYear}-01-01`;
+        const rangeEnd = `${safeYear}-12-31`;
 
-        if (normalized.date_from && normalized.date_from < yearMin) normalized.date_from = yearMin;
-        if (normalized.date_from && normalized.date_from > yearMax) normalized.date_from = yearMax;
-        if (normalized.date_to && normalized.date_to < yearMin) normalized.date_to = yearMin;
-        if (normalized.date_to && normalized.date_to > yearMax) normalized.date_to = yearMax;
+        if (normalized.date_from && normalized.date_from < rangeStart) normalized.date_from = rangeStart;
+        if (normalized.date_from && normalized.date_from > rangeEnd) normalized.date_from = rangeEnd;
+        if (normalized.date_to && normalized.date_to < rangeStart) normalized.date_to = rangeStart;
+        if (normalized.date_to && normalized.date_to > rangeEnd) normalized.date_to = rangeEnd;
         if (normalized.date_from && normalized.date_to && normalized.date_to < normalized.date_from) {
             normalized.date_to = normalized.date_from;
         }
