@@ -213,6 +213,9 @@
     };
     $formatPercent = fn ($value) => number_format((float) $value, 2, ',', '.') . '%';
     $varianceClass = fn ($value) => (float) $value >= 0 ? 'positive-variance' : 'negative-variance';
+    $safePercent = fn ($numerator, $denominator) => abs((float) $denominator) > 0.000001
+        ? (((float) $numerator / (float) $denominator) * 100)
+        : 0;
 
     $rowsByGroup = collect($rows)->groupBy('account_group_type');
     $revenueRows = $rowsByGroup->get('revenue', collect());
@@ -323,21 +326,21 @@
             <tr class="subtotal">
                 <td class="left-text">Total HPP</td>
                 <td class="right-text {{ (float) $summary['total_cogs_current_year'] < 0 ? 'negative' : '' }}">{{ $formatAmount($summary['total_cogs_current_year']) }}</td>
-                <td class="right-text {{ ((float) $summary['total_sales_current_year']) !== 0 && ((float) $summary['total_cogs_current_year'] / (float) $summary['total_sales_current_year']) * 100 < 0 ? 'negative' : '' }}">{{ $formatPercent(((float) $summary['total_sales_current_year']) !== 0 ? ((float) $summary['total_cogs_current_year'] / (float) $summary['total_sales_current_year']) * 100 : 0) }}</td>
+                <td class="right-text {{ $safePercent($summary['total_cogs_current_year'], $summary['total_sales_current_year']) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($summary['total_cogs_current_year'], $summary['total_sales_current_year'])) }}</td>
                 <td class="right-text {{ (float) $summary['total_cogs_previous_year'] < 0 ? 'negative' : '' }}">{{ $formatAmount($summary['total_cogs_previous_year']) }}</td>
-                <td class="right-text {{ ((float) $summary['total_sales_previous_year']) !== 0 && ((float) $summary['total_cogs_previous_year'] / (float) $summary['total_sales_previous_year']) * 100 < 0 ? 'negative' : '' }}">{{ $formatPercent(((float) $summary['total_sales_previous_year']) !== 0 ? ((float) $summary['total_cogs_previous_year'] / (float) $summary['total_sales_previous_year']) * 100 : 0) }}</td>
+                <td class="right-text {{ $safePercent($summary['total_cogs_previous_year'], $summary['total_sales_previous_year']) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($summary['total_cogs_previous_year'], $summary['total_sales_previous_year'])) }}</td>
                 <td class="right-text {{ $varianceClass($summary['total_cogs_variance']) }}">{{ $formatAmount($summary['total_cogs_variance']) }}</td>
-                <td class="right-text {{ $varianceClass(((float) $summary['total_sales_variance']) !== 0 ? ((float) $summary['total_cogs_variance'] / (float) $summary['total_sales_variance']) * 100 : 0) }}">{{ $formatPercent(((float) $summary['total_sales_variance']) !== 0 ? ((float) $summary['total_cogs_variance'] / (float) $summary['total_sales_variance']) * 100 : 0) }}</td>
+                <td class="right-text {{ $varianceClass($safePercent($summary['total_cogs_variance'], $summary['total_sales_variance'])) }}">{{ $formatPercent($safePercent($summary['total_cogs_variance'], $summary['total_sales_variance'])) }}</td>
             </tr>
 
             <tr class="gross-profit">
                 <td class="left-text">Gross Profit</td>
                 <td class="right-text {{ (float) $summary['gross_profit_current_year'] < 0 ? 'negative' : '' }}">{{ $formatAmount($summary['gross_profit_current_year']) }}</td>
-                <td class="right-text">{{ $formatPercent(((float) $summary['total_sales_current_year']) !== 0 ? ((float) $summary['gross_profit_current_year'] / (float) $summary['total_sales_current_year']) * 100 : 0) }}</td>
+                <td class="right-text">{{ $formatPercent($safePercent($summary['gross_profit_current_year'], $summary['total_sales_current_year'])) }}</td>
                 <td class="right-text {{ (float) $summary['gross_profit_previous_year'] < 0 ? 'negative' : '' }}">{{ $formatAmount($summary['gross_profit_previous_year']) }}</td>
-                <td class="right-text">{{ $formatPercent(((float) $summary['total_sales_previous_year']) !== 0 ? ((float) $summary['gross_profit_previous_year'] / (float) $summary['total_sales_previous_year']) * 100 : 0) }}</td>
+                <td class="right-text">{{ $formatPercent($safePercent($summary['gross_profit_previous_year'], $summary['total_sales_previous_year'])) }}</td>
                 <td class="right-text {{ $varianceClass($summary['gross_profit_variance']) }}">{{ $formatAmount($summary['gross_profit_variance']) }}</td>
-                <td class="right-text {{ $varianceClass(((float) $summary['total_sales_variance']) !== 0 ? ((float) $summary['gross_profit_variance'] / (float) $summary['total_sales_variance']) * 100 : 0) }}">{{ $formatPercent(((float) $summary['total_sales_variance']) !== 0 ? ((float) $summary['gross_profit_variance'] / (float) $summary['total_sales_variance']) * 100 : 0) }}</td>
+                <td class="right-text {{ $varianceClass($safePercent($summary['gross_profit_variance'], $summary['total_sales_variance'])) }}">{{ $formatPercent($safePercent($summary['gross_profit_variance'], $summary['total_sales_variance'])) }}</td>
             </tr>
 
             <tr class="section"><td colspan="7">Biaya Operasional</td></tr>
@@ -356,11 +359,11 @@
             <tr class="subtotal">
                 <td class="left-text">Total Biaya Operasional</td>
                 <td class="right-text {{ (float) $summary['total_operating_expense_current_year'] < 0 ? 'negative' : '' }}">{{ $formatAmount($summary['total_operating_expense_current_year']) }}</td>
-                <td class="right-text">{{ $formatPercent(((float) $summary['total_sales_current_year']) !== 0 ? ((float) $summary['total_operating_expense_current_year'] / (float) $summary['total_sales_current_year']) * 100 : 0) }}</td>
+                <td class="right-text">{{ $formatPercent($safePercent($summary['total_operating_expense_current_year'], $summary['total_sales_current_year'])) }}</td>
                 <td class="right-text {{ (float) $summary['total_operating_expense_previous_year'] < 0 ? 'negative' : '' }}">{{ $formatAmount($summary['total_operating_expense_previous_year']) }}</td>
-                <td class="right-text">{{ $formatPercent(((float) $summary['total_sales_previous_year']) !== 0 ? ((float) $summary['total_operating_expense_previous_year'] / (float) $summary['total_sales_previous_year']) * 100 : 0) }}</td>
+                <td class="right-text">{{ $formatPercent($safePercent($summary['total_operating_expense_previous_year'], $summary['total_sales_previous_year'])) }}</td>
                 <td class="right-text {{ $varianceClass($summary['total_operating_expense_variance']) }}">{{ $formatAmount($summary['total_operating_expense_variance']) }}</td>
-                <td class="right-text {{ $varianceClass(((float) $summary['total_sales_variance']) !== 0 ? ((float) $summary['total_operating_expense_variance'] / (float) $summary['total_sales_variance']) * 100 : 0) }}">{{ $formatPercent(((float) $summary['total_sales_variance']) !== 0 ? ((float) $summary['total_operating_expense_variance'] / (float) $summary['total_sales_variance']) * 100 : 0) }}</td>
+                <td class="right-text {{ $varianceClass($safePercent($summary['total_operating_expense_variance'], $summary['total_sales_variance'])) }}">{{ $formatPercent($safePercent($summary['total_operating_expense_variance'], $summary['total_sales_variance'])) }}</td>
             </tr>
 
             <tr class="section"><td colspan="7">Lain-lain</td></tr>
@@ -381,9 +384,9 @@
                     $current = (float) ($summary[$item['key'].'_current_year'] ?? 0);
                     $previous = (float) ($summary[$item['key'].'_previous_year'] ?? 0);
                     $variance = (float) ($summary[$item['key'].'_variance'] ?? 0);
-                    $currentPct = ((float) $summary['total_sales_current_year']) !== 0 ? ($current / (float) $summary['total_sales_current_year']) * 100 : 0;
-                    $previousPct = ((float) $summary['total_sales_previous_year']) !== 0 ? ($previous / (float) $summary['total_sales_previous_year']) * 100 : 0;
-                    $variancePct = ((float) $summary['total_sales_variance']) !== 0 ? ($variance / (float) $summary['total_sales_variance']) * 100 : 0;
+                    $currentPct = $safePercent($current, $summary['total_sales_current_year']);
+                    $previousPct = $safePercent($previous, $summary['total_sales_previous_year']);
+                    $variancePct = $safePercent($variance, $summary['total_sales_variance']);
                 @endphp
                 <tr class="{{ $item['class'] }}">
                     <td class="left-text">{{ $item['label'] }}</td>
