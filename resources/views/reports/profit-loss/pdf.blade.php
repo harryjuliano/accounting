@@ -298,8 +298,8 @@
     $totalOtherExpensePrevious = $sumPrevious($otherExpenseRows);
     $totalOtherExpenseVariance = $sumVariance($otherExpenseRows);
 
-    $netBeforeTaxCurrent = $grossProfitCurrent - $totalOperationalCurrent + $totalOtherIncomeCurrent - $totalOtherExpenseCurrent;
-    $netBeforeTaxPrevious = $grossProfitPrevious - $totalOperationalPrevious + $totalOtherIncomePrevious - $totalOtherExpensePrevious;
+    $netBeforeTaxCurrent = $grossProfitCurrent - $totalOperationalCurrent - $totalOtherIncomeCurrent - $totalOtherExpenseCurrent;
+    $netBeforeTaxPrevious = $grossProfitPrevious - $totalOperationalPrevious - $totalOtherIncomePrevious - $totalOtherExpensePrevious;
     $netBeforeTaxVariance = $netBeforeTaxCurrent - $netBeforeTaxPrevious;
 
     $taxCurrent = $sumCurrent($taxRows);
