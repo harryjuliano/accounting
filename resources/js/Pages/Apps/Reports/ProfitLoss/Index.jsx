@@ -55,6 +55,13 @@ const getAmountClass = (value) => Number(value || 0) < 0
     ? 'text-right font-medium text-rose-600 dark:text-rose-300'
     : 'text-right font-medium text-gray-800 dark:text-gray-100';
 
+const hasDeeperLevel = (row, drillLevel) => {
+    if (drillLevel >= 4) return false;
+
+    const nextLevelKey = `coa_level_${drillLevel + 1}`;
+    return Boolean(row?.[nextLevelKey]);
+};
+
 export default function Index() {
     const { rows, summary, companies, branches, statusOptions, filters, yearOptions = [] } = usePage().props;
     const now = new Date();
@@ -139,13 +146,10 @@ export default function Index() {
                                 {monthOptions.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                             </select>
                         </div>
-                        <div>
-                            <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>Drill COA</label>
-                            <div className='flex items-center gap-2'>
-                                <button type='button' className='rounded border px-2 py-1 text-xs disabled:opacity-50 dark:border-gray-700' disabled={listFilters.drill_level <= 1} onClick={() => updateFilter('drill_level', listFilters.drill_level - 1)}>Up</button>
-                                <span className='min-w-16 text-center text-sm text-gray-700 dark:text-gray-200'>Level {listFilters.drill_level}</span>
-                                <button type='button' className='rounded border px-2 py-1 text-xs disabled:opacity-50 dark:border-gray-700' disabled={listFilters.drill_level >= 4} onClick={() => updateFilter('drill_level', listFilters.drill_level + 1)}>Down</button>
-                            </div>
+                        <div className='flex items-end'>
+                            <span className='inline-flex rounded border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'>
+                                Drill COA Level {listFilters.drill_level}
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -168,7 +172,24 @@ export default function Index() {
                                 <tr key={`${row.coa_code ?? row.coa_level_1}-${index}`} className={getRowTone(row)}>
                                     <Table.Td>
                                         <div className='flex items-center gap-2'>
-                                            <span className='inline-block h-2 w-2 rounded-full bg-current opacity-50' />
+                                            <button
+                                                type='button'
+                                                className='inline-flex h-5 w-5 items-center justify-center rounded border border-gray-300 bg-white text-xs font-semibold text-gray-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100'
+                                                onClick={() => updateFilter('drill_level', listFilters.drill_level - 1)}
+                                                disabled={listFilters.drill_level <= 1}
+                                                title='Drill up'
+                                            >
+                                                -
+                                            </button>
+                                            <button
+                                                type='button'
+                                                className='inline-flex h-5 w-5 items-center justify-center rounded border border-gray-300 bg-white text-xs font-semibold text-gray-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100'
+                                                onClick={() => updateFilter('drill_level', listFilters.drill_level + 1)}
+                                                disabled={!hasDeeperLevel(row, listFilters.drill_level)}
+                                                title='Drill down'
+                                            >
+                                                +
+                                            </button>
                                             <span className='font-medium'>{getDisplayLabel(row, listFilters.drill_level)}</span>
                                         </div>
                                     </Table.Td>
