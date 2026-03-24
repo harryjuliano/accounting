@@ -217,23 +217,108 @@
         ? (((float) $numerator / (float) $denominator) * 100)
         : 0;
 
-    $rowsByGroup = collect($rows)->groupBy('account_group_type');
-    $revenueRows = $rowsByGroup->get('revenue', collect());
-    $cogsRows = $rowsByGroup->get('cogs', collect());
-    $operationalRows = $rowsByGroup->get('expense', collect());
-    $otherRows = $rowsByGroup->get('other_income', collect())->concat($rowsByGroup->get('other_expense', collect()));
-
-    $subtotalRows = [
-        ['label' => 'Total Pendapatan', 'key' => 'total_sales', 'class' => 'subtotal'],
-        ['label' => 'Total HPP', 'key' => 'total_cogs', 'class' => 'subtotal'],
-        ['label' => 'Gross Profit', 'key' => 'gross_profit', 'class' => 'gross-profit'],
-        ['label' => 'Total Biaya Operasional', 'key' => 'total_operating_expense', 'class' => 'subtotal'],
-        ['label' => 'Net Profit Before Tax', 'key' => 'net_profit_before_tax', 'class' => 'subtotal'],
-        ['label' => 'Pajak Penghasilan', 'key' => 'income_tax', 'class' => 'detail'],
-        ['label' => 'Net Profit After Tax', 'key' => 'net_profit_after_tax', 'class' => 'grand-total'],
-    ];
+    $isHppByName = function (string $label): bool {
+        $name = strtolower($label);
+        return str_contains($name, 'cost of good sold')
+            || str_contains($name, 'factory overhead')
+            || str_contains($name, 'cost of services');
+    };
+    $isOtherByName = function (string $label): bool {
+        $name = strtolower($label);
+        return str_contains($name, 'other income')
+            || str_contains($name, 'other expense')
+            || str_contains($name, 'pendapatan lain')
+            || str_contains($name, 'biaya lain');
+    };
+    $isTaxByName = fn (string $label): bool => str_contains(strtolower($label), 'corporate tax')
+        || str_contains(strtolower($label), 'pajak penghasilan');
 
     $rowLabel = fn ($row) => $row['coa_level_3'] ?? $row['coa_level_2'] ?? $row['coa_level_1'] ?? '-';
+    $revenueRows = collect();
+    $hppRows = collect();
+    $operationalRows = collect();
+    $otherIncomeRows = collect();
+    $otherExpenseRows = collect();
+    $taxRows = collect();
+
+    foreach (collect($rows) as $row) {
+        $label = $rowLabel($row);
+        $group = $row['account_group_type'] ?? '';
+
+        if ($group === 'revenue') {
+            $revenueRows->push($row);
+            continue;
+        }
+
+        if ($group === 'cogs' || $isHppByName($label)) {
+            $hppRows->push($row);
+            continue;
+        }
+
+        if ($isTaxByName($label)) {
+            $taxRows->push($row);
+            continue;
+        }
+    }
+</style>
+</head>
+<body>
+@php
+    $currentYear = (int) $filters['year'];
+    $previousYear = $currentYear - 1;
+    $periodDate = \Carbon\Carbon::create($currentYear, (int) $filters['period'], 1)->locale('id')->endOfMonth();
+    $periodLabel = $periodDate->translatedFormat('F Y');
+    $printedDate = \Carbon\Carbon::parse($generatedAt)->locale('id')->translatedFormat('d F Y');
+
+        if ($group === 'other_income' || ($isOtherByName($label) && str_contains(strtolower($label), 'income'))) {
+            $otherIncomeRows->push($row);
+            continue;
+        }
+
+        if ($group === 'other_expense' || $isOtherByName($label)) {
+            $otherExpenseRows->push($row);
+            continue;
+        }
+
+        $operationalRows->push($row);
+    }
+
+    $sumCurrent = fn ($items) => (float) $items->sum('current_year');
+    $sumPrevious = fn ($items) => (float) $items->sum('previous_year');
+    $sumVariance = fn ($items) => (float) $items->sum('variance');
+
+    $totalRevenueCurrent = $sumCurrent($revenueRows);
+    $totalRevenuePrevious = $sumPrevious($revenueRows);
+    $totalRevenueVariance = $sumVariance($revenueRows);
+    $totalHppCurrent = $sumCurrent($hppRows);
+    $totalHppPrevious = $sumPrevious($hppRows);
+    $totalHppVariance = $sumVariance($hppRows);
+    $grossProfitCurrent = $totalRevenueCurrent - $totalHppCurrent;
+    $grossProfitPrevious = $totalRevenuePrevious - $totalHppPrevious;
+    $grossProfitVariance = $grossProfitCurrent - $grossProfitPrevious;
+
+    $totalOperationalCurrent = $sumCurrent($operationalRows);
+    $totalOperationalPrevious = $sumPrevious($operationalRows);
+    $totalOperationalVariance = $sumVariance($operationalRows);
+
+    $totalOtherIncomeCurrent = $sumCurrent($otherIncomeRows);
+    $totalOtherIncomePrevious = $sumPrevious($otherIncomeRows);
+    $totalOtherIncomeVariance = $sumVariance($otherIncomeRows);
+    $totalOtherExpenseCurrent = $sumCurrent($otherExpenseRows);
+    $totalOtherExpensePrevious = $sumPrevious($otherExpenseRows);
+    $totalOtherExpenseVariance = $sumVariance($otherExpenseRows);
+
+    $netBeforeTaxCurrent = $grossProfitCurrent - $totalOperationalCurrent + $totalOtherIncomeCurrent - $totalOtherExpenseCurrent;
+    $netBeforeTaxPrevious = $grossProfitPrevious - $totalOperationalPrevious + $totalOtherIncomePrevious - $totalOtherExpensePrevious;
+    $netBeforeTaxVariance = $netBeforeTaxCurrent - $netBeforeTaxPrevious;
+
+    $taxCurrent = $sumCurrent($taxRows);
+    $taxPrevious = $sumPrevious($taxRows);
+    $taxVariance = $sumVariance($taxRows);
+
+    $netAfterTaxCurrent = $netBeforeTaxCurrent - $taxCurrent;
+    $netAfterTaxPrevious = $netBeforeTaxPrevious - $taxPrevious;
+    $netAfterTaxVariance = $netAfterTaxCurrent - $netAfterTaxPrevious;
 @endphp
 
 <div class="page">
@@ -271,7 +356,7 @@
 
         <thead>
             <tr class="group-header">
-                <th rowspan="2" class="left-text">Uraian (COA Level 3)</th>
+                <th rowspan="2" class="left-text">Uraian</th>
                 <th colspan="2" class="right-text">{{ $currentYear }}</th>
                 <th colspan="2" class="right-text">{{ $previousYear }}</th>
                 <th colspan="2" class="right-text">Variance {{ $currentYear }} vs {{ $previousYear }}</th>
@@ -302,16 +387,16 @@
 
             <tr class="subtotal">
                 <td class="left-text">Total Pendapatan</td>
-                <td class="right-text">{{ $formatAmount($summary['total_sales_current_year']) }}</td>
+                <td class="right-text">{{ $formatAmount($totalRevenueCurrent) }}</td>
                 <td class="right-text">{{ $formatPercent(100) }}</td>
-                <td class="right-text">{{ $formatAmount($summary['total_sales_previous_year']) }}</td>
+                <td class="right-text">{{ $formatAmount($totalRevenuePrevious) }}</td>
                 <td class="right-text">{{ $formatPercent(100) }}</td>
-                <td class="right-text {{ $varianceClass($summary['total_sales_variance']) }}">{{ $formatAmount($summary['total_sales_variance']) }}</td>
+                <td class="right-text {{ $varianceClass($totalRevenueVariance) }}">{{ $formatAmount($totalRevenueVariance) }}</td>
                 <td class="right-text">{{ $formatPercent(0) }}</td>
             </tr>
 
             <tr class="section"><td colspan="7">Harga Pokok Penjualan</td></tr>
-            @foreach($cogsRows as $row)
+            @foreach($hppRows as $row)
                 <tr class="detail">
                     <td class="left-text">{{ $rowLabel($row) }}</td>
                     <td class="right-text {{ (float) $row['current_year'] < 0 ? 'negative' : '' }}">{{ $formatAmount($row['current_year']) }}</td>
@@ -325,22 +410,22 @@
 
             <tr class="subtotal">
                 <td class="left-text">Total HPP</td>
-                <td class="right-text {{ (float) $summary['total_cogs_current_year'] < 0 ? 'negative' : '' }}">{{ $formatAmount($summary['total_cogs_current_year']) }}</td>
-                <td class="right-text {{ $safePercent($summary['total_cogs_current_year'], $summary['total_sales_current_year']) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($summary['total_cogs_current_year'], $summary['total_sales_current_year'])) }}</td>
-                <td class="right-text {{ (float) $summary['total_cogs_previous_year'] < 0 ? 'negative' : '' }}">{{ $formatAmount($summary['total_cogs_previous_year']) }}</td>
-                <td class="right-text {{ $safePercent($summary['total_cogs_previous_year'], $summary['total_sales_previous_year']) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($summary['total_cogs_previous_year'], $summary['total_sales_previous_year'])) }}</td>
-                <td class="right-text {{ $varianceClass($summary['total_cogs_variance']) }}">{{ $formatAmount($summary['total_cogs_variance']) }}</td>
-                <td class="right-text {{ $varianceClass($safePercent($summary['total_cogs_variance'], $summary['total_sales_variance'])) }}">{{ $formatPercent($safePercent($summary['total_cogs_variance'], $summary['total_sales_variance'])) }}</td>
+                <td class="right-text {{ (float) $totalHppCurrent < 0 ? 'negative' : '' }}">{{ $formatAmount($totalHppCurrent) }}</td>
+                <td class="right-text {{ $safePercent($totalHppCurrent, $totalRevenueCurrent) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($totalHppCurrent, $totalRevenueCurrent)) }}</td>
+                <td class="right-text {{ (float) $totalHppPrevious < 0 ? 'negative' : '' }}">{{ $formatAmount($totalHppPrevious) }}</td>
+                <td class="right-text {{ $safePercent($totalHppPrevious, $totalRevenuePrevious) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($totalHppPrevious, $totalRevenuePrevious)) }}</td>
+                <td class="right-text {{ $varianceClass($totalHppVariance) }}">{{ $formatAmount($totalHppVariance) }}</td>
+                <td class="right-text {{ $varianceClass($safePercent($totalHppVariance, $totalRevenueVariance)) }}">{{ $formatPercent($safePercent($totalHppVariance, $totalRevenueVariance)) }}</td>
             </tr>
 
             <tr class="gross-profit">
                 <td class="left-text">Gross Profit</td>
-                <td class="right-text {{ (float) $summary['gross_profit_current_year'] < 0 ? 'negative' : '' }}">{{ $formatAmount($summary['gross_profit_current_year']) }}</td>
-                <td class="right-text">{{ $formatPercent($safePercent($summary['gross_profit_current_year'], $summary['total_sales_current_year'])) }}</td>
-                <td class="right-text {{ (float) $summary['gross_profit_previous_year'] < 0 ? 'negative' : '' }}">{{ $formatAmount($summary['gross_profit_previous_year']) }}</td>
-                <td class="right-text">{{ $formatPercent($safePercent($summary['gross_profit_previous_year'], $summary['total_sales_previous_year'])) }}</td>
-                <td class="right-text {{ $varianceClass($summary['gross_profit_variance']) }}">{{ $formatAmount($summary['gross_profit_variance']) }}</td>
-                <td class="right-text {{ $varianceClass($safePercent($summary['gross_profit_variance'], $summary['total_sales_variance'])) }}">{{ $formatPercent($safePercent($summary['gross_profit_variance'], $summary['total_sales_variance'])) }}</td>
+                <td class="right-text {{ (float) $grossProfitCurrent < 0 ? 'negative' : '' }}">{{ $formatAmount($grossProfitCurrent) }}</td>
+                <td class="right-text">{{ $formatPercent($safePercent($grossProfitCurrent, $totalRevenueCurrent)) }}</td>
+                <td class="right-text {{ (float) $grossProfitPrevious < 0 ? 'negative' : '' }}">{{ $formatAmount($grossProfitPrevious) }}</td>
+                <td class="right-text">{{ $formatPercent($safePercent($grossProfitPrevious, $totalRevenuePrevious)) }}</td>
+                <td class="right-text {{ $varianceClass($grossProfitVariance) }}">{{ $formatAmount($grossProfitVariance) }}</td>
+                <td class="right-text {{ $varianceClass($safePercent($grossProfitVariance, $totalRevenueVariance)) }}">{{ $formatPercent($safePercent($grossProfitVariance, $totalRevenueVariance)) }}</td>
             </tr>
 
             <tr class="section"><td colspan="7">Biaya Operasional</td></tr>
@@ -358,16 +443,16 @@
 
             <tr class="subtotal">
                 <td class="left-text">Total Biaya Operasional</td>
-                <td class="right-text {{ (float) $summary['total_operating_expense_current_year'] < 0 ? 'negative' : '' }}">{{ $formatAmount($summary['total_operating_expense_current_year']) }}</td>
-                <td class="right-text">{{ $formatPercent($safePercent($summary['total_operating_expense_current_year'], $summary['total_sales_current_year'])) }}</td>
-                <td class="right-text {{ (float) $summary['total_operating_expense_previous_year'] < 0 ? 'negative' : '' }}">{{ $formatAmount($summary['total_operating_expense_previous_year']) }}</td>
-                <td class="right-text">{{ $formatPercent($safePercent($summary['total_operating_expense_previous_year'], $summary['total_sales_previous_year'])) }}</td>
-                <td class="right-text {{ $varianceClass($summary['total_operating_expense_variance']) }}">{{ $formatAmount($summary['total_operating_expense_variance']) }}</td>
-                <td class="right-text {{ $varianceClass($safePercent($summary['total_operating_expense_variance'], $summary['total_sales_variance'])) }}">{{ $formatPercent($safePercent($summary['total_operating_expense_variance'], $summary['total_sales_variance'])) }}</td>
+                <td class="right-text {{ (float) $totalOperationalCurrent < 0 ? 'negative' : '' }}">{{ $formatAmount($totalOperationalCurrent) }}</td>
+                <td class="right-text">{{ $formatPercent($safePercent($totalOperationalCurrent, $totalRevenueCurrent)) }}</td>
+                <td class="right-text {{ (float) $totalOperationalPrevious < 0 ? 'negative' : '' }}">{{ $formatAmount($totalOperationalPrevious) }}</td>
+                <td class="right-text">{{ $formatPercent($safePercent($totalOperationalPrevious, $totalRevenuePrevious)) }}</td>
+                <td class="right-text {{ $varianceClass($totalOperationalVariance) }}">{{ $formatAmount($totalOperationalVariance) }}</td>
+                <td class="right-text {{ $varianceClass($safePercent($totalOperationalVariance, $totalRevenueVariance)) }}">{{ $formatPercent($safePercent($totalOperationalVariance, $totalRevenueVariance)) }}</td>
             </tr>
 
             <tr class="section"><td colspan="7">Lain-lain</td></tr>
-            @foreach($otherRows as $row)
+            @foreach($otherIncomeRows->concat($otherExpenseRows) as $row)
                 <tr class="detail">
                     <td class="left-text">{{ $rowLabel($row) }}</td>
                     <td class="right-text {{ (float) $row['current_year'] < 0 ? 'negative' : '' }}">{{ $formatAmount($row['current_year']) }}</td>
@@ -379,32 +464,37 @@
                 </tr>
             @endforeach
 
-            @foreach($subtotalRows as $item)
-                @php
-                    $current = (float) ($summary[$item['key'].'_current_year'] ?? 0);
-                    $previous = (float) ($summary[$item['key'].'_previous_year'] ?? 0);
-                    $variance = (float) ($summary[$item['key'].'_variance'] ?? 0);
-                    $currentPct = $safePercent($current, $summary['total_sales_current_year']);
-                    $previousPct = $safePercent($previous, $summary['total_sales_previous_year']);
-                    $variancePct = $safePercent($variance, $summary['total_sales_variance']);
-                @endphp
-                <tr class="{{ $item['class'] }}">
-                    <td class="left-text">{{ $item['label'] }}</td>
-                    <td class="right-text {{ $current < 0 ? 'negative' : '' }}">{{ $formatAmount($current) }}</td>
-                    <td class="right-text {{ $currentPct < 0 ? 'negative' : '' }}">{{ $formatPercent($currentPct) }}</td>
-                    <td class="right-text {{ $previous < 0 ? 'negative' : '' }}">{{ $formatAmount($previous) }}</td>
-                    <td class="right-text {{ $previousPct < 0 ? 'negative' : '' }}">{{ $formatPercent($previousPct) }}</td>
-                    <td class="right-text {{ $varianceClass($variance) }}">{{ $formatAmount($variance) }}</td>
-                    <td class="right-text {{ $varianceClass($variancePct) }}">{{ $formatPercent($variancePct) }}</td>
-                </tr>
-            @endforeach
+            <tr class="subtotal">
+                <td class="left-text">Net Profit Before Tax</td>
+                <td class="right-text {{ $netBeforeTaxCurrent < 0 ? 'negative' : '' }}">{{ $formatAmount($netBeforeTaxCurrent) }}</td>
+                <td class="right-text {{ $safePercent($netBeforeTaxCurrent, $totalRevenueCurrent) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($netBeforeTaxCurrent, $totalRevenueCurrent)) }}</td>
+                <td class="right-text {{ $netBeforeTaxPrevious < 0 ? 'negative' : '' }}">{{ $formatAmount($netBeforeTaxPrevious) }}</td>
+                <td class="right-text {{ $safePercent($netBeforeTaxPrevious, $totalRevenuePrevious) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($netBeforeTaxPrevious, $totalRevenuePrevious)) }}</td>
+                <td class="right-text {{ $varianceClass($netBeforeTaxVariance) }}">{{ $formatAmount($netBeforeTaxVariance) }}</td>
+                <td class="right-text {{ $varianceClass($safePercent($netBeforeTaxVariance, $totalRevenueVariance)) }}">{{ $formatPercent($safePercent($netBeforeTaxVariance, $totalRevenueVariance)) }}</td>
+            </tr>
+
+            <tr class="detail">
+                <td class="left-text">Pajak Penghasilan</td>
+                <td class="right-text {{ $taxCurrent < 0 ? 'negative' : '' }}">{{ $formatAmount($taxCurrent) }}</td>
+                <td class="right-text {{ $safePercent($taxCurrent, $totalRevenueCurrent) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($taxCurrent, $totalRevenueCurrent)) }}</td>
+                <td class="right-text {{ $taxPrevious < 0 ? 'negative' : '' }}">{{ $formatAmount($taxPrevious) }}</td>
+                <td class="right-text {{ $safePercent($taxPrevious, $totalRevenuePrevious) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($taxPrevious, $totalRevenuePrevious)) }}</td>
+                <td class="right-text {{ $varianceClass($taxVariance) }}">{{ $formatAmount($taxVariance) }}</td>
+                <td class="right-text {{ $varianceClass($safePercent($taxVariance, $totalRevenueVariance)) }}">{{ $formatPercent($safePercent($taxVariance, $totalRevenueVariance)) }}</td>
+            </tr>
+
+            <tr class="grand-total">
+                <td class="left-text">Net Profit After Tax</td>
+                <td class="right-text {{ $netAfterTaxCurrent < 0 ? 'negative' : '' }}">{{ $formatAmount($netAfterTaxCurrent) }}</td>
+                <td class="right-text {{ $safePercent($netAfterTaxCurrent, $totalRevenueCurrent) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($netAfterTaxCurrent, $totalRevenueCurrent)) }}</td>
+                <td class="right-text {{ $netAfterTaxPrevious < 0 ? 'negative' : '' }}">{{ $formatAmount($netAfterTaxPrevious) }}</td>
+                <td class="right-text {{ $safePercent($netAfterTaxPrevious, $totalRevenuePrevious) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($netAfterTaxPrevious, $totalRevenuePrevious)) }}</td>
+                <td class="right-text {{ $varianceClass($netAfterTaxVariance) }}">{{ $formatAmount($netAfterTaxVariance) }}</td>
+                <td class="right-text {{ $varianceClass($safePercent($netAfterTaxVariance, $totalRevenueVariance)) }}">{{ $formatPercent($safePercent($netAfterTaxVariance, $totalRevenueVariance)) }}</td>
+            </tr>
         </tbody>
     </table>
-
-    <div class="footer">
-        <div>Prepared for management reporting purpose.</div>
-        <div>Page size: A4 Portrait</div>
-    </div>
 </div>
 
 <script>
