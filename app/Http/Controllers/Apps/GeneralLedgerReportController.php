@@ -118,7 +118,6 @@ class GeneralLedgerReportController extends Controller
 
         $ledgerLinesQuery = JournalLine::query()
             ->select('journal_lines.*')
-            ->selectRaw('journal_entries.id as journal_entry_id')
             ->selectRaw('journal_entries.journal_type as journal_type')
             ->selectRaw('journal_entries.posting_date as posting_date')
             ->selectRaw('journal_entries.journal_no as journal_no')
