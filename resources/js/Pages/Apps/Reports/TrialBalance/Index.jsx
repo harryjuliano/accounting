@@ -26,14 +26,20 @@ const monthOptions = [
 
 export default function Index() {
     const { rows, summary, companies, branches, statusOptions, filters, yearOptions = [] } = usePage().props;
+    const now = new Date();
+    const fallbackYear = Number(filters?.year ?? now.getFullYear());
+    const resolvedYear = yearOptions.includes(fallbackYear)
+        ? fallbackYear
+        : (yearOptions[0] ?? fallbackYear);
+    const fallbackPeriod = Number(filters?.period ?? (resolvedYear === now.getFullYear() ? (now.getMonth() + 1) : 12));
 
     const [listFilters, setListFilters] = React.useState({
         type: filters?.type ?? 'MTD',
         company_id: `${filters?.company_id ?? 'all'}`,
         branch_id: `${filters?.branch_id ?? 'all'}`,
         status: filters?.status ?? 'posted',
-        year: Number(filters?.year ?? new Date().getFullYear()),
-        period: Number(filters?.period ?? (new Date().getMonth() + 1)),
+        year: resolvedYear,
+        period: fallbackPeriod,
     });
 
     const applyFilters = React.useCallback((nextFilters) => {

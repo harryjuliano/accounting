@@ -21,13 +21,31 @@ class TrialBalanceReportController extends Controller
         $timezone = $request->user()?->company?->timezone ?? config('app.timezone', 'UTC');
         $now = Carbon::now($timezone);
 
+        $yearOptions = JournalEntry::query()
+            ->selectRaw('DISTINCT YEAR(posting_date) as year')
+            ->when($this->isCompanyAdmin(), fn (Builder $query) => $query->where('company_id', $request->user()->company_id))
+            ->whereNotNull('posting_date')
+            ->orderByDesc('year')
+            ->pluck('year')
+            ->map(fn ($value) => (int) $value)
+            ->values();
+
         $reportType = strtoupper($request->string('type')->toString() ?: 'MTD');
         if (! in_array($reportType, ['MTD', 'YTD'], true)) {
             $reportType = 'MTD';
         }
 
-        $year = (int) ($request->input('year') ?: $now->year);
-        $period = (int) ($request->input('period') ?: $now->month);
+        $requestedYear = (int) $request->integer('year');
+        $year = $requestedYear > 0
+            ? $requestedYear
+            : ($yearOptions->first() ?: $now->year);
+
+        if (! $yearOptions->contains($year)) {
+            $yearOptions = $yearOptions->prepend($year)->unique()->sortDesc()->values();
+        }
+
+        $defaultPeriod = $year === $now->year ? $now->month : 12;
+        $period = (int) ($request->input('period') ?: $defaultPeriod);
         $period = max(1, min(12, $period));
 
         $companyId = $request->input('company_id', 'all');
@@ -134,19 +152,6 @@ class TrialBalanceReportController extends Controller
             'mutation_credit' => (float) $rows->sum('mutation_credit'),
             'closing_balance' => (float) $rows->sum('closing_balance'),
         ];
-
-        $yearOptions = JournalEntry::query()
-            ->selectRaw('DISTINCT YEAR(posting_date) as year')
-            ->when($this->isCompanyAdmin(), fn (Builder $query) => $query->where('company_id', $request->user()->company_id))
-            ->whereNotNull('posting_date')
-            ->orderByDesc('year')
-            ->pluck('year')
-            ->map(fn ($value) => (int) $value)
-            ->values();
-
-        if ($yearOptions->isEmpty()) {
-            $yearOptions = collect([$now->year]);
-        }
 
         return inertia('Apps/Reports/TrialBalance/Index', [
             'rows' => $rows,
