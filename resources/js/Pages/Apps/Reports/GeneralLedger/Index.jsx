@@ -75,7 +75,7 @@ export default function Index() {
         <button
             type='button'
             onClick={() => toggleSort(field)}
-            className={`inline-flex items-center gap-1 hover:text-blue-600 ${className}`}
+            className={`inline-flex items-center gap-1 hover:text-blue-600 dark:hover:text-blue-400 ${className}`}
         >
             {label}
             <IconArrowsSort size={14} />
@@ -95,29 +95,29 @@ export default function Index() {
                     <div className='grid grid-cols-1 gap-3 md:grid-cols-6'>
                         <div>
                             <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>Date From</label>
-                            <input type='date' className='w-full rounded border-gray-300 text-sm' value={listFilters.date_from} onChange={(e) => updateFilter('date_from', e.target.value)} />
+                            <input type='date' className='w-full rounded border-gray-300 bg-white text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100' value={listFilters.date_from} onChange={(e) => updateFilter('date_from', e.target.value)} />
                         </div>
                         <div>
                             <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>To Date</label>
-                            <input type='date' className='w-full rounded border-gray-300 text-sm' value={listFilters.date_to} onChange={(e) => updateFilter('date_to', e.target.value)} />
+                            <input type='date' className='w-full rounded border-gray-300 bg-white text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100' value={listFilters.date_to} onChange={(e) => updateFilter('date_to', e.target.value)} />
                         </div>
                         <div>
                             <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>Company</label>
-                            <select className='w-full rounded border-gray-300 text-sm' value={listFilters.company_id} onChange={(e) => updateFilter('company_id', e.target.value)}>
+                            <select className='w-full rounded border-gray-300 bg-white text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100' value={listFilters.company_id} onChange={(e) => updateFilter('company_id', e.target.value)}>
                                 <option value='all'>All Company</option>
                                 {companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
                             </select>
                         </div>
                         <div>
                             <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>Branch</label>
-                            <select className='w-full rounded border-gray-300 text-sm' value={listFilters.branch_id} onChange={(e) => updateFilter('branch_id', e.target.value)}>
+                            <select className='w-full rounded border-gray-300 bg-white text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100' value={listFilters.branch_id} onChange={(e) => updateFilter('branch_id', e.target.value)}>
                                 <option value='all'>All Branch</option>
                                 {branchOptions.map((branch) => <option key={branch.id} value={branch.id}>{branch.code} - {branch.name}</option>)}
                             </select>
                         </div>
                         <div>
                             <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>COA</label>
-                            <select className='w-full rounded border-gray-300 text-sm' value={listFilters.coa_id} onChange={(e) => updateFilter('coa_id', e.target.value)}>
+                            <select className='w-full rounded border-gray-300 bg-white text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100' value={listFilters.coa_id} onChange={(e) => updateFilter('coa_id', e.target.value)}>
                                 <option value='all'>All COA</option>
                                 {coaOptions.map((account) => <option key={account.id} value={account.id}>{account.code} - {account.name}</option>)}
                             </select>
@@ -125,8 +125,8 @@ export default function Index() {
                         <div>
                             <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>Global Search</label>
                             <form onSubmit={submitSearch} className='relative'>
-                                <input type='text' className='w-full rounded border-gray-300 py-2 pl-8 pr-2 text-sm' placeholder='Cari jurnal/ref/COA/deskripsi...' value={listFilters.search} onChange={(e) => updateFilter('search', e.target.value)} />
-                                <IconSearch size={14} className='absolute left-2 top-2.5 text-gray-400' />
+                                <input type='text' className='w-full rounded border-gray-300 bg-white py-2 pl-8 pr-2 text-sm text-gray-700 placeholder:text-gray-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500' placeholder='Cari jurnal/ref/COA/deskripsi...' value={listFilters.search} onChange={(e) => updateFilter('search', e.target.value)} />
+                                <IconSearch size={14} className='absolute left-2 top-2.5 text-gray-400 dark:text-gray-500' />
                             </form>
                         </div>
                     </div>
@@ -172,7 +172,7 @@ export default function Index() {
                                 </tr>
                             )) : (
                                 <Table.Empty colSpan={14} message={
-                                    <div className='flex flex-col items-center gap-1 text-sm text-gray-500'>
+                                    <div className='flex flex-col items-center gap-1 text-sm text-gray-500 dark:text-gray-300'>
                                         <IconDatabaseOff size={24} />
                                         <span>Data General Ledger tidak ditemukan.</span>
                                     </div>

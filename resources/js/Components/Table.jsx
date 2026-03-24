@@ -43,7 +43,7 @@ const Tbody = ({ className, children }) => {
 const Td = ({ className, children}) => {
     return (
         <td
-            className={`${className} whitespace-nowrap p-4 align-middle text-gray-700 dark:text-gray-400`}
+            className={`${className} whitespace-nowrap p-4 align-middle text-gray-700 dark:text-gray-200`}
         >
             {children}
         </td>
@@ -54,7 +54,7 @@ const Th = ({ className, children }) => {
     return (
         <th
             scope="col"
-            className={`${className} h-12 px-4 text-left align-middle font-medium text-gray-700 dark:text-gray-400`}
+            className={`${className} h-12 px-4 text-left align-middle font-medium text-gray-700 dark:text-gray-100`}
         >
             {children}
         </th>
