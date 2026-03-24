@@ -50,7 +50,7 @@ class ProfitLossReportController extends Controller
 
         $companyId = $request->input('company_id', 'all');
         $branchId = $request->input('branch_id', 'all');
-        $drillLevel = max(1, min(4, (int) $request->integer('drill_level', 4)));
+        $drillLevel = max(1, min(4, (int) $request->integer('drill_level', 1)));
 
         $status = strtolower($request->string('status')->toString() ?: 'posted');
         $allowedStatuses = ['all', 'draft', 'pending_approval', 'approved', 'posted', 'reversed', 'cancelled'];

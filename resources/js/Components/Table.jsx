@@ -16,10 +16,10 @@ const Card = ({icon, title, className, children}) => {
     )
 }
 
-const Table = ({ children }) => {
+const Table = ({ children, className = '', tableClassName = '' }) => {
     return (
-        <div className="w-full overflow-hidden overflow-x-auto border-collapse rounded-b-lg border border-t-0 dark:border-gray-900">
-            <table className="w-full text-sm">
+        <div className={`w-full overflow-hidden overflow-x-auto border-collapse rounded-b-lg border border-t-0 dark:border-gray-900 ${className}`}>
+            <table className={`w-full text-sm ${tableClassName}`}>
                 {children}
             </table>
         </div>

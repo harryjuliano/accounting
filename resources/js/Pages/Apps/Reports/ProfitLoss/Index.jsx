@@ -55,13 +55,6 @@ const getAmountClass = (value) => Number(value || 0) < 0
     ? 'text-right font-medium text-rose-600 dark:text-rose-300'
     : 'text-right font-medium text-gray-800 dark:text-gray-100';
 
-const hasDeeperLevel = (row, drillLevel) => {
-    if (drillLevel >= 4) return false;
-
-    const nextLevelKey = `coa_level_${drillLevel + 1}`;
-    return Boolean(row?.[nextLevelKey]);
-};
-
 export default function Index() {
     const { rows, summary, companies, branches, statusOptions, filters, yearOptions = [] } = usePage().props;
     const now = new Date();
@@ -78,7 +71,7 @@ export default function Index() {
         status: filters?.status ?? 'posted',
         year: resolvedYear,
         period: fallbackPeriod,
-        drill_level: Number(filters?.drill_level ?? 4),
+        drill_level: Number(filters?.drill_level ?? 1),
     });
 
     const applyFilters = React.useCallback((nextFilters) => {
@@ -95,6 +88,7 @@ export default function Index() {
     };
 
     const branchOptions = branches.filter((branch) => listFilters.company_id === 'all' || Number(branch.company_id) === Number(listFilters.company_id));
+    const canDrillDown = listFilters.drill_level < 4;
 
     return (
         <AppLayout>
@@ -155,16 +149,17 @@ export default function Index() {
                 </div>
 
                 <div className='mt-4 overflow-hidden rounded-lg border bg-white dark:border-gray-900 dark:bg-gray-950'>
-                    <Table>
+                    <div className='max-h-[65vh] overflow-auto'>
+                        <Table className='overflow-visible rounded-none border-0'>
                         <Table.Thead>
                             <tr>
-                                <Table.Th>COA</Table.Th>
-                                <Table.Th className='text-right'>Current Year</Table.Th>
-                                <Table.Th className='text-right'>% Total Sales</Table.Th>
-                                <Table.Th className='text-right'>Tahun Sebelumnya</Table.Th>
-                                <Table.Th className='text-right'>% Total Sales</Table.Th>
-                                <Table.Th className='text-right'>Variance</Table.Th>
-                                <Table.Th className='text-right'>% Total Sales</Table.Th>
+                                <Table.Th className='sticky top-0 z-30 bg-gray-50 dark:bg-gray-950'>COA</Table.Th>
+                                <Table.Th className='sticky top-0 z-30 bg-gray-50 text-right dark:bg-gray-950'>Current Year</Table.Th>
+                                <Table.Th className='sticky top-0 z-30 bg-gray-50 text-right dark:bg-gray-950'>% Total Sales</Table.Th>
+                                <Table.Th className='sticky top-0 z-30 bg-gray-50 text-right dark:bg-gray-950'>Tahun Sebelumnya</Table.Th>
+                                <Table.Th className='sticky top-0 z-30 bg-gray-50 text-right dark:bg-gray-950'>% Total Sales</Table.Th>
+                                <Table.Th className='sticky top-0 z-30 bg-gray-50 text-right dark:bg-gray-950'>Variance</Table.Th>
+                                <Table.Th className='sticky top-0 z-30 bg-gray-50 text-right dark:bg-gray-950'>% Total Sales</Table.Th>
                             </tr>
                         </Table.Thead>
                         <Table.Tbody>
@@ -185,7 +180,7 @@ export default function Index() {
                                                 type='button'
                                                 className='inline-flex h-5 w-5 items-center justify-center rounded border border-gray-300 bg-white text-xs font-semibold text-gray-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100'
                                                 onClick={() => updateFilter('drill_level', listFilters.drill_level + 1)}
-                                                disabled={!hasDeeperLevel(row, listFilters.drill_level)}
+                                                disabled={!canDrillDown}
                                                 title='Drill down'
                                             >
                                                 +
@@ -211,28 +206,29 @@ export default function Index() {
                             {rows.length > 0 && (
                                 <>
                                     <tr className='bg-gray-100/80 dark:bg-gray-900/70'>
-                                        <Table.Td colSpan={7} className='py-2 text-sm font-semibold text-gray-700 dark:text-gray-200'>
+                                        <Table.Td colSpan={7} className='sticky bottom-[52px] z-20 py-2 text-sm font-semibold text-gray-700 dark:text-gray-200'>
                                             Net Profit (Loss) = Total Revenue - Total Expenses
                                         </Table.Td>
                                     </tr>
                                     <tr className='bg-emerald-50/70 text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100'>
-                                        <Table.Td>
+                                        <Table.Td className='sticky bottom-0 z-20 bg-emerald-50/95 dark:bg-emerald-950/95'>
                                             <div className='flex items-center gap-2'>
                                                 <span className='inline-block h-2 w-2 rounded-full bg-current opacity-60' />
                                                 <span className='font-semibold'>Total Net Profit (Loss)</span>
                                             </div>
                                         </Table.Td>
-                                        <Table.Td className={getAmountClass(summary?.net_profit_current_year)}>{formatAmount(summary?.net_profit_current_year)}</Table.Td>
-                                        <Table.Td className='text-right font-semibold'>{formatPercent(summary?.net_profit_margin_current_year)}</Table.Td>
-                                        <Table.Td className={getAmountClass(summary?.net_profit_previous_year)}>{formatAmount(summary?.net_profit_previous_year)}</Table.Td>
-                                        <Table.Td className='text-right font-semibold'>{formatPercent(summary?.net_profit_margin_previous_year)}</Table.Td>
-                                        <Table.Td className={getAmountClass(summary?.net_profit_variance)}>{formatAmount(summary?.net_profit_variance)}</Table.Td>
-                                        <Table.Td className='text-right font-semibold'>{formatPercent(summary?.net_profit_margin_variance)}</Table.Td>
+                                        <Table.Td className={`sticky bottom-0 z-20 bg-emerald-50/95 dark:bg-emerald-950/95 ${getAmountClass(summary?.net_profit_current_year)}`}>{formatAmount(summary?.net_profit_current_year)}</Table.Td>
+                                        <Table.Td className='sticky bottom-0 z-20 bg-emerald-50/95 text-right font-semibold dark:bg-emerald-950/95'>{formatPercent(summary?.net_profit_margin_current_year)}</Table.Td>
+                                        <Table.Td className={`sticky bottom-0 z-20 bg-emerald-50/95 dark:bg-emerald-950/95 ${getAmountClass(summary?.net_profit_previous_year)}`}>{formatAmount(summary?.net_profit_previous_year)}</Table.Td>
+                                        <Table.Td className='sticky bottom-0 z-20 bg-emerald-50/95 text-right font-semibold dark:bg-emerald-950/95'>{formatPercent(summary?.net_profit_margin_previous_year)}</Table.Td>
+                                        <Table.Td className={`sticky bottom-0 z-20 bg-emerald-50/95 dark:bg-emerald-950/95 ${getAmountClass(summary?.net_profit_variance)}`}>{formatAmount(summary?.net_profit_variance)}</Table.Td>
+                                        <Table.Td className='sticky bottom-0 z-20 bg-emerald-50/95 text-right font-semibold dark:bg-emerald-950/95'>{formatPercent(summary?.net_profit_margin_variance)}</Table.Td>
                                     </tr>
                                 </>
                             )}
                         </Table.Tbody>
-                    </Table>
+                        </Table>
+                    </div>
                 </div>
             </div>
         </AppLayout>
