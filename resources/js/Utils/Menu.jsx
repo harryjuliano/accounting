@@ -115,6 +115,13 @@ export default function Menu() {
                     permissions: accountingAccess,
                 },
                 {
+                    title: 'Saldo Awal',
+                    href: '/apps/opening-balances',
+                    active: url.startsWith('/apps/opening-balances'),
+                    icon: <IconBook2 size={20} strokeWidth={1.5} />,
+                    permissions: accountingAccess,
+                },
+                {
                     title: 'Dimensions',
                     href: '/apps/dimensions',
                     active: url.startsWith('/apps/dimensions'),
