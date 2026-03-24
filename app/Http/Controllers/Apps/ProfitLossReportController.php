@@ -176,6 +176,27 @@ class ProfitLossReportController extends Controller
         $totalSalesCurrent = (float) $baseRows->where('account_group_type', 'revenue')->sum('current_year');
         $totalSalesPrevious = (float) $baseRows->where('account_group_type', 'revenue')->sum('previous_year');
         $totalSalesVariance = $totalSalesCurrent - $totalSalesPrevious;
+        $totalExpensesCurrent = (float) $baseRows
+            ->whereIn('account_group_type', ['cogs', 'expense', 'other_income', 'other_expense'])
+            ->sum('current_year');
+        $totalExpensesPrevious = (float) $baseRows
+            ->whereIn('account_group_type', ['cogs', 'expense', 'other_income', 'other_expense'])
+            ->sum('previous_year');
+        $totalExpensesVariance = $totalExpensesCurrent - $totalExpensesPrevious;
+
+        $netProfitCurrent = $totalSalesCurrent - $totalExpensesCurrent;
+        $netProfitPrevious = $totalSalesPrevious - $totalExpensesPrevious;
+        $netProfitVariance = $netProfitCurrent - $netProfitPrevious;
+
+        $netProfitMarginCurrent = abs($totalSalesCurrent) > 0.000001
+            ? ($netProfitCurrent / $totalSalesCurrent) * 100
+            : 0;
+        $netProfitMarginPrevious = abs($totalSalesPrevious) > 0.000001
+            ? ($netProfitPrevious / $totalSalesPrevious) * 100
+            : 0;
+        $netProfitMarginVariance = abs($totalSalesVariance) > 0.000001
+            ? ($netProfitVariance / $totalSalesVariance) * 100
+            : 0;
 
         $rows = $rows->map(function (array $row) use ($totalSalesCurrent, $totalSalesPrevious, $totalSalesVariance) {
             $currentPercent = abs($totalSalesCurrent) > 0.000001
@@ -203,6 +224,15 @@ class ProfitLossReportController extends Controller
             'total_sales_current_year' => $totalSalesCurrent,
             'total_sales_previous_year' => $totalSalesPrevious,
             'total_sales_variance' => $totalSalesVariance,
+            'total_expenses_current_year' => $totalExpensesCurrent,
+            'total_expenses_previous_year' => $totalExpensesPrevious,
+            'total_expenses_variance' => $totalExpensesVariance,
+            'net_profit_current_year' => $netProfitCurrent,
+            'net_profit_previous_year' => $netProfitPrevious,
+            'net_profit_variance' => $netProfitVariance,
+            'net_profit_margin_current_year' => $netProfitMarginCurrent,
+            'net_profit_margin_previous_year' => $netProfitMarginPrevious,
+            'net_profit_margin_variance' => $netProfitMarginVariance,
         ];
 
         return inertia('Apps/Reports/ProfitLoss/Index', [
