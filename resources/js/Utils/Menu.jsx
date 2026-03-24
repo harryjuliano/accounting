@@ -252,8 +252,8 @@ export default function Menu() {
                 },
                 {
                     title: 'Trial Balance',
-                    href: '#trial-balance-financial',
-                    active: false,
+                    href: '/apps/reports/trial-balance',
+                    active: url.startsWith('/apps/reports/trial-balance'),
                     icon: <IconChartBar size={20} strokeWidth={1.5} />,
                     permissions: accountingAccess,
                 },
