@@ -7,6 +7,7 @@ use App\Http\Controllers\Apps\CurrencyController;
 use App\Http\Controllers\Apps\DashboardController;
 use App\Http\Controllers\Apps\ExchangeRateController;
 use App\Http\Controllers\Apps\GeneralLedgerReportController;
+use App\Http\Controllers\Apps\TrialBalanceReportController;
 use App\Http\Controllers\Apps\DimensionController;
 use App\Http\Controllers\Apps\FiscalPeriodController;
 use App\Http\Controllers\Apps\ManualJournalController;
@@ -72,6 +73,7 @@ Route::group(['prefix' => 'apps', 'as' => 'apps.' , 'middleware' => ['auth']], f
     Route::post('/manual-journals/import', [ManualJournalController::class, 'importFromCsv'])->name('manual-journals.import');
     Route::get('/manual-journals/import-template', [ManualJournalController::class, 'downloadImportTemplate'])->name('manual-journals.import-template');
     Route::get('/reports/general-ledger', GeneralLedgerReportController::class)->name('reports.general-ledger');
+    Route::get('/reports/trial-balance', TrialBalanceReportController::class)->name('reports.trial-balance');
 });
 
 require __DIR__.'/auth.php';
