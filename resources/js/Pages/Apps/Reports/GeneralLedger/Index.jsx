@@ -42,7 +42,7 @@ const buildManualJournalEditUrl = (line) => {
 };
 
 export default function Index() {
-    const { ledgerLines, summary, companies, branches, accounts, statusOptions, filters, sort } = usePage().props;
+    const { ledgerLines, summary, companies, branches, accounts, statusOptions, filters, sort, yearOptions = [] } = usePage().props;
 
     const [listFilters, setListFilters] = React.useState({
         year: `${filters?.year ?? new Date().getUTCFullYear()}`,
@@ -139,7 +139,9 @@ export default function Index() {
                     <div className='grid grid-cols-1 gap-3 md:grid-cols-8'>
                         <div>
                             <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>Year</label>
-                            <input type='number' min='2000' max='2100' className='w-full rounded border-gray-300 bg-white text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100' value={listFilters.year} onChange={(e) => updateFilter('year', e.target.value)} />
+                            <select className='w-full rounded border-gray-300 bg-white text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100' value={listFilters.year} onChange={(e) => updateFilter('year', e.target.value)}>
+                                {yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}
+                            </select>
                         </div>
                         <div>
                             <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>Date From</label>

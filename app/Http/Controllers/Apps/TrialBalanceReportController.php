@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\InteractsWithCompanyScope;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\ChartOfAccount;
+use App\Models\JournalEntry;
 use App\Models\JournalLine;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -134,9 +135,23 @@ class TrialBalanceReportController extends Controller
             'closing_balance' => (float) $rows->sum('closing_balance'),
         ];
 
+        $yearOptions = JournalEntry::query()
+            ->selectRaw('DISTINCT YEAR(posting_date) as year')
+            ->when($this->isCompanyAdmin(), fn (Builder $query) => $query->where('company_id', $request->user()->company_id))
+            ->whereNotNull('posting_date')
+            ->orderByDesc('year')
+            ->pluck('year')
+            ->map(fn ($value) => (int) $value)
+            ->values();
+
+        if ($yearOptions->isEmpty()) {
+            $yearOptions = collect([$now->year]);
+        }
+
         return inertia('Apps/Reports/TrialBalance/Index', [
             'rows' => $rows,
             'summary' => $summary,
+            'yearOptions' => $yearOptions,
             'companies' => $this->getAccessibleCompanies(),
             'branches' => Branch::query()
                 ->select('id', 'company_id', 'code', 'name')

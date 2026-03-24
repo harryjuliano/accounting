@@ -25,7 +25,7 @@ const monthOptions = [
 ];
 
 export default function Index() {
-    const { rows, summary, companies, branches, statusOptions, filters } = usePage().props;
+    const { rows, summary, companies, branches, statusOptions, filters, yearOptions = [] } = usePage().props;
 
     const [listFilters, setListFilters] = React.useState({
         type: filters?.type ?? 'MTD',
@@ -109,7 +109,9 @@ export default function Index() {
                         </div>
                         <div>
                             <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>Year</label>
-                            <input type='number' min='2000' max='2100' className='w-full rounded border-gray-300 bg-white text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100' value={listFilters.year} onChange={(e) => updateFilter('year', Number(e.target.value))} />
+                            <select className='w-full rounded border-gray-300 bg-white text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100' value={listFilters.year} onChange={(e) => updateFilter('year', Number(e.target.value))}>
+                                {yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}
+                            </select>
                         </div>
                         <div>
                             <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>Periode</label>
