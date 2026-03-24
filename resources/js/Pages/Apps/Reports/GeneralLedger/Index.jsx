@@ -24,19 +24,23 @@ const formatDate = (value) => {
 };
 
 export default function Index() {
-    const { ledgerLines, companies, branches, accounts, filters, sort } = usePage().props;
+    const { ledgerLines, summary, companies, branches, accounts, filters, sort } = usePage().props;
 
     const [listFilters, setListFilters] = React.useState({
+        year: `${filters?.year ?? new Date().getUTCFullYear()}`,
         date_from: filters?.date_from ?? '',
         date_to: filters?.date_to ?? '',
         company_id: `${filters?.company_id ?? 'all'}`,
         branch_id: `${filters?.branch_id ?? 'all'}`,
-        coa_id: `${filters?.coa_id ?? 'all'}`,
+        coa_id: `${filters?.coa_id ?? ''}`,
         search: filters?.search ?? '',
     });
 
     const currentSortBy = sort?.by ?? 'date';
     const currentSortDirection = sort?.direction ?? 'asc';
+
+    const yearMin = `${listFilters.year}-01-01`;
+    const yearMax = `${listFilters.year}-12-31`;
 
     const applyFilters = React.useCallback((nextFilters, sortBy = currentSortBy, sortDirection = currentSortDirection) => {
         router.get(route('apps.reports.general-ledger'), {
@@ -49,8 +53,29 @@ export default function Index() {
         });
     }, [currentSortBy, currentSortDirection]);
 
+    const normalizeRangeByYear = (nextFilters) => {
+        const normalized = { ...nextFilters };
+
+        if (normalized.date_from && normalized.date_from < yearMin) normalized.date_from = yearMin;
+        if (normalized.date_from && normalized.date_from > yearMax) normalized.date_from = yearMax;
+        if (normalized.date_to && normalized.date_to < yearMin) normalized.date_to = yearMin;
+        if (normalized.date_to && normalized.date_to > yearMax) normalized.date_to = yearMax;
+        if (normalized.date_from && normalized.date_to && normalized.date_to < normalized.date_from) {
+            normalized.date_to = normalized.date_from;
+        }
+
+        return normalized;
+    };
+
     const updateFilter = (field, value) => {
-        const nextFilters = { ...listFilters, [field]: value };
+        let nextFilters = { ...listFilters, [field]: value };
+
+        if (field === 'company_id' && value !== listFilters.company_id) {
+            const filteredCoaOptions = accounts.filter((account) => value === 'all' || Number(account.company_id) === Number(value));
+            nextFilters.coa_id = filteredCoaOptions[0] ? `${filteredCoaOptions[0].id}` : '';
+        }
+
+        nextFilters = normalizeRangeByYear(nextFilters);
         setListFilters(nextFilters);
 
         if (field !== 'search') {
@@ -60,12 +85,12 @@ export default function Index() {
 
     const submitSearch = (event) => {
         event.preventDefault();
-        applyFilters(listFilters);
+        applyFilters(normalizeRangeByYear(listFilters));
     };
 
     const toggleSort = (field) => {
         const nextDirection = currentSortBy === field && currentSortDirection === 'asc' ? 'desc' : 'asc';
-        applyFilters(listFilters, field, nextDirection);
+        applyFilters(normalizeRangeByYear(listFilters), field, nextDirection);
     };
 
     const branchOptions = branches.filter((branch) => listFilters.company_id === 'all' || Number(branch.company_id) === Number(listFilters.company_id));
@@ -92,14 +117,18 @@ export default function Index() {
                 </div>
 
                 <div className='rounded-lg border bg-white p-4 dark:border-gray-900 dark:bg-gray-950'>
-                    <div className='grid grid-cols-1 gap-3 md:grid-cols-6'>
+                    <div className='grid grid-cols-1 gap-3 md:grid-cols-7'>
+                        <div>
+                            <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>Year</label>
+                            <input type='number' min='2000' max='2100' className='w-full rounded border-gray-300 bg-white text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100' value={listFilters.year} onChange={(e) => updateFilter('year', e.target.value)} />
+                        </div>
                         <div>
                             <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>Date From</label>
-                            <input type='date' className='w-full rounded border-gray-300 bg-white text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100' value={listFilters.date_from} onChange={(e) => updateFilter('date_from', e.target.value)} />
+                            <input type='date' min={yearMin} max={yearMax} className='w-full rounded border-gray-300 bg-white text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100' value={listFilters.date_from} onChange={(e) => updateFilter('date_from', e.target.value)} />
                         </div>
                         <div>
                             <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>To Date</label>
-                            <input type='date' className='w-full rounded border-gray-300 bg-white text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100' value={listFilters.date_to} onChange={(e) => updateFilter('date_to', e.target.value)} />
+                            <input type='date' min={yearMin} max={yearMax} className='w-full rounded border-gray-300 bg-white text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100' value={listFilters.date_to} onChange={(e) => updateFilter('date_to', e.target.value)} />
                         </div>
                         <div>
                             <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>Company</label>
@@ -118,7 +147,6 @@ export default function Index() {
                         <div>
                             <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>COA</label>
                             <select className='w-full rounded border-gray-300 bg-white text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100' value={listFilters.coa_id} onChange={(e) => updateFilter('coa_id', e.target.value)}>
-                                <option value='all'>All COA</option>
                                 {coaOptions.map((account) => <option key={account.id} value={account.id}>{account.code} - {account.name}</option>)}
                             </select>
                         </div>
@@ -130,6 +158,27 @@ export default function Index() {
                             </form>
                         </div>
                     </div>
+                </div>
+
+                <div className='mt-4 overflow-hidden rounded-lg border bg-white dark:border-gray-900 dark:bg-gray-950'>
+                    <Table>
+                        <Table.Thead>
+                            <tr>
+                                <Table.Th className='text-right'>Saldo Awal</Table.Th>
+                                <Table.Th className='text-right'>Total Debet</Table.Th>
+                                <Table.Th className='text-right'>Total Kredit</Table.Th>
+                                <Table.Th className='text-right'>Saldo Akhir</Table.Th>
+                            </tr>
+                        </Table.Thead>
+                        <Table.Tbody>
+                            <tr>
+                                <Table.Td className='text-right font-medium'>{formatAmount(summary?.opening_balance)}</Table.Td>
+                                <Table.Td className='text-right font-medium'>{formatAmount(summary?.total_debit)}</Table.Td>
+                                <Table.Td className='text-right font-medium'>{formatAmount(summary?.total_credit)}</Table.Td>
+                                <Table.Td className='text-right font-semibold'>{formatAmount(summary?.closing_balance)}</Table.Td>
+                            </tr>
+                        </Table.Tbody>
+                    </Table>
                 </div>
 
                 <div className='mt-4 overflow-hidden rounded-lg border bg-white dark:border-gray-900 dark:bg-gray-950'>
