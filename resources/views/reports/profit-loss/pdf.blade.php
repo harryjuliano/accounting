@@ -259,16 +259,6 @@
             $taxRows->push($row);
             continue;
         }
-    }
-</style>
-</head>
-<body>
-@php
-    $currentYear = (int) $filters['year'];
-    $previousYear = $currentYear - 1;
-    $periodDate = \Carbon\Carbon::create($currentYear, (int) $filters['period'], 1)->locale('id')->endOfMonth();
-    $periodLabel = $periodDate->translatedFormat('F Y');
-    $printedDate = \Carbon\Carbon::parse($generatedAt)->locale('id')->translatedFormat('d F Y');
 
         if ($group === 'other_income' || ($isOtherByName($label) && str_contains(strtolower($label), 'income'))) {
             $otherIncomeRows->push($row);
