@@ -96,6 +96,19 @@ export default function Index() {
 
     const branchOptions = branches.filter((branch) => listFilters.company_id === 'all' || Number(branch.company_id) === Number(listFilters.company_id));
     const canDrillDown = listFilters.drill_level < 4;
+    const totalAssetCurrentYear = Number(summary?.total_asset_current_year || 0);
+    const totalAssetPreviousYear = Number(summary?.total_asset_previous_year || 0);
+    const totalAssetVariance = Number(summary?.total_asset_variance || 0);
+    const totalLiabilityEquityProfitCurrentYear = Number(summary?.total_right_side_current_year || 0);
+    const totalLiabilityEquityProfitPreviousYear = Number(summary?.total_right_side_previous_year || 0);
+    const totalLiabilityEquityProfitVariance = totalLiabilityEquityProfitCurrentYear - totalLiabilityEquityProfitPreviousYear;
+    const balanceCurrentYear = totalAssetCurrentYear - totalLiabilityEquityProfitCurrentYear;
+    const balancePreviousYear = totalAssetPreviousYear - totalLiabilityEquityProfitPreviousYear;
+    const balanceVariance = totalAssetVariance - totalLiabilityEquityProfitVariance;
+
+    const safePercentOfAsset = (value, totalAsset) => (Math.abs(totalAsset) > 0.000001
+        ? (Number(value || 0) / totalAsset) * 100
+        : 0);
 
     return (
         <AppLayout>
@@ -215,18 +228,39 @@ export default function Index() {
                                 {rows.length > 0 && (
                                     <>
                                         <tr className='bg-gray-100/80 dark:bg-gray-900/70'>
-                                            <Table.Td colSpan={8} className='sticky bottom-[52px] z-20 py-2 text-sm font-semibold text-gray-700 dark:text-gray-200'>
+                                            <Table.Td colSpan={8} className='sticky bottom-[156px] z-20 py-2 text-sm font-semibold text-gray-700 dark:text-gray-200'>
                                                 Balance Check: Asset = Liability + Equity + Current Year Profit
                                             </Table.Td>
                                         </tr>
                                         <tr className='bg-slate-100/90 text-slate-900 dark:bg-slate-900 dark:text-slate-100'>
-                                            <Table.Td colSpan={2} className='sticky bottom-0 z-20 bg-slate-100/95 font-semibold dark:bg-slate-900'>Total Asset</Table.Td>
-                                            <Table.Td className={`sticky bottom-0 z-20 bg-slate-100/95 ${getAmountClass(summary?.total_asset_current_year)} dark:bg-slate-900`}>{formatAmount(summary?.total_asset_current_year)}</Table.Td>
-                                            <Table.Td className='sticky bottom-0 z-20 bg-slate-100/95 text-right dark:bg-slate-900'>100.00%</Table.Td>
-                                            <Table.Td className={`sticky bottom-0 z-20 bg-slate-100/95 ${getAmountClass(summary?.total_asset_previous_year)} dark:bg-slate-900`}>{formatAmount(summary?.total_asset_previous_year)}</Table.Td>
-                                            <Table.Td className='sticky bottom-0 z-20 bg-slate-100/95 text-right dark:bg-slate-900'>100.00%</Table.Td>
-                                            <Table.Td className={`sticky bottom-0 z-20 bg-slate-100/95 ${getAmountClass(summary?.total_asset_variance)} dark:bg-slate-900`}>{formatAmount(summary?.total_asset_variance)}</Table.Td>
-                                            <Table.Td className='sticky bottom-0 z-20 bg-slate-100/95 text-right dark:bg-slate-900'>100.00%</Table.Td>
+                                            <Table.Td className='sticky bottom-[104px] z-20 bg-slate-100/95 font-semibold dark:bg-slate-900'>Asset</Table.Td>
+                                            <Table.Td className='sticky bottom-[104px] z-20 bg-slate-100/95 font-semibold dark:bg-slate-900'>Total Asset</Table.Td>
+                                            <Table.Td className={`sticky bottom-[104px] z-20 bg-slate-100/95 ${getAmountClass(totalAssetCurrentYear)} dark:bg-slate-900`}>{formatAmount(totalAssetCurrentYear)}</Table.Td>
+                                            <Table.Td className='sticky bottom-[104px] z-20 bg-slate-100/95 text-right dark:bg-slate-900'>100.00%</Table.Td>
+                                            <Table.Td className={`sticky bottom-[104px] z-20 bg-slate-100/95 ${getAmountClass(totalAssetPreviousYear)} dark:bg-slate-900`}>{formatAmount(totalAssetPreviousYear)}</Table.Td>
+                                            <Table.Td className='sticky bottom-[104px] z-20 bg-slate-100/95 text-right dark:bg-slate-900'>100.00%</Table.Td>
+                                            <Table.Td className={`sticky bottom-[104px] z-20 bg-slate-100/95 ${getAmountClass(totalAssetVariance)} dark:bg-slate-900`}>{formatAmount(totalAssetVariance)}</Table.Td>
+                                            <Table.Td className='sticky bottom-[104px] z-20 bg-slate-100/95 text-right dark:bg-slate-900'>100.00%</Table.Td>
+                                        </tr>
+                                        <tr className='bg-slate-100/90 text-slate-900 dark:bg-slate-900 dark:text-slate-100'>
+                                            <Table.Td className='sticky bottom-[52px] z-20 bg-slate-100/95 font-semibold dark:bg-slate-900'>Liability + Equity + Current Year Profit</Table.Td>
+                                            <Table.Td className='sticky bottom-[52px] z-20 bg-slate-100/95 font-semibold dark:bg-slate-900'>Total Liability + Equity + Current Year Profit</Table.Td>
+                                            <Table.Td className={`sticky bottom-[52px] z-20 bg-slate-100/95 ${getAmountClass(totalLiabilityEquityProfitCurrentYear)} dark:bg-slate-900`}>{formatAmount(totalLiabilityEquityProfitCurrentYear)}</Table.Td>
+                                            <Table.Td className='sticky bottom-[52px] z-20 bg-slate-100/95 text-right dark:bg-slate-900'>{formatPercent(safePercentOfAsset(totalLiabilityEquityProfitCurrentYear, totalAssetCurrentYear))}</Table.Td>
+                                            <Table.Td className={`sticky bottom-[52px] z-20 bg-slate-100/95 ${getAmountClass(totalLiabilityEquityProfitPreviousYear)} dark:bg-slate-900`}>{formatAmount(totalLiabilityEquityProfitPreviousYear)}</Table.Td>
+                                            <Table.Td className='sticky bottom-[52px] z-20 bg-slate-100/95 text-right dark:bg-slate-900'>{formatPercent(safePercentOfAsset(totalLiabilityEquityProfitPreviousYear, totalAssetPreviousYear))}</Table.Td>
+                                            <Table.Td className={`sticky bottom-[52px] z-20 bg-slate-100/95 ${getAmountClass(totalLiabilityEquityProfitVariance)} dark:bg-slate-900`}>{formatAmount(totalLiabilityEquityProfitVariance)}</Table.Td>
+                                            <Table.Td className='sticky bottom-[52px] z-20 bg-slate-100/95 text-right dark:bg-slate-900'>{formatPercent(safePercentOfAsset(totalLiabilityEquityProfitVariance, totalAssetVariance))}</Table.Td>
+                                        </tr>
+                                        <tr className='bg-slate-100/90 text-slate-900 dark:bg-slate-900 dark:text-slate-100'>
+                                            <Table.Td className='sticky bottom-0 z-20 bg-slate-100/95 font-semibold dark:bg-slate-900'>Balance</Table.Td>
+                                            <Table.Td className='sticky bottom-0 z-20 bg-slate-100/95 font-semibold dark:bg-slate-900'>Balance = Total Asset - (Total Liability + Equity + Current Year Profit)</Table.Td>
+                                            <Table.Td className={`sticky bottom-0 z-20 bg-slate-100/95 ${getAmountClass(balanceCurrentYear)} dark:bg-slate-900`}>{formatAmount(balanceCurrentYear)}</Table.Td>
+                                            <Table.Td className='sticky bottom-0 z-20 bg-slate-100/95 text-right dark:bg-slate-900'>{formatPercent(safePercentOfAsset(balanceCurrentYear, totalAssetCurrentYear))}</Table.Td>
+                                            <Table.Td className={`sticky bottom-0 z-20 bg-slate-100/95 ${getAmountClass(balancePreviousYear)} dark:bg-slate-900`}>{formatAmount(balancePreviousYear)}</Table.Td>
+                                            <Table.Td className='sticky bottom-0 z-20 bg-slate-100/95 text-right dark:bg-slate-900'>{formatPercent(safePercentOfAsset(balancePreviousYear, totalAssetPreviousYear))}</Table.Td>
+                                            <Table.Td className={`sticky bottom-0 z-20 bg-slate-100/95 ${getAmountClass(balanceVariance)} dark:bg-slate-900`}>{formatAmount(balanceVariance)}</Table.Td>
+                                            <Table.Td className='sticky bottom-0 z-20 bg-slate-100/95 text-right dark:bg-slate-900'>{formatPercent(safePercentOfAsset(balanceVariance, totalAssetVariance))}</Table.Td>
                                         </tr>
                                     </>
                                 )}
