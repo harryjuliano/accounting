@@ -55,13 +55,6 @@ const getAmountClass = (value) => Number(value || 0) < 0
     ? 'text-right font-medium text-rose-600 dark:text-rose-300'
     : 'text-right font-medium text-gray-800 dark:text-gray-100';
 
-const hasDeeperLevel = (row, drillLevel) => {
-    if (drillLevel >= 4) return false;
-
-    const nextLevelKey = `coa_level_${drillLevel + 1}`;
-    return Boolean(row?.[nextLevelKey]);
-};
-
 export default function Index() {
     const { rows, summary, companies, branches, statusOptions, filters, yearOptions = [] } = usePage().props;
     const now = new Date();
@@ -78,7 +71,7 @@ export default function Index() {
         status: filters?.status ?? 'posted',
         year: resolvedYear,
         period: fallbackPeriod,
-        drill_level: Number(filters?.drill_level ?? 4),
+        drill_level: Number(filters?.drill_level ?? 1),
     });
 
     const applyFilters = React.useCallback((nextFilters) => {
@@ -95,11 +88,7 @@ export default function Index() {
     };
 
     const branchOptions = branches.filter((branch) => listFilters.company_id === 'all' || Number(branch.company_id) === Number(listFilters.company_id));
-    const canDrillDown = React.useMemo(() => {
-        if (listFilters.drill_level >= 4) return false;
-
-        return rows.some((row) => hasDeeperLevel(row, listFilters.drill_level));
-    }, [rows, listFilters.drill_level]);
+    const canDrillDown = listFilters.drill_level < 4;
 
     return (
         <AppLayout>
@@ -161,7 +150,7 @@ export default function Index() {
 
                 <div className='mt-4 overflow-hidden rounded-lg border bg-white dark:border-gray-900 dark:bg-gray-950'>
                     <div className='max-h-[65vh] overflow-auto'>
-                        <Table>
+                        <Table className='overflow-visible rounded-none border-0'>
                         <Table.Thead>
                             <tr>
                                 <Table.Th className='sticky top-0 z-30 bg-gray-50 dark:bg-gray-950'>COA</Table.Th>
@@ -217,7 +206,7 @@ export default function Index() {
                             {rows.length > 0 && (
                                 <>
                                     <tr className='bg-gray-100/80 dark:bg-gray-900/70'>
-                                        <Table.Td colSpan={7} className='sticky bottom-[56px] z-20 py-2 text-sm font-semibold text-gray-700 dark:text-gray-200'>
+                                        <Table.Td colSpan={7} className='sticky bottom-[52px] z-20 py-2 text-sm font-semibold text-gray-700 dark:text-gray-200'>
                                             Net Profit (Loss) = Total Revenue - Total Expenses
                                         </Table.Td>
                                     </tr>
