@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\InteractsWithCompanyScope;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\ChartOfAccount;
+use App\Models\Company;
 use App\Models\JournalEntry;
 use App\Models\JournalLine;
 use Carbon\Carbon;
@@ -18,6 +19,10 @@ class ProfitLossReportController extends Controller
 
     public function __invoke(Request $request)
     {
+        if (strtolower($request->string('export')->toString()) === 'pdf') {
+            $request->merge(['drill_level' => 3]);
+        }
+
         $report = $this->buildReport($request);
         $export = strtolower($request->string('export')->toString());
 
@@ -181,6 +186,7 @@ class ProfitLossReportController extends Controller
                     'coa_level_3' => $drillLevel >= 3 ? ($first['coa_level_3'] ?? null) : null,
                     'coa_level_4' => $drillLevel >= 4 ? ($first['coa_level_4'] ?? null) : null,
                     'coa_code' => $drillLevel >= 4 ? ($first['coa_code'] ?? null) : null,
+                    'account_group_type' => $first['account_group_type'] ?? null,
                     'current_year' => (float) $items->sum('current_year'),
                     'previous_year' => (float) $items->sum('previous_year'),
                     'variance' => (float) $items->sum('variance'),
@@ -191,16 +197,32 @@ class ProfitLossReportController extends Controller
         $totalSalesCurrent = (float) $baseRows->where('account_group_type', 'revenue')->sum('current_year');
         $totalSalesPrevious = (float) $baseRows->where('account_group_type', 'revenue')->sum('previous_year');
         $totalSalesVariance = $totalSalesCurrent - $totalSalesPrevious;
-        $totalExpensesCurrent = (float) $baseRows
-            ->whereIn('account_group_type', ['cogs', 'expense', 'other_income', 'other_expense'])
-            ->sum('current_year');
-        $totalExpensesPrevious = (float) $baseRows
-            ->whereIn('account_group_type', ['cogs', 'expense', 'other_income', 'other_expense'])
-            ->sum('previous_year');
+        $totalCogsCurrent = (float) $baseRows->where('account_group_type', 'cogs')->sum('current_year');
+        $totalCogsPrevious = (float) $baseRows->where('account_group_type', 'cogs')->sum('previous_year');
+        $grossProfitCurrent = $totalSalesCurrent - $totalCogsCurrent;
+        $grossProfitPrevious = $totalSalesPrevious - $totalCogsPrevious;
+
+        $totalOperatingExpenseCurrent = (float) $baseRows->where('account_group_type', 'expense')->sum('current_year');
+        $totalOperatingExpensePrevious = (float) $baseRows->where('account_group_type', 'expense')->sum('previous_year');
+        $totalOtherIncomeCurrent = (float) $baseRows->where('account_group_type', 'other_income')->sum('current_year');
+        $totalOtherIncomePrevious = (float) $baseRows->where('account_group_type', 'other_income')->sum('previous_year');
+        $totalOtherExpenseCurrent = (float) $baseRows->where('account_group_type', 'other_expense')->sum('current_year');
+        $totalOtherExpensePrevious = (float) $baseRows->where('account_group_type', 'other_expense')->sum('previous_year');
+
+        $netProfitBeforeTaxCurrent = $grossProfitCurrent - $totalOperatingExpenseCurrent + $totalOtherIncomeCurrent - $totalOtherExpenseCurrent;
+        $netProfitBeforeTaxPrevious = $grossProfitPrevious - $totalOperatingExpensePrevious + $totalOtherIncomePrevious - $totalOtherExpensePrevious;
+
+        $incomeTaxCurrent = 0.0;
+        $incomeTaxPrevious = 0.0;
+        $netProfitAfterTaxCurrent = $netProfitBeforeTaxCurrent - $incomeTaxCurrent;
+        $netProfitAfterTaxPrevious = $netProfitBeforeTaxPrevious - $incomeTaxPrevious;
+
+        $totalExpensesCurrent = (float) ($totalCogsCurrent + $totalOperatingExpenseCurrent + $totalOtherExpenseCurrent - $totalOtherIncomeCurrent + $incomeTaxCurrent);
+        $totalExpensesPrevious = (float) ($totalCogsPrevious + $totalOperatingExpensePrevious + $totalOtherExpensePrevious - $totalOtherIncomePrevious + $incomeTaxPrevious);
         $totalExpensesVariance = $totalExpensesCurrent - $totalExpensesPrevious;
 
-        $netProfitCurrent = $totalSalesCurrent - $totalExpensesCurrent;
-        $netProfitPrevious = $totalSalesPrevious - $totalExpensesPrevious;
+        $netProfitCurrent = $netProfitAfterTaxCurrent;
+        $netProfitPrevious = $netProfitAfterTaxPrevious;
         $netProfitVariance = $netProfitCurrent - $netProfitPrevious;
 
         $netProfitMarginCurrent = abs($totalSalesCurrent) > 0.000001
@@ -239,6 +261,24 @@ class ProfitLossReportController extends Controller
             'total_sales_current_year' => $totalSalesCurrent,
             'total_sales_previous_year' => $totalSalesPrevious,
             'total_sales_variance' => $totalSalesVariance,
+            'total_cogs_current_year' => $totalCogsCurrent,
+            'total_cogs_previous_year' => $totalCogsPrevious,
+            'total_cogs_variance' => $totalCogsCurrent - $totalCogsPrevious,
+            'gross_profit_current_year' => $grossProfitCurrent,
+            'gross_profit_previous_year' => $grossProfitPrevious,
+            'gross_profit_variance' => $grossProfitCurrent - $grossProfitPrevious,
+            'total_operating_expense_current_year' => $totalOperatingExpenseCurrent,
+            'total_operating_expense_previous_year' => $totalOperatingExpensePrevious,
+            'total_operating_expense_variance' => $totalOperatingExpenseCurrent - $totalOperatingExpensePrevious,
+            'net_profit_before_tax_current_year' => $netProfitBeforeTaxCurrent,
+            'net_profit_before_tax_previous_year' => $netProfitBeforeTaxPrevious,
+            'net_profit_before_tax_variance' => $netProfitBeforeTaxCurrent - $netProfitBeforeTaxPrevious,
+            'income_tax_current_year' => $incomeTaxCurrent,
+            'income_tax_previous_year' => $incomeTaxPrevious,
+            'income_tax_variance' => $incomeTaxCurrent - $incomeTaxPrevious,
+            'net_profit_after_tax_current_year' => $netProfitAfterTaxCurrent,
+            'net_profit_after_tax_previous_year' => $netProfitAfterTaxPrevious,
+            'net_profit_after_tax_variance' => $netProfitAfterTaxCurrent - $netProfitAfterTaxPrevious,
             'total_expenses_current_year' => $totalExpensesCurrent,
             'total_expenses_previous_year' => $totalExpensesPrevious,
             'total_expenses_variance' => $totalExpensesVariance,
@@ -250,9 +290,24 @@ class ProfitLossReportController extends Controller
             'net_profit_margin_variance' => $netProfitMarginVariance,
         ];
 
+        $selectedCompany = $this->resolveSelectedCompany($request, $companyId);
+        $selectedBranch = $branchId !== 'all'
+            ? Branch::query()->select('id', 'code', 'name', 'address', 'city')->find($branchId)
+            : null;
+
         return [
             'rows' => $rows,
             'summary' => $summary,
+            'companyProfile' => [
+                'name' => $selectedCompany?->name ?? 'All Companies',
+                'legal_name' => $selectedCompany?->legal_name,
+                'tax_id' => $selectedCompany?->tax_id,
+                'base_currency_code' => $selectedCompany?->base_currency_code,
+                'branch_name' => $selectedBranch?->name,
+                'branch_code' => $selectedBranch?->code,
+                'branch_address' => $selectedBranch?->address,
+                'branch_city' => $selectedBranch?->city,
+            ],
             'yearOptions' => $yearOptions,
             'companies' => $this->getAccessibleCompanies(),
             'branches' => Branch::query()
@@ -280,5 +335,18 @@ class ProfitLossReportController extends Controller
                 'drill_level' => $drillLevel,
             ],
         ];
+    }
+
+    private function resolveSelectedCompany(Request $request, mixed $companyId): ?Company
+    {
+        if ($companyId !== 'all') {
+            return Company::query()->find($companyId);
+        }
+
+        if ($this->isCompanyAdmin()) {
+            return Company::query()->find($request->user()?->company_id);
+        }
+
+        return null;
     }
 }
