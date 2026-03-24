@@ -10,6 +10,7 @@ use App\Models\JournalLine;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class GeneralLedgerReportController extends Controller
 {
@@ -150,10 +151,11 @@ class GeneralLedgerReportController extends Controller
                 });
             });
 
-        $summaryRow = (clone $ledgerLinesQuery)
-            ->toBase()
-            ->selectRaw('COALESCE(SUM(journal_lines.base_currency_debit), 0) as total_debit')
-            ->selectRaw('COALESCE(SUM(journal_lines.base_currency_credit), 0) as total_credit')
+        $summarySource = (clone $ledgerLinesQuery)->toBase();
+        $summaryRow = DB::query()
+            ->fromSub($summarySource, 'ledger_lines_filtered')
+            ->selectRaw('COALESCE(SUM(ledger_lines_filtered.base_currency_debit), 0) as total_debit')
+            ->selectRaw('COALESCE(SUM(ledger_lines_filtered.base_currency_credit), 0) as total_credit')
             ->first();
 
         $ledgerLines = $ledgerLinesQuery
