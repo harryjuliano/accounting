@@ -154,31 +154,6 @@ export default function Index() {
                     <Table>
                         <Table.Thead>
                             <tr>
-                                <Table.Th className='text-right'>Total Current Year</Table.Th>
-                                <Table.Th className='text-right'>Total Tahun Sebelumnya</Table.Th>
-                                <Table.Th className='text-right'>Total Variance</Table.Th>
-                                <Table.Th className='text-right'>Total Sales Current Year</Table.Th>
-                                <Table.Th className='text-right'>Total Sales Tahun Sebelumnya</Table.Th>
-                                <Table.Th className='text-right'>Total Sales Variance</Table.Th>
-                            </tr>
-                        </Table.Thead>
-                        <Table.Tbody>
-                            <tr>
-                                <Table.Td className='text-right font-medium'>{formatAmount(summary?.current_year)}</Table.Td>
-                                <Table.Td className='text-right font-medium'>{formatAmount(summary?.previous_year)}</Table.Td>
-                                <Table.Td className='text-right font-semibold'>{formatAmount(summary?.variance)}</Table.Td>
-                                <Table.Td className='text-right font-medium'>{formatAmount(summary?.total_sales_current_year)}</Table.Td>
-                                <Table.Td className='text-right font-medium'>{formatAmount(summary?.total_sales_previous_year)}</Table.Td>
-                                <Table.Td className='text-right font-semibold'>{formatAmount(summary?.total_sales_variance)}</Table.Td>
-                            </tr>
-                        </Table.Tbody>
-                    </Table>
-                </div>
-
-                <div className='mt-4 overflow-hidden rounded-lg border bg-white dark:border-gray-900 dark:bg-gray-950'>
-                    <Table>
-                        <Table.Thead>
-                            <tr>
                                 <Table.Th>COA</Table.Th>
                                 <Table.Th className='text-right'>Current Year</Table.Th>
                                 <Table.Th className='text-right'>% Total Sales</Table.Th>
@@ -211,6 +186,29 @@ export default function Index() {
                                         <span>Data Laporan Rugi Laba tidak ditemukan.</span>
                                     </div>
                                 } />
+                            )}
+                            {rows.length > 0 && (
+                                <>
+                                    <tr className='bg-gray-100/80 dark:bg-gray-900/70'>
+                                        <Table.Td colSpan={7} className='py-2 text-sm font-semibold text-gray-700 dark:text-gray-200'>
+                                            Net Profit (Loss) = Total Revenue - Total Expenses
+                                        </Table.Td>
+                                    </tr>
+                                    <tr className='bg-emerald-50/70 text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100'>
+                                        <Table.Td>
+                                            <div className='flex items-center gap-2'>
+                                                <span className='inline-block h-2 w-2 rounded-full bg-current opacity-60' />
+                                                <span className='font-semibold'>Total Net Profit (Loss)</span>
+                                            </div>
+                                        </Table.Td>
+                                        <Table.Td className={getAmountClass(summary?.net_profit_current_year)}>{formatAmount(summary?.net_profit_current_year)}</Table.Td>
+                                        <Table.Td className='text-right font-semibold'>{formatPercent(summary?.net_profit_margin_current_year)}</Table.Td>
+                                        <Table.Td className={getAmountClass(summary?.net_profit_previous_year)}>{formatAmount(summary?.net_profit_previous_year)}</Table.Td>
+                                        <Table.Td className='text-right font-semibold'>{formatPercent(summary?.net_profit_margin_previous_year)}</Table.Td>
+                                        <Table.Td className={getAmountClass(summary?.net_profit_variance)}>{formatAmount(summary?.net_profit_variance)}</Table.Td>
+                                        <Table.Td className='text-right font-semibold'>{formatPercent(summary?.net_profit_margin_variance)}</Table.Td>
+                                    </tr>
+                                </>
                             )}
                         </Table.Tbody>
                     </Table>
