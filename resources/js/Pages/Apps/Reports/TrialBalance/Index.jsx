@@ -25,7 +25,7 @@ const monthOptions = [
 ];
 
 export default function Index() {
-    const { rows, companies, branches, statusOptions, filters } = usePage().props;
+    const { rows, summary, companies, branches, statusOptions, filters } = usePage().props;
 
     const [listFilters, setListFilters] = React.useState({
         type: filters?.type ?? 'MTD',
@@ -118,6 +118,28 @@ export default function Index() {
                             </select>
                         </div>
                     </div>
+                </div>
+
+
+                <div className='mt-4 overflow-hidden rounded-lg border bg-white dark:border-gray-900 dark:bg-gray-950'>
+                    <Table>
+                        <Table.Thead>
+                            <tr>
+                                <Table.Th className='text-right'>Total: Saldo Awal</Table.Th>
+                                <Table.Th className='text-right'>Total: Mutasi Debet</Table.Th>
+                                <Table.Th className='text-right'>Total: Mutasi Kredit</Table.Th>
+                                <Table.Th className='text-right'>Total: Saldo Akhir</Table.Th>
+                            </tr>
+                        </Table.Thead>
+                        <Table.Tbody>
+                            <tr>
+                                <Table.Td className='text-right font-medium'>{formatAmount(summary?.opening_balance)}</Table.Td>
+                                <Table.Td className='text-right font-medium'>{formatAmount(summary?.mutation_debit)}</Table.Td>
+                                <Table.Td className='text-right font-medium'>{formatAmount(summary?.mutation_credit)}</Table.Td>
+                                <Table.Td className='text-right font-semibold'>{formatAmount(summary?.closing_balance)}</Table.Td>
+                            </tr>
+                        </Table.Tbody>
+                    </Table>
                 </div>
 
                 <div className='mt-4 overflow-hidden rounded-lg border bg-white dark:border-gray-900 dark:bg-gray-950'>
