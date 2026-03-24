@@ -11,6 +11,7 @@ use App\Http\Controllers\Apps\TrialBalanceReportController;
 use App\Http\Controllers\Apps\DimensionController;
 use App\Http\Controllers\Apps\FiscalPeriodController;
 use App\Http\Controllers\Apps\ManualJournalController;
+use App\Http\Controllers\Apps\OpeningBalanceController;
 use App\Http\Controllers\Apps\PermissionController;
 use App\Http\Controllers\Apps\RoleController;
 use App\Http\Controllers\Apps\TaxCodeController;
@@ -72,6 +73,7 @@ Route::group(['prefix' => 'apps', 'as' => 'apps.' , 'middleware' => ['auth']], f
     Route::post('/manual-journals/bulk-post', [ManualJournalController::class, 'bulkPost'])->name('manual-journals.bulk-post');
     Route::post('/manual-journals/import', [ManualJournalController::class, 'importFromCsv'])->name('manual-journals.import');
     Route::get('/manual-journals/import-template', [ManualJournalController::class, 'downloadImportTemplate'])->name('manual-journals.import-template');
+    Route::post('/opening-balances', [OpeningBalanceController::class, 'store'])->name('opening-balances.store');
     Route::get('/reports/general-ledger', GeneralLedgerReportController::class)->name('reports.general-ledger');
     Route::get('/reports/trial-balance', TrialBalanceReportController::class)->name('reports.trial-balance');
 });

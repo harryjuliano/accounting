@@ -56,20 +56,21 @@ class TrialBalanceReportController extends Controller
             ->when($this->isCompanyAdmin(), fn (Builder $query) => $query->where('journal_entries.company_id', $request->user()->company_id))
             ->whereDate('journal_entries.posting_date', '>=', $from->toDateString())
             ->whereDate('journal_entries.posting_date', '<=', $to->toDateString())
-            ->where('journal_entries.journal_type', '!=', 'closing')
+            ->whereNotIn('journal_entries.journal_type', ['opening', 'closing'])
             ->tap($scope)
             ->groupBy('journal_lines.account_id')
             ->get()
             ->keyBy('account_id');
 
-        $openingCarryForward = JournalLine::query()
+        $openingBalanceMap = JournalLine::query()
             ->selectRaw('journal_lines.account_id')
             ->selectRaw('COALESCE(SUM(journal_lines.base_currency_debit), 0) as debit')
             ->selectRaw('COALESCE(SUM(journal_lines.base_currency_credit), 0) as credit')
             ->join('journal_entries', 'journal_entries.id', '=', 'journal_lines.journal_entry_id')
             ->when($this->isCompanyAdmin(), fn (Builder $query) => $query->where('journal_entries.company_id', $request->user()->company_id))
-            ->whereDate('journal_entries.posting_date', '<', $yearStart->toDateString())
-            ->where('journal_entries.journal_type', '!=', 'closing')
+            ->whereDate('journal_entries.posting_date', '>=', $yearStart->toDateString())
+            ->whereDate('journal_entries.posting_date', '<=', $yearStart->copy()->endOfYear()->toDateString())
+            ->where('journal_entries.journal_type', 'opening')
             ->tap($scope)
             ->groupBy('journal_lines.account_id')
             ->get()
@@ -95,8 +96,8 @@ class TrialBalanceReportController extends Controller
             ->orderBy('code')
             ->get();
 
-        $rows = $accounts->map(function (ChartOfAccount $account) use ($openingCarryForward, $openingCurrentYearBeforePeriod, $movementMap, $reportType) {
-            $openingBase = (float) ($openingCarryForward->get($account->id)?->debit ?? 0) - (float) ($openingCarryForward->get($account->id)?->credit ?? 0);
+        $rows = $accounts->map(function (ChartOfAccount $account) use ($openingBalanceMap, $openingCurrentYearBeforePeriod, $movementMap, $reportType) {
+            $openingBase = (float) ($openingBalanceMap->get($account->id)?->debit ?? 0) - (float) ($openingBalanceMap->get($account->id)?->credit ?? 0);
             $openingCurrentYear = (float) ($openingCurrentYearBeforePeriod->get($account->id)?->debit ?? 0) - (float) ($openingCurrentYearBeforePeriod->get($account->id)?->credit ?? 0);
 
             $openingBalance = $reportType === 'YTD'
