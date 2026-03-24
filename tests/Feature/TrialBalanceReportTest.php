@@ -10,7 +10,7 @@ use App\Models\JournalEntry;
 use App\Models\JournalLine;
 use App\Models\User;
 
-it('renders trial balance with mtd and ytd opening balance logic', function () {
+it('renders trial balance with fiscal-year opening balance logic', function () {
     $user = User::factory()->create();
 
     $company = Company::create([
@@ -113,7 +113,7 @@ it('renders trial balance with mtd and ytd opening balance logic', function () {
         'journal_type' => 'opening',
         'entry_date' => '2025-12-31',
         'posting_date' => '2025-12-31',
-        'description' => 'Opening carry forward',
+        'description' => 'Legacy opening carry forward',
         'currency_code' => 'IDR',
         'exchange_rate' => 1,
         'total_debit' => 100,
@@ -132,6 +132,35 @@ it('renders trial balance with mtd and ytd opening balance logic', function () {
         'credit' => 0,
         'original_currency_code' => 'IDR',
         'original_currency_amount' => 100,
+    ]);
+
+    $entryOpeningCurrentYear = JournalEntry::create([
+        'company_id' => $company->id,
+        'branch_id' => $branch->id,
+        'accounting_period_id' => $periodJan->id,
+        'journal_no' => 'OB-2026-001',
+        'journal_type' => 'opening',
+        'entry_date' => '2026-01-01',
+        'posting_date' => '2026-01-01',
+        'description' => 'Opening balance 2026',
+        'currency_code' => 'IDR',
+        'exchange_rate' => 1,
+        'total_debit' => 60,
+        'total_credit' => 0,
+        'status' => 'posted',
+        'created_by' => $user->id,
+    ]);
+
+    JournalLine::create([
+        'journal_entry_id' => $entryOpeningCurrentYear->id,
+        'line_no' => 1,
+        'account_id' => $coaLevel4->id,
+        'base_currency_debit' => 60,
+        'base_currency_credit' => 0,
+        'debit' => 60,
+        'credit' => 0,
+        'original_currency_code' => 'IDR',
+        'original_currency_amount' => 60,
     ]);
 
     $entryJan = JournalEntry::create([
@@ -209,9 +238,9 @@ it('renders trial balance with mtd and ytd opening balance logic', function () {
 
     $ytdRows = $ytdResponse->json('props.rows');
     expect($ytdRows)->toHaveCount(1)
-        ->and($ytdRows[0]['opening_balance'])->toBe(100.0)
+        ->and($ytdRows[0]['opening_balance'])->toBe(60.0)
         ->and($ytdRows[0]['mutation_debit'])->toBe(80.0)
-        ->and($ytdRows[0]['closing_balance'])->toBe(180.0);
+        ->and($ytdRows[0]['closing_balance'])->toBe(140.0);
 
     $mtdResponse = $this
         ->actingAs($user)
@@ -230,7 +259,7 @@ it('renders trial balance with mtd and ytd opening balance logic', function () {
 
     $mtdRows = $mtdResponse->json('props.rows');
     expect($mtdRows)->toHaveCount(1)
-        ->and($mtdRows[0]['opening_balance'])->toBe(150.0)
+        ->and($mtdRows[0]['opening_balance'])->toBe(110.0)
         ->and($mtdRows[0]['mutation_debit'])->toBe(30.0)
-        ->and($mtdRows[0]['closing_balance'])->toBe(180.0);
+        ->and($mtdRows[0]['closing_balance'])->toBe(140.0);
 });
