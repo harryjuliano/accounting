@@ -93,6 +93,17 @@ export default function Index() {
         setListFilters(nextFilters);
         applyFilters(nextFilters);
     };
+    const exportPdf = () => {
+        const query = new URLSearchParams({
+            ...Object.entries(listFilters).reduce((carry, [key, value]) => ({
+                ...carry,
+                [key]: `${value}`,
+            }), {}),
+            export: 'pdf',
+        });
+
+        window.open(`${route('apps.reports.balance-sheet')}?${query.toString()}`, '_blank');
+    };
 
     const branchOptions = branches.filter((branch) => listFilters.company_id === 'all' || Number(branch.company_id) === Number(listFilters.company_id));
     const canDrillDown = listFilters.drill_level < 4;
@@ -120,7 +131,7 @@ export default function Index() {
                 </div>
 
                 <div className='rounded-lg border bg-white p-4 dark:border-gray-900 dark:bg-gray-950'>
-                    <div className='grid grid-cols-1 gap-3 md:grid-cols-7'>
+                    <div className='grid grid-cols-1 gap-3 md:grid-cols-8'>
                         <div>
                             <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>Konsep</label>
                             <div className='rounded border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'>
@@ -163,6 +174,15 @@ export default function Index() {
                             <span className='inline-flex rounded border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'>
                                 Drill COA Level {listFilters.drill_level}
                             </span>
+                        </div>
+                        <div className='flex items-end'>
+                            <button
+                                type='button'
+                                onClick={exportPdf}
+                                className='w-full rounded bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-700'
+                            >
+                                Export PDF (3 Kolom)
+                            </button>
                         </div>
                     </div>
                 </div>

@@ -18,6 +18,25 @@ class BalanceSheetReportController extends Controller
 
     public function __invoke(Request $request)
     {
+        if (strtolower($request->string('export')->toString()) === 'pdf') {
+            $request->merge(['drill_level' => 3]);
+        }
+
+        $report = $this->buildReport($request);
+        $export = strtolower($request->string('export')->toString());
+
+        if ($export === 'pdf') {
+            return response()->view('reports.balance-sheet.pdf', [
+                ...$report,
+                'generatedAt' => now()->format('d M Y H:i'),
+            ]);
+        }
+
+        return inertia('Apps/Reports/BalanceSheet/Index', $report);
+    }
+
+    private function buildReport(Request $request): array
+    {
         $timezone = $request->user()?->company?->timezone ?? config('app.timezone', 'UTC');
         $now = Carbon::now($timezone);
 
@@ -166,7 +185,6 @@ class BalanceSheetReportController extends Controller
             foreach ($profitMap as $item) {
                 $debit = (float) $item->debit;
                 $credit = (float) $item->credit;
-                // Ringkasan tanpa normal balance per akun: revenue(+), expenses(-)
                 $profitCurrent += $credit - $debit;
             }
 
@@ -270,7 +288,7 @@ class BalanceSheetReportController extends Controller
             'total_right_side_previous_year' => (float) $baseRows->whereIn('segment_key', ['liability', 'equity', 'current_year_profit'])->sum('previous_year'),
         ];
 
-        return inertia('Apps/Reports/BalanceSheet/Index', [
+        return [
             'rows' => $rows,
             'summary' => $summary,
             'yearOptions' => $yearOptions,
@@ -299,6 +317,6 @@ class BalanceSheetReportController extends Controller
                 'period' => $period,
                 'drill_level' => $drillLevel,
             ],
-        ]);
+        ];
     }
 }
