@@ -53,6 +53,7 @@ const getGeneralLedgerLink = (filters, coaId) => {
 };
 
 const toNumber = (value) => Number(value || 0);
+const hasValue = (value) => value !== null && value !== undefined && `${value}`.trim() !== '';
 
 const buildFlatRows = (rows) => {
     const map = new Map();
@@ -84,26 +85,47 @@ const buildFlatRows = (rows) => {
     };
 
     rows.forEach((row, index) => {
-        const level1Id = `l1-${row.coa_level_1_id ?? row.coa_level_1 ?? index}`;
-        const level2Id = `l2-${row.coa_level_2_id ?? `${level1Id}-${row.coa_level_2 ?? index}`}`;
-        const level3Id = `l3-${row.coa_level_3_id ?? `${level2Id}-${row.coa_level_3 ?? index}`}`;
-        const leafId = `leaf-${row.coa_id ?? row.coa_level_4_id ?? `${level3Id}-${row.coa_code ?? index}`}`;
-
-        const topLabel = `${row.coa_level_1 ?? ''}`.toLowerCase();
-        const topKind = topLabel.includes('pendapatan') || topLabel.includes('revenue')
-            ? 'revenue'
-            : (topLabel.includes('beban') || topLabel.includes('expense') || topLabel.includes('harga pokok') || topLabel.includes('cogs') ? 'expense' : 'group');
-
-        const level1 = ensureRow(level1Id, null, 0, row.coa_level_1, topKind);
-        const level2 = ensureRow(level2Id, level1Id, 1, row.coa_level_2);
-        const level3 = ensureRow(level3Id, level2Id, 2, row.coa_level_3);
-        const leaf = ensureRow(leafId, level3Id, 3, row.coa_level_4 || row.coa_code, 'detail');
-
         const currentMonth = toNumber(row.current_month);
         const ytd = toNumber(row.year_to_date);
         const lastYtd = toNumber(row.last_year_to_date);
 
-        [level1, level2, level3].forEach((item) => {
+        const topLabelRaw = `${row.coa_level_1 ?? ''}`;
+        const topLabel = topLabelRaw.toLowerCase();
+
+        const topKind = topLabel.includes('pendapatan') || topLabel.includes('revenue')
+            ? 'revenue'
+            : (topLabel.includes('beban') || topLabel.includes('expense') || topLabel.includes('harga pokok') || topLabel.includes('cogs') ? 'expense' : 'group');
+
+        const parents = [];
+        let parentId = null;
+
+        if (hasValue(row.coa_level_1)) {
+            const level1Id = `l1-${row.coa_level_1_id ?? row.coa_level_1 ?? index}`;
+            const level1 = ensureRow(level1Id, null, 0, row.coa_level_1, topKind);
+            parents.push(level1);
+            parentId = level1Id;
+        }
+
+        if (hasValue(row.coa_level_2)) {
+            const level2Id = `l2-${row.coa_level_2_id ?? `${parentId}-${row.coa_level_2}`}`;
+            const level2 = ensureRow(level2Id, parentId, 1, row.coa_level_2, 'group');
+            parents.push(level2);
+            parentId = level2Id;
+        }
+
+        if (hasValue(row.coa_level_3)) {
+            const level3Id = `l3-${row.coa_level_3_id ?? `${parentId}-${row.coa_level_3}`}`;
+            const level3 = ensureRow(level3Id, parentId, 2, row.coa_level_3, 'group');
+            parents.push(level3);
+            parentId = level3Id;
+        }
+
+        const leafLabel = row.coa_level_4 || row.coa_name || row.coa_code || `Account ${index + 1}`;
+        const leafLevel = parents.length;
+        const leafId = `leaf-${row.coa_id ?? row.coa_level_4_id ?? `${parentId ?? 'root'}-${row.coa_code ?? index}`}`;
+        const leaf = ensureRow(leafId, parentId, leafLevel, leafLabel, 'detail');
+
+        parents.forEach((item) => {
             item.current_month += currentMonth;
             item.year_to_date += ytd;
             item.last_year_to_date += lastYtd;
@@ -167,7 +189,7 @@ export default function Index() {
         period: fallbackPeriod,
         drill_level: 4,
     });
-    const [viewMode, setViewMode] = React.useState('summary');
+    const [viewMode, setViewMode] = React.useState('detail');
     const [expandedNodes, setExpandedNodes] = React.useState({});
 
     const applyFilters = React.useCallback((nextFilters) => {
@@ -206,7 +228,7 @@ export default function Index() {
             const row = normalizedRows.map.get(id);
             if (!row || row.isLeaf) return;
             if ((normalizedRows.childrenMap.get(id) || []).length > 0) {
-                defaultExpanded[id] = row.level <= 1;
+                defaultExpanded[id] = row.level <= 0;
             }
         });
         setExpandedNodes(defaultExpanded);
@@ -358,9 +380,20 @@ export default function Index() {
                                     return (
                                         <tr key={node.id} className={rowTone}>
                                             <Table.Td>
-                                                <div className='flex items-center gap-2' style={{ paddingLeft: `${leftPadding}px` }}>
+                                                <div
+                                                    className={`flex items-center gap-2 ${canToggle ? 'cursor-pointer' : ''}`}
+                                                    style={{ paddingLeft: `${leftPadding}px` }}
+                                                    onClick={() => canToggle && toggleNode(node.id)}
+                                                >
                                                     {isParent && canToggle ? (
-                                                        <button type='button' onClick={() => toggleNode(node.id)} className='rounded border border-gray-300 p-0.5 text-gray-600 hover:bg-gray-200/70 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800/70'>
+                                                        <button
+                                                            type='button'
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                toggleNode(node.id);
+                                                            }}
+                                                            className='rounded border border-gray-300 p-0.5 text-gray-600 hover:bg-gray-200/70 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800/70'
+                                                        >
                                                             {expandedNodes[node.id] ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
                                                         </button>
                                                     ) : (
@@ -370,15 +403,15 @@ export default function Index() {
                                                 </div>
                                             </Table.Td>
                                             <Table.Td className={getAmountClass(node.current_month, isParent)}>
-                                                {node.isLeaf && node.coa_id ? <a href={getGeneralLedgerLink(listFilters, node.coa_id)} className='hover:underline'>{formatAmount(node.current_month)}</a> : formatAmount(node.current_month)}
+                                                {node.isLeaf && node.coa_id ? <a href={getGeneralLedgerLink(listFilters, node.coa_id)} className='hover:underline' onClick={(e) => e.stopPropagation()}>{formatAmount(node.current_month)}</a> : formatAmount(node.current_month)}
                                             </Table.Td>
                                             <Table.Td className={`text-right ${isParent ? 'font-semibold' : ''}`}>{formatPercent(node.current_month_percent_sales)}</Table.Td>
                                             <Table.Td className={getAmountClass(node.year_to_date, isParent)}>
-                                                {node.isLeaf && node.coa_id ? <a href={getGeneralLedgerLink(listFilters, node.coa_id)} className='hover:underline'>{formatAmount(node.year_to_date)}</a> : formatAmount(node.year_to_date)}
+                                                {node.isLeaf && node.coa_id ? <a href={getGeneralLedgerLink(listFilters, node.coa_id)} className='hover:underline' onClick={(e) => e.stopPropagation()}>{formatAmount(node.year_to_date)}</a> : formatAmount(node.year_to_date)}
                                             </Table.Td>
                                             <Table.Td className={`text-right ${isParent ? 'font-semibold' : ''}`}>{formatPercent(node.year_to_date_percent_sales)}</Table.Td>
                                             <Table.Td className={getAmountClass(node.last_year_to_date, isParent)}>
-                                                {node.isLeaf && node.coa_id ? <a href={getGeneralLedgerLink(listFilters, node.coa_id)} className='hover:underline'>{formatAmount(node.last_year_to_date)}</a> : formatAmount(node.last_year_to_date)}
+                                                {node.isLeaf && node.coa_id ? <a href={getGeneralLedgerLink(listFilters, node.coa_id)} className='hover:underline' onClick={(e) => e.stopPropagation()}>{formatAmount(node.last_year_to_date)}</a> : formatAmount(node.last_year_to_date)}
                                             </Table.Td>
                                             <Table.Td className={`text-right ${isParent ? 'font-semibold' : ''}`}>{formatPercent(node.last_year_to_date_percent_sales)}</Table.Td>
                                         </tr>
