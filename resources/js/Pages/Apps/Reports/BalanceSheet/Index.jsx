@@ -2,7 +2,7 @@ import AppLayout from '@/Layouts/AppLayout';
 import { Head, router, usePage } from '@inertiajs/react';
 import React from 'react';
 import Table from '@/Components/Table';
-import { IconDatabaseOff } from '@tabler/icons-react';
+import { IconChevronDown, IconChevronRight, IconDatabaseOff } from '@tabler/icons-react';
 
 const formatAmount = (value) => new Intl.NumberFormat('id-ID', {
     minimumFractionDigits: 2,
@@ -29,12 +29,120 @@ const monthOptions = [
     { value: 12, label: 'Des' },
 ];
 
-const getDisplayLabel = (row, drillLevel) => {
-    if (drillLevel >= 4) return row.coa_level_4 || row.coa_level_3 || row.coa_level_2 || row.coa_level_1 || '-';
-    if (drillLevel === 3) return row.coa_level_3 || row.coa_level_2 || row.coa_level_1 || '-';
-    if (drillLevel === 2) return row.coa_level_2 || row.coa_level_1 || '-';
+const getGeneralLedgerLink = (filters, coaId) => {
+    const periodStart = new Date(Date.UTC(Number(filters.year), 0, 1));
+    const periodEnd = new Date(Date.UTC(Number(filters.year), Number(filters.period), 0));
 
-    return row.coa_level_1 || '-';
+    return route('apps.reports.general-ledger', {
+        year: filters.year,
+        date_from: periodStart.toISOString().slice(0, 10),
+        date_to: periodEnd.toISOString().slice(0, 10),
+        company_id: filters.company_id,
+        branch_id: filters.branch_id,
+        coa_id: coaId,
+        status: filters.status,
+    });
+};
+
+const toNumber = (value) => Number(value || 0);
+const hasValue = (value) => value !== null && value !== undefined && `${value}`.trim() !== '';
+
+const buildFlatRows = (rows, totalAssetCurrent, totalAssetPrevious) => {
+    const map = new Map();
+    const order = [];
+
+    const ensureRow = (id, parentId, level, label, kind = 'group', segment = null) => {
+        if (!map.has(id)) {
+            const next = {
+                id,
+                parentId,
+                level,
+                label: label || '-',
+                kind,
+                segment,
+                current_year: 0,
+                previous_year: 0,
+                current_year_percent_asset: 0,
+                previous_year_percent_asset: 0,
+                isLeaf: false,
+                coa_id: null,
+                coa_code: null,
+            };
+            map.set(id, next);
+            order.push(id);
+        }
+
+        return map.get(id);
+    };
+
+    rows.forEach((row, index) => {
+        const currentYear = toNumber(row.current_year);
+        const previousYear = toNumber(row.previous_year);
+        const segmentKey = row.segment_key ?? 'other';
+        const segmentLabel = row.segment ?? 'Other';
+
+        const segmentNode = ensureRow(`segment-${segmentKey}`, null, 0, segmentLabel, segmentKey, segmentLabel);
+        segmentNode.current_year += currentYear;
+        segmentNode.previous_year += previousYear;
+
+        let parentId = segmentNode.id;
+        const parents = [segmentNode];
+
+        if (hasValue(row.coa_level_1)) {
+            const level1Id = `l1-${segmentKey}-${row.coa_level_1_id ?? row.coa_level_1 ?? index}`;
+            const level1 = ensureRow(level1Id, parentId, 1, row.coa_level_1, 'group', segmentLabel);
+            parents.push(level1);
+            parentId = level1Id;
+        }
+
+        if (hasValue(row.coa_level_2)) {
+            const level2Id = `l2-${segmentKey}-${row.coa_level_2_id ?? `${parentId}-${row.coa_level_2}`}`;
+            const level2 = ensureRow(level2Id, parentId, 2, row.coa_level_2, 'group', segmentLabel);
+            parents.push(level2);
+            parentId = level2Id;
+        }
+
+        if (hasValue(row.coa_level_3)) {
+            const level3Id = `l3-${segmentKey}-${row.coa_level_3_id ?? `${parentId}-${row.coa_level_3}`}`;
+            const level3 = ensureRow(level3Id, parentId, 3, row.coa_level_3, 'group', segmentLabel);
+            parents.push(level3);
+            parentId = level3Id;
+        }
+
+        const leafLabel = row.coa_level_4 || row.coa_level_3 || row.coa_level_2 || row.coa_level_1 || `Account ${index + 1}`;
+        const leafId = `leaf-${segmentKey}-${row.coa_id ?? row.coa_level_4_id ?? `${parentId}-${row.coa_code ?? index}`}`;
+        const leaf = ensureRow(leafId, parentId, Math.max(parents.length, 1), leafLabel, 'detail', segmentLabel);
+
+        parents.forEach((item) => {
+            item.current_year += currentYear;
+            item.previous_year += previousYear;
+        });
+
+        leaf.current_year = currentYear;
+        leaf.previous_year = previousYear;
+        leaf.isLeaf = true;
+        leaf.coa_id = row.coa_id;
+        leaf.coa_code = row.coa_code;
+    });
+
+    const calcPercent = (value, total) => (Math.abs(total) <= 0.000001 ? 0 : ((value / total) * 100));
+    order.forEach((id) => {
+        const item = map.get(id);
+        item.current_year_percent_asset = calcPercent(item.current_year, totalAssetCurrent);
+        item.previous_year_percent_asset = calcPercent(item.previous_year, totalAssetPrevious);
+    });
+
+    return {
+        order,
+        map,
+        childrenMap: order.reduce((carry, id) => {
+            const item = map.get(id);
+            const key = item.parentId ?? '__root__';
+            if (!carry.has(key)) carry.set(key, []);
+            carry.get(key).push(id);
+            return carry;
+        }, new Map()),
+    };
 };
 
 const getRowTone = (row) => {
@@ -78,8 +186,10 @@ export default function Index() {
         status: filters?.status ?? 'posted',
         year: resolvedYear,
         period: fallbackPeriod,
-        drill_level: Number(filters?.drill_level ?? 1),
+        drill_level: 4,
     });
+    const [viewMode, setViewMode] = React.useState('detail');
+    const [expandedNodes, setExpandedNodes] = React.useState({});
 
     const applyFilters = React.useCallback((nextFilters) => {
         router.get(route('apps.reports.balance-sheet'), nextFilters, {
@@ -89,7 +199,7 @@ export default function Index() {
     }, []);
 
     const updateFilter = (field, value) => {
-        const nextFilters = { ...listFilters, [field]: value };
+        const nextFilters = { ...listFilters, [field]: value, drill_level: 4 };
         setListFilters(nextFilters);
         applyFilters(nextFilters);
     };
@@ -113,6 +223,68 @@ export default function Index() {
     const balanceCurrentYear = totalAssetCurrentYear - totalLiabilityEquityProfitCurrentYear;
     const balancePreviousYear = totalAssetPreviousYear - totalLiabilityEquityProfitPreviousYear;
     const selectedMonthLabel = monthOptions.find((item) => item.value === Number(listFilters.period))?.label ?? '-';
+    const normalizedRows = React.useMemo(
+        () => buildFlatRows(rows, totalAssetCurrentYear, totalAssetPreviousYear),
+        [rows, totalAssetCurrentYear, totalAssetPreviousYear],
+    );
+
+    React.useEffect(() => {
+        const defaults = {};
+        normalizedRows.order.forEach((id) => {
+            const row = normalizedRows.map.get(id);
+            if (!row || row.isLeaf) return;
+            if ((normalizedRows.childrenMap.get(id) || []).length > 0) {
+                defaults[id] = row.level <= 1;
+            }
+        });
+        setExpandedNodes(defaults);
+    }, [normalizedRows]);
+
+    const hasChildren = React.useCallback((id) => (normalizedRows.childrenMap.get(id) || []).length > 0, [normalizedRows]);
+
+    const isVisible = React.useCallback((row) => {
+        if (!row.parentId) return true;
+        let currentParentId = row.parentId;
+        while (currentParentId) {
+            if (!expandedNodes[currentParentId]) return false;
+            currentParentId = normalizedRows.map.get(currentParentId)?.parentId ?? null;
+        }
+
+        return true;
+    }, [expandedNodes, normalizedRows]);
+
+    const visibleRows = React.useMemo(() => {
+        const base = normalizedRows.order
+            .map((id) => normalizedRows.map.get(id))
+            .filter(Boolean)
+            .filter(isVisible);
+
+        if (viewMode === 'summary') {
+            return base.filter((row) => !row.isLeaf);
+        }
+
+        return base;
+    }, [isVisible, normalizedRows, viewMode]);
+
+    const toggleNode = (id) => {
+        setExpandedNodes((prev) => ({ ...prev, [id]: !prev[id] }));
+    };
+
+    const expandAll = () => {
+        const next = {};
+        normalizedRows.order.forEach((id) => {
+            if (hasChildren(id)) next[id] = true;
+        });
+        setExpandedNodes(next);
+    };
+
+    const collapseAll = () => {
+        const next = {};
+        normalizedRows.order.forEach((id) => {
+            if (hasChildren(id)) next[id] = false;
+        });
+        setExpandedNodes(next);
+    };
 
     const safePercentOfAsset = (value, totalAsset) => (Math.abs(totalAsset) > 0.000001
         ? (Number(value || 0) / totalAsset) * 100
@@ -174,6 +346,14 @@ export default function Index() {
                 </div>
 
                 <div className='mt-4 overflow-hidden rounded-lg border bg-white dark:border-gray-900 dark:bg-gray-950'>
+                    <div className='border-b border-gray-200 p-3 dark:border-gray-800'>
+                        <div className='flex flex-wrap items-center gap-2'>
+                            <button type='button' onClick={expandAll} className='rounded border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900'>Expand All</button>
+                            <button type='button' onClick={collapseAll} className='rounded border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900'>Collapse All</button>
+                            <button type='button' onClick={() => setViewMode('detail')} className={`rounded px-3 py-1.5 text-xs font-semibold ${viewMode === 'detail' ? 'bg-blue-600 text-white' : 'border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900'}`}>Show Detail</button>
+                            <button type='button' onClick={() => setViewMode('summary')} className={`rounded px-3 py-1.5 text-xs font-semibold ${viewMode === 'summary' ? 'bg-blue-600 text-white' : 'border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-900'}`}>Show Summary</button>
+                        </div>
+                    </div>
                     <div className='max-h-[65vh] overflow-auto'>
                         <Table className='overflow-visible rounded-none border-0'>
                             <Table.Thead>
@@ -189,20 +369,55 @@ export default function Index() {
                                 </tr>
                             </Table.Thead>
                             <Table.Tbody>
-                                {rows.length > 0 ? rows.map((row, index) => (
-                                    <tr key={`${row.segment_key}-${row.coa_code ?? row.coa_level_1}-${index}`} className={getRowTone(row)}>
-                                        <Table.Td className='!py-3 font-semibold'>{row.segment}</Table.Td>
-                                        <Table.Td className='!py-3 !pl-2'>
-                                            <span className='font-medium'>{getDisplayLabel(row, listFilters.drill_level)}</span>
-                                        </Table.Td>
-                                        <Table.Td className={`!py-3 ${getAmountClass(row.current_year)}`}>{formatAmount(row.current_year)}</Table.Td>
-                                        <Table.Td className='!py-3 text-right'>{formatPercent(row.current_year_percent_asset)}</Table.Td>
-                                        <Table.Td className={`!py-3 ${getAmountClass(row.current_year)}`}>{formatAmount(row.current_year)}</Table.Td>
-                                        <Table.Td className='!py-3 text-right'>{formatPercent(row.current_year_percent_asset)}</Table.Td>
-                                        <Table.Td className={`!py-3 ${getAmountClass(row.previous_year)}`}>{formatAmount(row.previous_year)}</Table.Td>
-                                        <Table.Td className='!py-3 text-right'>{formatPercent(row.previous_year_percent_asset)}</Table.Td>
-                                    </tr>
-                                )) : (
+                                {visibleRows.length > 0 ? visibleRows.map((node) => {
+                                    const isParent = !node.isLeaf;
+                                    const canToggle = hasChildren(node.id);
+                                    const leftPadding = 6 + (node.level * 24);
+                                    const label = node.isLeaf && node.coa_code ? `${node.coa_code} - ${node.label}` : node.label;
+
+                                    return (
+                                        <tr key={node.id} className={getRowTone({ segment_key: node.kind })}>
+                                            <Table.Td className='!py-3 font-semibold'>{node.level === 0 ? node.segment : ''}</Table.Td>
+                                            <Table.Td className='!py-3'>
+                                                <div className={`flex items-center gap-2 ${canToggle ? 'cursor-pointer' : ''}`} style={{ paddingLeft: `${leftPadding}px` }} onClick={() => canToggle && toggleNode(node.id)}>
+                                                    {isParent && canToggle ? (
+                                                        <button
+                                                            type='button'
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                toggleNode(node.id);
+                                                            }}
+                                                            className='rounded border border-gray-300 p-0.5 text-gray-600 hover:bg-gray-200/70 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800/70'
+                                                        >
+                                                            {expandedNodes[node.id] ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
+                                                        </button>
+                                                    ) : (
+                                                        <span className='inline-block w-[18px]' />
+                                                    )}
+                                                    <span className={isParent ? 'font-semibold' : 'font-normal'}>{label}</span>
+                                                </div>
+                                            </Table.Td>
+                                            <Table.Td className={`!py-3 ${getAmountClass(node.current_year)}`}>
+                                                {node.isLeaf && node.coa_id
+                                                    ? <a href={getGeneralLedgerLink(listFilters, node.coa_id)} className='hover:underline' onClick={(e) => e.stopPropagation()}>{formatAmount(node.current_year)}</a>
+                                                    : formatAmount(node.current_year)}
+                                            </Table.Td>
+                                            <Table.Td className='!py-3 text-right'>{formatPercent(node.current_year_percent_asset)}</Table.Td>
+                                            <Table.Td className={`!py-3 ${getAmountClass(node.current_year)}`}>
+                                                {node.isLeaf && node.coa_id
+                                                    ? <a href={getGeneralLedgerLink(listFilters, node.coa_id)} className='hover:underline' onClick={(e) => e.stopPropagation()}>{formatAmount(node.current_year)}</a>
+                                                    : formatAmount(node.current_year)}
+                                            </Table.Td>
+                                            <Table.Td className='!py-3 text-right'>{formatPercent(node.current_year_percent_asset)}</Table.Td>
+                                            <Table.Td className={`!py-3 ${getAmountClass(node.previous_year)}`}>
+                                                {node.isLeaf && node.coa_id
+                                                    ? <a href={getGeneralLedgerLink(listFilters, node.coa_id)} className='hover:underline' onClick={(e) => e.stopPropagation()}>{formatAmount(node.previous_year)}</a>
+                                                    : formatAmount(node.previous_year)}
+                                            </Table.Td>
+                                            <Table.Td className='!py-3 text-right'>{formatPercent(node.previous_year_percent_asset)}</Table.Td>
+                                        </tr>
+                                    );
+                                }) : (
                                     <Table.Empty colSpan={8} message={(
                                         <div className='flex flex-col items-center gap-1 text-sm text-gray-500 dark:text-gray-300'>
                                             <IconDatabaseOff size={24} />
