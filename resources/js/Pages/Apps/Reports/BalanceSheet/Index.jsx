@@ -358,7 +358,6 @@ export default function Index() {
                         <Table className='overflow-visible rounded-none border-0'>
                             <Table.Thead>
                                 <tr>
-                                    <Table.Th className='sticky top-0 z-30 w-[180px] bg-gray-50 dark:bg-gray-950'>Segment</Table.Th>
                                     <Table.Th className='sticky top-0 z-30 min-w-[320px] bg-gray-50 dark:bg-gray-950'>COA</Table.Th>
                                     <Table.Th className='sticky top-0 z-30 bg-gray-50 text-right dark:bg-gray-950'>Current Month (Jan-{selectedMonthLabel} {listFilters.year})</Table.Th>
                                     <Table.Th className='sticky top-0 z-30 bg-gray-50 text-right dark:bg-gray-950'>% Total Asset</Table.Th>
@@ -377,7 +376,6 @@ export default function Index() {
 
                                     return (
                                         <tr key={node.id} className={getRowTone({ segment_key: node.kind })}>
-                                            <Table.Td className='!py-3 font-semibold'>{node.level === 0 ? node.segment : ''}</Table.Td>
                                             <Table.Td className='!py-3'>
                                                 <div className={`flex items-center gap-2 ${canToggle ? 'cursor-pointer' : ''}`} style={{ paddingLeft: `${leftPadding}px` }} onClick={() => canToggle && toggleNode(node.id)}>
                                                     {isParent && canToggle ? (
@@ -418,7 +416,7 @@ export default function Index() {
                                         </tr>
                                     );
                                 }) : (
-                                    <Table.Empty colSpan={8} message={(
+                                    <Table.Empty colSpan={7} message={(
                                         <div className='flex flex-col items-center gap-1 text-sm text-gray-500 dark:text-gray-300'>
                                             <IconDatabaseOff size={24} />
                                             <span>Data Laporan Neraca tidak ditemukan.</span>
@@ -429,12 +427,11 @@ export default function Index() {
                                 {rows.length > 0 && (
                                     <>
                                         <tr className='bg-gray-100/80 dark:bg-gray-900/70'>
-                                            <Table.Td colSpan={8} className='sticky bottom-[156px] z-20 py-2 text-sm font-semibold text-gray-700 dark:text-gray-200'>
+                                            <Table.Td colSpan={7} className='sticky bottom-[156px] z-20 py-2 text-sm font-semibold text-gray-700 dark:text-gray-200'>
                                                 Balance Check: Asset = Liability + Equity + Current Year Profit
                                             </Table.Td>
                                         </tr>
                                         <tr className='bg-slate-100/90 text-slate-900 dark:bg-slate-900 dark:text-slate-100'>
-                                            <Table.Td className='sticky bottom-[104px] z-20 bg-slate-100/95 font-semibold dark:bg-slate-900'>Asset</Table.Td>
                                             <Table.Td className='sticky bottom-[104px] z-20 bg-slate-100/95 font-semibold dark:bg-slate-900'>Total Asset</Table.Td>
                                             <Table.Td className={`sticky bottom-[104px] z-20 bg-slate-100/95 ${getAmountClass(totalAssetCurrentYear)} dark:bg-slate-900`}>{formatAmount(totalAssetCurrentYear)}</Table.Td>
                                             <Table.Td className='sticky bottom-[104px] z-20 bg-slate-100/95 text-right dark:bg-slate-900'>100.00%</Table.Td>
@@ -444,7 +441,6 @@ export default function Index() {
                                             <Table.Td className='sticky bottom-[104px] z-20 bg-slate-100/95 text-right dark:bg-slate-900'>100.00%</Table.Td>
                                         </tr>
                                         <tr className='bg-slate-100/90 text-slate-900 dark:bg-slate-900 dark:text-slate-100'>
-                                            <Table.Td className='sticky bottom-[52px] z-20 bg-slate-100/95 font-semibold dark:bg-slate-900'>Liability + Equity + Current Year Profit</Table.Td>
                                             <Table.Td className='sticky bottom-[52px] z-20 bg-slate-100/95 font-semibold dark:bg-slate-900'>Total Liability + Equity + Current Year Profit</Table.Td>
                                             <Table.Td className={`sticky bottom-[52px] z-20 bg-slate-100/95 ${getAmountClass(totalLiabilityEquityProfitCurrentYear)} dark:bg-slate-900`}>{formatAmount(totalLiabilityEquityProfitCurrentYear)}</Table.Td>
                                             <Table.Td className='sticky bottom-[52px] z-20 bg-slate-100/95 text-right dark:bg-slate-900'>{formatPercent(safePercentOfAsset(totalLiabilityEquityProfitCurrentYear, totalAssetCurrentYear))}</Table.Td>
@@ -454,7 +450,6 @@ export default function Index() {
                                             <Table.Td className='sticky bottom-[52px] z-20 bg-slate-100/95 text-right dark:bg-slate-900'>{formatPercent(safePercentOfAsset(totalLiabilityEquityProfitPreviousYear, totalAssetPreviousYear))}</Table.Td>
                                         </tr>
                                         <tr className='bg-slate-100/90 text-slate-900 dark:bg-slate-900 dark:text-slate-100'>
-                                            <Table.Td className='sticky bottom-0 z-20 bg-slate-100/95 font-semibold dark:bg-slate-900'>Balance</Table.Td>
                                             <Table.Td className='sticky bottom-0 z-20 bg-slate-100/95 font-semibold dark:bg-slate-900'>Balance = Total Asset - (Total Liability + Equity + Current Year Profit)</Table.Td>
                                             <Table.Td className={`sticky bottom-0 z-20 bg-slate-100/95 ${getAmountClass(balanceCurrentYear)} dark:bg-slate-900`}>{formatAmount(balanceCurrentYear)}</Table.Td>
                                             <Table.Td className='sticky bottom-0 z-20 bg-slate-100/95 text-right dark:bg-slate-900'>{formatPercent(safePercentOfAsset(balanceCurrentYear, totalAssetCurrentYear))}</Table.Td>
