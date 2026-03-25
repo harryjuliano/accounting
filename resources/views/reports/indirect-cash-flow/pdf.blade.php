@@ -37,9 +37,10 @@
     $netIncreaseByMonth = $report['netIncreaseByMonth'] ?? [];
     $beginningCashByMonth = $report['beginningCashByMonth'] ?? [];
     $endingCashByMonth = $report['endingCashByMonth'] ?? [];
-    $formatAmount = static function ($value) {
+    $formatAmountInMillions = static function ($value) {
         $number = (float) ($value ?? 0);
-        $formatted = number_format(abs($number), 0, ',', '.');
+        $valueInMillions = abs($number) / 1_000_000;
+        $formatted = number_format($valueInMillions, 2, '.', ',');
         return $number < 0 ? "({$formatted})" : $formatted;
     };
     $sumBySection = static function (array $sourceRows, string $section, int $index): float {
@@ -56,7 +57,7 @@
 <div class="report-header">
     <p class="company-name">{{ $report['company']['name'] ?? config('app.name') }}</p>
     <h1 class="report-title">Laporan Arus Kas - Metode Tidak Langsung</h1>
-    <div class="report-subtitle">Periode: Januari - Desember {{ $report['filters']['year'] ?? '-' }}</div>
+    <div class="report-subtitle">Periode: Januari - Desember {{ $report['filters']['year'] ?? '-' }} | Dalam jutaan Rupiah</div>
 </div>
 
 <div class="report-meta">
@@ -84,7 +85,7 @@
                         <td class="left-text">{{ $row['label'] }}</td>
                         @foreach ($months as $index => $month)
                             @php $value = (float) ($row['values'][$index] ?? 0); @endphp
-                            <td class="right-text {{ $value < 0 ? 'negative' : '' }}">{{ $formatAmount($value) }}</td>
+                            <td class="right-text {{ $value < 0 ? 'negative' : '' }}">{{ $formatAmountInMillions($value) }}</td>
                         @endforeach
                     </tr>
                 @endif
@@ -93,7 +94,7 @@
                 <td class="left-text">Net Cash from {{ str_replace('Cash Flow from ', '', $sectionLabel) }}</td>
                 @foreach ($months as $index => $month)
                     @php $sectionTotal = $sumBySection($rows, $sectionKey, $index); @endphp
-                    <td class="right-text {{ $sectionTotal < 0 ? 'negative' : '' }}">{{ $formatAmount($sectionTotal) }}</td>
+                    <td class="right-text {{ $sectionTotal < 0 ? 'negative' : '' }}">{{ $formatAmountInMillions($sectionTotal) }}</td>
                 @endforeach
             </tr>
         @endforeach
@@ -102,21 +103,21 @@
             <td class="left-text">Net Increase / (Decrease) in Cash and Cash Equivalents</td>
             @foreach ($months as $index => $month)
                 @php $value = (float) ($netIncreaseByMonth[$index] ?? 0); @endphp
-                <td class="right-text {{ $value < 0 ? 'negative' : '' }}">{{ $formatAmount($value) }}</td>
+                <td class="right-text {{ $value < 0 ? 'negative' : '' }}">{{ $formatAmountInMillions($value) }}</td>
             @endforeach
         </tr>
         <tr class="subtotal">
             <td class="left-text">Cash and Cash Equivalents at Beginning of Month</td>
             @foreach ($months as $index => $month)
                 @php $value = (float) ($beginningCashByMonth[$index] ?? 0); @endphp
-                <td class="right-text {{ $value < 0 ? 'negative' : '' }}">{{ $formatAmount($value) }}</td>
+                <td class="right-text {{ $value < 0 ? 'negative' : '' }}">{{ $formatAmountInMillions($value) }}</td>
             @endforeach
         </tr>
         <tr class="grand-total">
             <td class="left-text">Cash and Cash Equivalents at End of Month</td>
             @foreach ($months as $index => $month)
                 @php $value = (float) ($endingCashByMonth[$index] ?? 0); @endphp
-                <td class="right-text {{ $value < 0 ? 'negative' : '' }}">{{ $formatAmount($value) }}</td>
+                <td class="right-text {{ $value < 0 ? 'negative' : '' }}">{{ $formatAmountInMillions($value) }}</td>
             @endforeach
         </tr>
     </tbody>
