@@ -378,9 +378,13 @@ export default function Index() {
                             >
                                 <option value=''>{data.form_type === 'transaction' ? 'Pilih parent level 3' : '-'}</option>
                                 {parentAccounts
-                                    .filter((account) => String(account.company_id) === String(data.company_id) && String(account.id) !== String(data.id))
+                                    .filter((account) => (
+                                        String(account.company_id) === String(data.company_id)
+                                        && String(account.id) !== String(data.id)
+                                        && (data.form_type !== 'transaction' || Number(account.level) === 3)
+                                    ))
                                     .map((account) => (
-                                        <option key={account.id} value={account.id}>{account.code} - {account.name}</option>
+                                        <option key={account.id} value={account.id}>{account.code} - {account.name} (Level {account.level})</option>
                                     ))}
                             </select>
                             {errors.parent_id && <small className='text-xs text-red-500'>{errors.parent_id}</small>}

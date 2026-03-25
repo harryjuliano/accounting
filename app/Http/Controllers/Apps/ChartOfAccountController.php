@@ -83,7 +83,6 @@ class ChartOfAccountController extends Controller
             ->orderBy('name')->get();
         $parentAccounts = ChartOfAccount::query()
             ->select('id', 'company_id', 'account_group_id', 'code', 'name', 'level', 'account_type', 'financial_statement_group')
-            ->where('level', 3)
             ->when($this->isCompanyAdmin(), fn ($query) => $query->where('company_id', $request->user()->company_id))
             ->orderBy('code')
             ->get();
