@@ -252,8 +252,8 @@ export default function Menu() {
                 },
                 {
                     title: 'Arus Kas Tidak Langsung',
-                    href: '#arus-kas-tidak-langsung',
-                    active: false,
+                    href: '/apps/reports/indirect-cash-flow',
+                    active: url.startsWith('/apps/reports/indirect-cash-flow'),
                     icon: <IconChartBar size={20} strokeWidth={1.5} />,
                     permissions: accountingAccess,
                 },
