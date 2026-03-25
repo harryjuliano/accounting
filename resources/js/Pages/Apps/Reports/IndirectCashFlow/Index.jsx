@@ -80,33 +80,33 @@ export default function Index() {
                 <h1 className='text-xl font-semibold text-gray-800 dark:text-gray-100'>Laporan Arus Kas Tidak Langsung</h1>
                 <p className='mb-4 text-sm text-gray-500 dark:text-gray-400'>Laporan Keuangan &gt; Arus Kas Tidak Langsung</p>
 
-                <div className='rounded-lg border bg-white p-4 dark:border-gray-900 dark:bg-gray-950'>
+                <div className='rounded-lg border bg-white p-4 text-gray-800 dark:border-gray-900 dark:bg-gray-950 dark:text-gray-100'>
                     <div className='grid grid-cols-1 gap-3 md:grid-cols-6'>
-                        <select className='rounded border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900' value={listFilters.company_id} onChange={(e) => updateFilter('company_id', e.target.value)}>
+                        <select className='rounded border-gray-300 bg-white text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100' value={listFilters.company_id} onChange={(e) => updateFilter('company_id', e.target.value)}>
                             <option value='all'>All Company</option>
                             {companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
                         </select>
-                        <select className='rounded border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900' value={listFilters.branch_id} onChange={(e) => updateFilter('branch_id', e.target.value)}>
+                        <select className='rounded border-gray-300 bg-white text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100' value={listFilters.branch_id} onChange={(e) => updateFilter('branch_id', e.target.value)}>
                             <option value='all'>All Branch</option>
                             {branchOptions.map((branch) => <option key={branch.id} value={branch.id}>{branch.code} - {branch.name}</option>)}
                         </select>
-                        <select className='rounded border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900' value={listFilters.status} onChange={(e) => updateFilter('status', e.target.value)}>
+                        <select className='rounded border-gray-300 bg-white text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100' value={listFilters.status} onChange={(e) => updateFilter('status', e.target.value)}>
                             {statusOptions.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
                         </select>
-                        <select className='rounded border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900' value={listFilters.year} onChange={(e) => updateFilter('year', Number(e.target.value))}>
+                        <select className='rounded border-gray-300 bg-white text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100' value={listFilters.year} onChange={(e) => updateFilter('year', Number(e.target.value))}>
                             {yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}
                         </select>
-                        <select className='rounded border-gray-300 bg-white text-sm dark:border-gray-700 dark:bg-gray-900' value={listFilters.period} onChange={(e) => updateFilter('period', Number(e.target.value))}>
+                        <select className='rounded border-gray-300 bg-white text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100' value={listFilters.period} onChange={(e) => updateFilter('period', Number(e.target.value))}>
                             {monthOptions.map((month) => <option key={month.value} value={month.value}>{month.label}</option>)}
                         </select>
                         <button type='button' onClick={exportPdf} className='rounded bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700'>Export PDF</button>
                     </div>
                 </div>
 
-                <div className='mt-4 overflow-auto rounded-lg border bg-white p-4 text-sm dark:border-gray-900 dark:bg-gray-950'>
+                <div className='mt-4 overflow-auto rounded-lg border bg-white p-4 text-sm text-gray-800 dark:border-gray-900 dark:bg-gray-950 dark:text-gray-100'>
                     <table className='min-w-full border-collapse'>
                         <thead>
-                            <tr className='border-b text-left'>
+                            <tr className='border-b border-gray-200 text-left dark:border-gray-700'>
                                 <th className='py-2'>Uraian</th><th className='py-2 text-right'>{listFilters.year}</th><th className='py-2 text-right'>{listFilters.year - 1}</th><th className='py-2 text-right'>Variance</th>
                             </tr>
                         </thead>
@@ -117,11 +117,11 @@ export default function Index() {
                                 const prevPct = salesPrevious ? (Number(row.previous || 0) / salesPrevious) * 100 : 0;
                                 const varPct = salesVariance ? (variance / salesVariance) * 100 : 0;
                                 return (
-                                    <tr key={`${row.label}-${idx}`} className='border-b'>
+                                    <tr key={`${row.label}-${idx}`} className='border-b border-gray-200 dark:border-gray-800'>
                                         <td className='py-2'>{row.label}</td>
-                                        <td className='py-2 text-right'>{printAmount(row.current)} <span className='text-xs text-gray-400'>({formatPercent(currPct)})</span></td>
-                                        <td className='py-2 text-right'>{printAmount(row.previous)} <span className='text-xs text-gray-400'>({formatPercent(prevPct)})</span></td>
-                                        <td className='py-2 text-right'>{printAmount(variance)} <span className='text-xs text-gray-400'>({formatPercent(varPct)})</span></td>
+                                        <td className='py-2 text-right'>{printAmount(row.current)} <span className='text-xs text-gray-500 dark:text-gray-300'>({formatPercent(currPct)})</span></td>
+                                        <td className='py-2 text-right'>{printAmount(row.previous)} <span className='text-xs text-gray-500 dark:text-gray-300'>({formatPercent(prevPct)})</span></td>
+                                        <td className='py-2 text-right'>{printAmount(variance)} <span className='text-xs text-gray-500 dark:text-gray-300'>({formatPercent(varPct)})</span></td>
                                     </tr>
                                 );
                             })}
