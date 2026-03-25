@@ -212,7 +212,6 @@
         return (float) $value < 0 ? '(' . $number . ')' : $number;
     };
     $formatPercent = fn ($value) => number_format((float) $value, 2, ',', '.') . '%';
-    $varianceClass = fn ($value) => (float) $value >= 0 ? 'positive-variance' : 'negative-variance';
     $safePercent = fn ($numerator, $denominator) => abs((float) $denominator) > 0.000001
         ? (((float) $numerator / (float) $denominator) * 100)
         : 0;
@@ -273,42 +272,42 @@
         $operationalRows->push($row);
     }
 
-    $sumCurrent = fn ($items) => (float) $items->sum('current_year');
-    $sumPrevious = fn ($items) => (float) $items->sum('previous_year');
-    $sumVariance = fn ($items) => (float) $items->sum('variance');
+    $sumCurrentMonth = fn ($items) => (float) $items->sum('current_month');
+    $sumYearToDate = fn ($items) => (float) $items->sum('year_to_date');
+    $sumLastYearToDate = fn ($items) => (float) $items->sum('last_year_to_date');
 
-    $totalRevenueCurrent = $sumCurrent($revenueRows);
-    $totalRevenuePrevious = $sumPrevious($revenueRows);
-    $totalRevenueVariance = $sumVariance($revenueRows);
-    $totalHppCurrent = $sumCurrent($hppRows);
-    $totalHppPrevious = $sumPrevious($hppRows);
-    $totalHppVariance = $sumVariance($hppRows);
-    $grossProfitCurrent = $totalRevenueCurrent - $totalHppCurrent;
-    $grossProfitPrevious = $totalRevenuePrevious - $totalHppPrevious;
-    $grossProfitVariance = $grossProfitCurrent - $grossProfitPrevious;
+    $totalRevenueCurrentMonth = $sumCurrentMonth($revenueRows);
+    $totalRevenueYearToDate = $sumYearToDate($revenueRows);
+    $totalRevenueLastYearToDate = $sumLastYearToDate($revenueRows);
+    $totalHppCurrentMonth = $sumCurrentMonth($hppRows);
+    $totalHppYearToDate = $sumYearToDate($hppRows);
+    $totalHppLastYearToDate = $sumLastYearToDate($hppRows);
+    $grossProfitCurrentMonth = $totalRevenueCurrentMonth - $totalHppCurrentMonth;
+    $grossProfitYearToDate = $totalRevenueYearToDate - $totalHppYearToDate;
+    $grossProfitLastYearToDate = $totalRevenueLastYearToDate - $totalHppLastYearToDate;
 
-    $totalOperationalCurrent = $sumCurrent($operationalRows);
-    $totalOperationalPrevious = $sumPrevious($operationalRows);
-    $totalOperationalVariance = $sumVariance($operationalRows);
+    $totalOperationalCurrentMonth = $sumCurrentMonth($operationalRows);
+    $totalOperationalYearToDate = $sumYearToDate($operationalRows);
+    $totalOperationalLastYearToDate = $sumLastYearToDate($operationalRows);
 
-    $totalOtherIncomeCurrent = $sumCurrent($otherIncomeRows);
-    $totalOtherIncomePrevious = $sumPrevious($otherIncomeRows);
-    $totalOtherIncomeVariance = $sumVariance($otherIncomeRows);
-    $totalOtherExpenseCurrent = $sumCurrent($otherExpenseRows);
-    $totalOtherExpensePrevious = $sumPrevious($otherExpenseRows);
-    $totalOtherExpenseVariance = $sumVariance($otherExpenseRows);
+    $totalOtherIncomeCurrentMonth = $sumCurrentMonth($otherIncomeRows);
+    $totalOtherIncomeYearToDate = $sumYearToDate($otherIncomeRows);
+    $totalOtherIncomeLastYearToDate = $sumLastYearToDate($otherIncomeRows);
+    $totalOtherExpenseCurrentMonth = $sumCurrentMonth($otherExpenseRows);
+    $totalOtherExpenseYearToDate = $sumYearToDate($otherExpenseRows);
+    $totalOtherExpenseLastYearToDate = $sumLastYearToDate($otherExpenseRows);
 
-    $netBeforeTaxCurrent = $grossProfitCurrent - $totalOperationalCurrent - $totalOtherIncomeCurrent - $totalOtherExpenseCurrent;
-    $netBeforeTaxPrevious = $grossProfitPrevious - $totalOperationalPrevious - $totalOtherIncomePrevious - $totalOtherExpensePrevious;
-    $netBeforeTaxVariance = $netBeforeTaxCurrent - $netBeforeTaxPrevious;
+    $netBeforeTaxCurrentMonth = $grossProfitCurrentMonth - $totalOperationalCurrentMonth - $totalOtherIncomeCurrentMonth - $totalOtherExpenseCurrentMonth;
+    $netBeforeTaxYearToDate = $grossProfitYearToDate - $totalOperationalYearToDate - $totalOtherIncomeYearToDate - $totalOtherExpenseYearToDate;
+    $netBeforeTaxLastYearToDate = $grossProfitLastYearToDate - $totalOperationalLastYearToDate - $totalOtherIncomeLastYearToDate - $totalOtherExpenseLastYearToDate;
 
-    $taxCurrent = $sumCurrent($taxRows);
-    $taxPrevious = $sumPrevious($taxRows);
-    $taxVariance = $sumVariance($taxRows);
+    $taxCurrentMonth = $sumCurrentMonth($taxRows);
+    $taxYearToDate = $sumYearToDate($taxRows);
+    $taxLastYearToDate = $sumLastYearToDate($taxRows);
 
-    $netAfterTaxCurrent = $netBeforeTaxCurrent - $taxCurrent;
-    $netAfterTaxPrevious = $netBeforeTaxPrevious - $taxPrevious;
-    $netAfterTaxVariance = $netAfterTaxCurrent - $netAfterTaxPrevious;
+    $netAfterTaxCurrentMonth = $netBeforeTaxCurrentMonth - $taxCurrentMonth;
+    $netAfterTaxYearToDate = $netBeforeTaxYearToDate - $taxYearToDate;
+    $netAfterTaxLastYearToDate = $netBeforeTaxLastYearToDate - $taxLastYearToDate;
 @endphp
 
 <div class="page">
@@ -319,7 +318,7 @@
     <div class="report-header">
         <p class="company-name">{{ $companyProfile['legal_name'] ?: $companyProfile['name'] }}</p>
         <h1 class="report-title">Laporan Laba Rugi</h1>
-        <div class="report-subtitle">Periode: {{ ucfirst($periodLabel) }} | Perbandingan {{ $currentYear }} vs {{ $previousYear }}</div>
+        <div class="report-subtitle">Periode: {{ ucfirst($periodLabel) }} | YTD Jan-{{ $periodDate->translatedFormat('F') }} {{ $currentYear }} vs {{ $previousYear }}</div>
     </div>
 
     <div class="report-meta">
@@ -347,9 +346,9 @@
         <thead>
             <tr class="group-header">
                 <th rowspan="2" class="left-text">Uraian</th>
-                <th colspan="2" class="right-text">{{ $currentYear }}</th>
-                <th colspan="2" class="right-text">{{ $previousYear }}</th>
-                <th colspan="2" class="right-text">Variance {{ $currentYear }} vs {{ $previousYear }}</th>
+                <th colspan="2" class="right-text">Current Month ({{ $periodDate->translatedFormat('M') }} {{ $currentYear }})</th>
+                <th colspan="2" class="right-text">Year to Date (Jan-{{ $periodDate->translatedFormat('M') }} {{ $currentYear }})</th>
+                <th colspan="2" class="right-text">Last Year to Date (Jan-{{ $periodDate->translatedFormat('M') }} {{ $previousYear }})</th>
             </tr>
             <tr class="sub-header">
                 <th class="right-text">Amount</th>
@@ -366,22 +365,22 @@
             @foreach($revenueRows as $row)
                 <tr class="detail">
                     <td class="left-text">{{ $rowLabel($row) }}</td>
-                    <td class="right-text {{ (float) $row['current_year'] < 0 ? 'negative' : '' }}">{{ $formatAmount($row['current_year']) }}</td>
-                    <td class="right-text {{ (float) $row['current_year_percent_sales'] < 0 ? 'negative' : '' }}">{{ $formatPercent($row['current_year_percent_sales']) }}</td>
-                    <td class="right-text {{ (float) $row['previous_year'] < 0 ? 'negative' : '' }}">{{ $formatAmount($row['previous_year']) }}</td>
-                    <td class="right-text {{ (float) $row['previous_year_percent_sales'] < 0 ? 'negative' : '' }}">{{ $formatPercent($row['previous_year_percent_sales']) }}</td>
-                    <td class="right-text {{ $varianceClass($row['variance']) }}">{{ $formatAmount($row['variance']) }}</td>
-                    <td class="right-text {{ $varianceClass($row['variance_percent_sales']) }}">{{ $formatPercent($row['variance_percent_sales']) }}</td>
+                    <td class="right-text {{ (float) $row['current_month'] < 0 ? 'negative' : '' }}">{{ $formatAmount($row['current_month']) }}</td>
+                    <td class="right-text {{ (float) $row['current_month_percent_sales'] < 0 ? 'negative' : '' }}">{{ $formatPercent($row['current_month_percent_sales']) }}</td>
+                    <td class="right-text {{ (float) $row['year_to_date'] < 0 ? 'negative' : '' }}">{{ $formatAmount($row['year_to_date']) }}</td>
+                    <td class="right-text {{ (float) $row['year_to_date_percent_sales'] < 0 ? 'negative' : '' }}">{{ $formatPercent($row['year_to_date_percent_sales']) }}</td>
+                    <td class="right-text {{ (float) $row['last_year_to_date'] < 0 ? 'negative' : '' }}">{{ $formatAmount($row['last_year_to_date']) }}</td>
+                    <td class="right-text {{ (float) $row['last_year_to_date_percent_sales'] < 0 ? 'negative' : '' }}">{{ $formatPercent($row['last_year_to_date_percent_sales']) }}</td>
                 </tr>
             @endforeach
 
             <tr class="subtotal">
                 <td class="left-text">Total Pendapatan</td>
-                <td class="right-text">{{ $formatAmount($totalRevenueCurrent) }}</td>
+                <td class="right-text">{{ $formatAmount($totalRevenueCurrentMonth) }}</td>
                 <td class="right-text">{{ $formatPercent(100) }}</td>
-                <td class="right-text">{{ $formatAmount($totalRevenuePrevious) }}</td>
+                <td class="right-text">{{ $formatAmount($totalRevenueYearToDate) }}</td>
                 <td class="right-text">{{ $formatPercent(100) }}</td>
-                <td class="right-text {{ $varianceClass($totalRevenueVariance) }}">{{ $formatAmount($totalRevenueVariance) }}</td>
+                <td class="right-text {{ (float) $totalRevenueLastYearToDate < 0 ? 'negative' : '' }}">{{ $formatAmount($totalRevenueLastYearToDate) }}</td>
                 <td class="right-text">{{ $formatPercent(0) }}</td>
             </tr>
 
@@ -389,99 +388,99 @@
             @foreach($hppRows as $row)
                 <tr class="detail">
                     <td class="left-text">{{ $rowLabel($row) }}</td>
-                    <td class="right-text {{ (float) $row['current_year'] < 0 ? 'negative' : '' }}">{{ $formatAmount($row['current_year']) }}</td>
-                    <td class="right-text {{ (float) $row['current_year_percent_sales'] < 0 ? 'negative' : '' }}">{{ $formatPercent($row['current_year_percent_sales']) }}</td>
-                    <td class="right-text {{ (float) $row['previous_year'] < 0 ? 'negative' : '' }}">{{ $formatAmount($row['previous_year']) }}</td>
-                    <td class="right-text {{ (float) $row['previous_year_percent_sales'] < 0 ? 'negative' : '' }}">{{ $formatPercent($row['previous_year_percent_sales']) }}</td>
-                    <td class="right-text {{ $varianceClass($row['variance']) }}">{{ $formatAmount($row['variance']) }}</td>
-                    <td class="right-text {{ $varianceClass($row['variance_percent_sales']) }}">{{ $formatPercent($row['variance_percent_sales']) }}</td>
+                    <td class="right-text {{ (float) $row['current_month'] < 0 ? 'negative' : '' }}">{{ $formatAmount($row['current_month']) }}</td>
+                    <td class="right-text {{ (float) $row['current_month_percent_sales'] < 0 ? 'negative' : '' }}">{{ $formatPercent($row['current_month_percent_sales']) }}</td>
+                    <td class="right-text {{ (float) $row['year_to_date'] < 0 ? 'negative' : '' }}">{{ $formatAmount($row['year_to_date']) }}</td>
+                    <td class="right-text {{ (float) $row['year_to_date_percent_sales'] < 0 ? 'negative' : '' }}">{{ $formatPercent($row['year_to_date_percent_sales']) }}</td>
+                    <td class="right-text {{ (float) $row['last_year_to_date'] < 0 ? 'negative' : '' }}">{{ $formatAmount($row['last_year_to_date']) }}</td>
+                    <td class="right-text {{ (float) $row['last_year_to_date_percent_sales'] < 0 ? 'negative' : '' }}">{{ $formatPercent($row['last_year_to_date_percent_sales']) }}</td>
                 </tr>
             @endforeach
 
             <tr class="subtotal">
                 <td class="left-text">Total HPP</td>
-                <td class="right-text {{ (float) $totalHppCurrent < 0 ? 'negative' : '' }}">{{ $formatAmount($totalHppCurrent) }}</td>
-                <td class="right-text {{ $safePercent($totalHppCurrent, $totalRevenueCurrent) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($totalHppCurrent, $totalRevenueCurrent)) }}</td>
-                <td class="right-text {{ (float) $totalHppPrevious < 0 ? 'negative' : '' }}">{{ $formatAmount($totalHppPrevious) }}</td>
-                <td class="right-text {{ $safePercent($totalHppPrevious, $totalRevenuePrevious) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($totalHppPrevious, $totalRevenuePrevious)) }}</td>
-                <td class="right-text {{ $varianceClass($totalHppVariance) }}">{{ $formatAmount($totalHppVariance) }}</td>
-                <td class="right-text {{ $varianceClass($safePercent($totalHppVariance, $totalRevenueVariance)) }}">{{ $formatPercent($safePercent($totalHppVariance, $totalRevenueVariance)) }}</td>
+                <td class="right-text {{ (float) $totalHppCurrentMonth < 0 ? 'negative' : '' }}">{{ $formatAmount($totalHppCurrentMonth) }}</td>
+                <td class="right-text {{ $safePercent($totalHppCurrentMonth, $totalRevenueCurrentMonth) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($totalHppCurrentMonth, $totalRevenueCurrentMonth)) }}</td>
+                <td class="right-text {{ (float) $totalHppYearToDate < 0 ? 'negative' : '' }}">{{ $formatAmount($totalHppYearToDate) }}</td>
+                <td class="right-text {{ $safePercent($totalHppYearToDate, $totalRevenueYearToDate) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($totalHppYearToDate, $totalRevenueYearToDate)) }}</td>
+                <td class="right-text {{ (float) $totalHppLastYearToDate < 0 ? 'negative' : '' }}">{{ $formatAmount($totalHppLastYearToDate) }}</td>
+                <td class="right-text {{ $safePercent($totalHppLastYearToDate, $totalRevenueLastYearToDate) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($totalHppLastYearToDate, $totalRevenueLastYearToDate)) }}</td>
             </tr>
 
             <tr class="gross-profit">
                 <td class="left-text">Gross Profit</td>
-                <td class="right-text {{ (float) $grossProfitCurrent < 0 ? 'negative' : '' }}">{{ $formatAmount($grossProfitCurrent) }}</td>
-                <td class="right-text">{{ $formatPercent($safePercent($grossProfitCurrent, $totalRevenueCurrent)) }}</td>
-                <td class="right-text {{ (float) $grossProfitPrevious < 0 ? 'negative' : '' }}">{{ $formatAmount($grossProfitPrevious) }}</td>
-                <td class="right-text">{{ $formatPercent($safePercent($grossProfitPrevious, $totalRevenuePrevious)) }}</td>
-                <td class="right-text {{ $varianceClass($grossProfitVariance) }}">{{ $formatAmount($grossProfitVariance) }}</td>
-                <td class="right-text {{ $varianceClass($safePercent($grossProfitVariance, $totalRevenueVariance)) }}">{{ $formatPercent($safePercent($grossProfitVariance, $totalRevenueVariance)) }}</td>
+                <td class="right-text {{ (float) $grossProfitCurrentMonth < 0 ? 'negative' : '' }}">{{ $formatAmount($grossProfitCurrentMonth) }}</td>
+                <td class="right-text">{{ $formatPercent($safePercent($grossProfitCurrentMonth, $totalRevenueCurrentMonth)) }}</td>
+                <td class="right-text {{ (float) $grossProfitYearToDate < 0 ? 'negative' : '' }}">{{ $formatAmount($grossProfitYearToDate) }}</td>
+                <td class="right-text">{{ $formatPercent($safePercent($grossProfitYearToDate, $totalRevenueYearToDate)) }}</td>
+                <td class="right-text {{ (float) $grossProfitLastYearToDate < 0 ? 'negative' : '' }}">{{ $formatAmount($grossProfitLastYearToDate) }}</td>
+                <td class="right-text {{ $safePercent($grossProfitLastYearToDate, $totalRevenueLastYearToDate) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($grossProfitLastYearToDate, $totalRevenueLastYearToDate)) }}</td>
             </tr>
 
             <tr class="section"><td colspan="7">Biaya Operasional</td></tr>
             @foreach($operationalRows as $row)
                 <tr class="detail">
                     <td class="left-text">{{ $rowLabel($row) }}</td>
-                    <td class="right-text {{ (float) $row['current_year'] < 0 ? 'negative' : '' }}">{{ $formatAmount($row['current_year']) }}</td>
-                    <td class="right-text {{ (float) $row['current_year_percent_sales'] < 0 ? 'negative' : '' }}">{{ $formatPercent($row['current_year_percent_sales']) }}</td>
-                    <td class="right-text {{ (float) $row['previous_year'] < 0 ? 'negative' : '' }}">{{ $formatAmount($row['previous_year']) }}</td>
-                    <td class="right-text {{ (float) $row['previous_year_percent_sales'] < 0 ? 'negative' : '' }}">{{ $formatPercent($row['previous_year_percent_sales']) }}</td>
-                    <td class="right-text {{ $varianceClass($row['variance']) }}">{{ $formatAmount($row['variance']) }}</td>
-                    <td class="right-text {{ $varianceClass($row['variance_percent_sales']) }}">{{ $formatPercent($row['variance_percent_sales']) }}</td>
+                    <td class="right-text {{ (float) $row['current_month'] < 0 ? 'negative' : '' }}">{{ $formatAmount($row['current_month']) }}</td>
+                    <td class="right-text {{ (float) $row['current_month_percent_sales'] < 0 ? 'negative' : '' }}">{{ $formatPercent($row['current_month_percent_sales']) }}</td>
+                    <td class="right-text {{ (float) $row['year_to_date'] < 0 ? 'negative' : '' }}">{{ $formatAmount($row['year_to_date']) }}</td>
+                    <td class="right-text {{ (float) $row['year_to_date_percent_sales'] < 0 ? 'negative' : '' }}">{{ $formatPercent($row['year_to_date_percent_sales']) }}</td>
+                    <td class="right-text {{ (float) $row['last_year_to_date'] < 0 ? 'negative' : '' }}">{{ $formatAmount($row['last_year_to_date']) }}</td>
+                    <td class="right-text {{ (float) $row['last_year_to_date_percent_sales'] < 0 ? 'negative' : '' }}">{{ $formatPercent($row['last_year_to_date_percent_sales']) }}</td>
                 </tr>
             @endforeach
 
             <tr class="subtotal">
                 <td class="left-text">Total Biaya Operasional</td>
-                <td class="right-text {{ (float) $totalOperationalCurrent < 0 ? 'negative' : '' }}">{{ $formatAmount($totalOperationalCurrent) }}</td>
-                <td class="right-text">{{ $formatPercent($safePercent($totalOperationalCurrent, $totalRevenueCurrent)) }}</td>
-                <td class="right-text {{ (float) $totalOperationalPrevious < 0 ? 'negative' : '' }}">{{ $formatAmount($totalOperationalPrevious) }}</td>
-                <td class="right-text">{{ $formatPercent($safePercent($totalOperationalPrevious, $totalRevenuePrevious)) }}</td>
-                <td class="right-text {{ $varianceClass($totalOperationalVariance) }}">{{ $formatAmount($totalOperationalVariance) }}</td>
-                <td class="right-text {{ $varianceClass($safePercent($totalOperationalVariance, $totalRevenueVariance)) }}">{{ $formatPercent($safePercent($totalOperationalVariance, $totalRevenueVariance)) }}</td>
+                <td class="right-text {{ (float) $totalOperationalCurrentMonth < 0 ? 'negative' : '' }}">{{ $formatAmount($totalOperationalCurrentMonth) }}</td>
+                <td class="right-text">{{ $formatPercent($safePercent($totalOperationalCurrentMonth, $totalRevenueCurrentMonth)) }}</td>
+                <td class="right-text {{ (float) $totalOperationalYearToDate < 0 ? 'negative' : '' }}">{{ $formatAmount($totalOperationalYearToDate) }}</td>
+                <td class="right-text">{{ $formatPercent($safePercent($totalOperationalYearToDate, $totalRevenueYearToDate)) }}</td>
+                <td class="right-text {{ (float) $totalOperationalLastYearToDate < 0 ? 'negative' : '' }}">{{ $formatAmount($totalOperationalLastYearToDate) }}</td>
+                <td class="right-text {{ $safePercent($totalOperationalLastYearToDate, $totalRevenueLastYearToDate) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($totalOperationalLastYearToDate, $totalRevenueLastYearToDate)) }}</td>
             </tr>
 
             <tr class="section"><td colspan="7">Lain-lain</td></tr>
             @foreach($otherIncomeRows->concat($otherExpenseRows) as $row)
                 <tr class="detail">
                     <td class="left-text">{{ $rowLabel($row) }}</td>
-                    <td class="right-text {{ (float) $row['current_year'] < 0 ? 'negative' : '' }}">{{ $formatAmount($row['current_year']) }}</td>
-                    <td class="right-text {{ (float) $row['current_year_percent_sales'] < 0 ? 'negative' : '' }}">{{ $formatPercent($row['current_year_percent_sales']) }}</td>
-                    <td class="right-text {{ (float) $row['previous_year'] < 0 ? 'negative' : '' }}">{{ $formatAmount($row['previous_year']) }}</td>
-                    <td class="right-text {{ (float) $row['previous_year_percent_sales'] < 0 ? 'negative' : '' }}">{{ $formatPercent($row['previous_year_percent_sales']) }}</td>
-                    <td class="right-text {{ $varianceClass($row['variance']) }}">{{ $formatAmount($row['variance']) }}</td>
-                    <td class="right-text {{ $varianceClass($row['variance_percent_sales']) }}">{{ $formatPercent($row['variance_percent_sales']) }}</td>
+                    <td class="right-text {{ (float) $row['current_month'] < 0 ? 'negative' : '' }}">{{ $formatAmount($row['current_month']) }}</td>
+                    <td class="right-text {{ (float) $row['current_month_percent_sales'] < 0 ? 'negative' : '' }}">{{ $formatPercent($row['current_month_percent_sales']) }}</td>
+                    <td class="right-text {{ (float) $row['year_to_date'] < 0 ? 'negative' : '' }}">{{ $formatAmount($row['year_to_date']) }}</td>
+                    <td class="right-text {{ (float) $row['year_to_date_percent_sales'] < 0 ? 'negative' : '' }}">{{ $formatPercent($row['year_to_date_percent_sales']) }}</td>
+                    <td class="right-text {{ (float) $row['last_year_to_date'] < 0 ? 'negative' : '' }}">{{ $formatAmount($row['last_year_to_date']) }}</td>
+                    <td class="right-text {{ (float) $row['last_year_to_date_percent_sales'] < 0 ? 'negative' : '' }}">{{ $formatPercent($row['last_year_to_date_percent_sales']) }}</td>
                 </tr>
             @endforeach
 
             <tr class="subtotal">
                 <td class="left-text">Net Profit Before Tax</td>
-                <td class="right-text {{ $netBeforeTaxCurrent < 0 ? 'negative' : '' }}">{{ $formatAmount($netBeforeTaxCurrent) }}</td>
-                <td class="right-text {{ $safePercent($netBeforeTaxCurrent, $totalRevenueCurrent) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($netBeforeTaxCurrent, $totalRevenueCurrent)) }}</td>
-                <td class="right-text {{ $netBeforeTaxPrevious < 0 ? 'negative' : '' }}">{{ $formatAmount($netBeforeTaxPrevious) }}</td>
-                <td class="right-text {{ $safePercent($netBeforeTaxPrevious, $totalRevenuePrevious) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($netBeforeTaxPrevious, $totalRevenuePrevious)) }}</td>
-                <td class="right-text {{ $varianceClass($netBeforeTaxVariance) }}">{{ $formatAmount($netBeforeTaxVariance) }}</td>
-                <td class="right-text {{ $varianceClass($safePercent($netBeforeTaxVariance, $totalRevenueVariance)) }}">{{ $formatPercent($safePercent($netBeforeTaxVariance, $totalRevenueVariance)) }}</td>
+                <td class="right-text {{ $netBeforeTaxCurrentMonth < 0 ? 'negative' : '' }}">{{ $formatAmount($netBeforeTaxCurrentMonth) }}</td>
+                <td class="right-text {{ $safePercent($netBeforeTaxCurrentMonth, $totalRevenueCurrentMonth) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($netBeforeTaxCurrentMonth, $totalRevenueCurrentMonth)) }}</td>
+                <td class="right-text {{ $netBeforeTaxYearToDate < 0 ? 'negative' : '' }}">{{ $formatAmount($netBeforeTaxYearToDate) }}</td>
+                <td class="right-text {{ $safePercent($netBeforeTaxYearToDate, $totalRevenueYearToDate) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($netBeforeTaxYearToDate, $totalRevenueYearToDate)) }}</td>
+                <td class="right-text {{ $netBeforeTaxLastYearToDate < 0 ? 'negative' : '' }}">{{ $formatAmount($netBeforeTaxLastYearToDate) }}</td>
+                <td class="right-text {{ $safePercent($netBeforeTaxLastYearToDate, $totalRevenueLastYearToDate) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($netBeforeTaxLastYearToDate, $totalRevenueLastYearToDate)) }}</td>
             </tr>
 
             <tr class="detail">
                 <td class="left-text">Pajak Penghasilan</td>
-                <td class="right-text {{ $taxCurrent < 0 ? 'negative' : '' }}">{{ $formatAmount($taxCurrent) }}</td>
-                <td class="right-text {{ $safePercent($taxCurrent, $totalRevenueCurrent) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($taxCurrent, $totalRevenueCurrent)) }}</td>
-                <td class="right-text {{ $taxPrevious < 0 ? 'negative' : '' }}">{{ $formatAmount($taxPrevious) }}</td>
-                <td class="right-text {{ $safePercent($taxPrevious, $totalRevenuePrevious) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($taxPrevious, $totalRevenuePrevious)) }}</td>
-                <td class="right-text {{ $varianceClass($taxVariance) }}">{{ $formatAmount($taxVariance) }}</td>
-                <td class="right-text {{ $varianceClass($safePercent($taxVariance, $totalRevenueVariance)) }}">{{ $formatPercent($safePercent($taxVariance, $totalRevenueVariance)) }}</td>
+                <td class="right-text {{ $taxCurrentMonth < 0 ? 'negative' : '' }}">{{ $formatAmount($taxCurrentMonth) }}</td>
+                <td class="right-text {{ $safePercent($taxCurrentMonth, $totalRevenueCurrentMonth) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($taxCurrentMonth, $totalRevenueCurrentMonth)) }}</td>
+                <td class="right-text {{ $taxYearToDate < 0 ? 'negative' : '' }}">{{ $formatAmount($taxYearToDate) }}</td>
+                <td class="right-text {{ $safePercent($taxYearToDate, $totalRevenueYearToDate) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($taxYearToDate, $totalRevenueYearToDate)) }}</td>
+                <td class="right-text {{ $taxLastYearToDate < 0 ? 'negative' : '' }}">{{ $formatAmount($taxLastYearToDate) }}</td>
+                <td class="right-text {{ $safePercent($taxLastYearToDate, $totalRevenueLastYearToDate) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($taxLastYearToDate, $totalRevenueLastYearToDate)) }}</td>
             </tr>
 
             <tr class="grand-total">
                 <td class="left-text">Net Profit After Tax</td>
-                <td class="right-text {{ $netAfterTaxCurrent < 0 ? 'negative' : '' }}">{{ $formatAmount($netAfterTaxCurrent) }}</td>
-                <td class="right-text {{ $safePercent($netAfterTaxCurrent, $totalRevenueCurrent) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($netAfterTaxCurrent, $totalRevenueCurrent)) }}</td>
-                <td class="right-text {{ $netAfterTaxPrevious < 0 ? 'negative' : '' }}">{{ $formatAmount($netAfterTaxPrevious) }}</td>
-                <td class="right-text {{ $safePercent($netAfterTaxPrevious, $totalRevenuePrevious) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($netAfterTaxPrevious, $totalRevenuePrevious)) }}</td>
-                <td class="right-text {{ $varianceClass($netAfterTaxVariance) }}">{{ $formatAmount($netAfterTaxVariance) }}</td>
-                <td class="right-text {{ $varianceClass($safePercent($netAfterTaxVariance, $totalRevenueVariance)) }}">{{ $formatPercent($safePercent($netAfterTaxVariance, $totalRevenueVariance)) }}</td>
+                <td class="right-text {{ $netAfterTaxCurrentMonth < 0 ? 'negative' : '' }}">{{ $formatAmount($netAfterTaxCurrentMonth) }}</td>
+                <td class="right-text {{ $safePercent($netAfterTaxCurrentMonth, $totalRevenueCurrentMonth) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($netAfterTaxCurrentMonth, $totalRevenueCurrentMonth)) }}</td>
+                <td class="right-text {{ $netAfterTaxYearToDate < 0 ? 'negative' : '' }}">{{ $formatAmount($netAfterTaxYearToDate) }}</td>
+                <td class="right-text {{ $safePercent($netAfterTaxYearToDate, $totalRevenueYearToDate) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($netAfterTaxYearToDate, $totalRevenueYearToDate)) }}</td>
+                <td class="right-text {{ $netAfterTaxLastYearToDate < 0 ? 'negative' : '' }}">{{ $formatAmount($netAfterTaxLastYearToDate) }}</td>
+                <td class="right-text {{ $safePercent($netAfterTaxLastYearToDate, $totalRevenueLastYearToDate) < 0 ? 'negative' : '' }}">{{ $formatPercent($safePercent($netAfterTaxLastYearToDate, $totalRevenueLastYearToDate)) }}</td>
             </tr>
         </tbody>
     </table>
