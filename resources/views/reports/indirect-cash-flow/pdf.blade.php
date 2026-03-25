@@ -40,7 +40,7 @@
     $formatAmountInMillions = static function ($value) {
         $number = (float) ($value ?? 0);
         $valueInMillions = abs($number) / 1_000_000;
-        $formatted = number_format($valueInMillions, 2, '.', '');
+        $formatted = number_format($valueInMillions, 2, '.', ',');
         return $number < 0 ? "({$formatted})" : $formatted;
     };
     $sumBySection = static function (array $sourceRows, string $section, int $index): float {
