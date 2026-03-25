@@ -178,6 +178,11 @@ class ProfitLossReportController extends Controller
                 $first = $items->first();
 
                 return [
+                    'coa_id' => $drillLevel >= 4 ? ($first['coa_id'] ?? null) : null,
+                    'coa_level_1_id' => $first['coa_level_1_id'] ?? null,
+                    'coa_level_2_id' => $drillLevel >= 2 ? ($first['coa_level_2_id'] ?? null) : null,
+                    'coa_level_3_id' => $drillLevel >= 3 ? ($first['coa_level_3_id'] ?? null) : null,
+                    'coa_level_4_id' => $drillLevel >= 4 ? ($first['coa_level_4_id'] ?? null) : null,
                     'coa_level_1' => $first['coa_level_1'] ?? null,
                     'coa_level_2' => $drillLevel >= 2 ? ($first['coa_level_2'] ?? null) : null,
                     'coa_level_3' => $drillLevel >= 3 ? ($first['coa_level_3'] ?? null) : null,
