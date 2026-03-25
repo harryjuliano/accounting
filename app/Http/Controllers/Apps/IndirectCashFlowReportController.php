@@ -55,10 +55,6 @@ class IndirectCashFlowReportController extends Controller
             $yearOptions = $yearOptions->prepend($year)->unique()->sortDesc()->values();
         }
 
-        $defaultPeriod = $year === $now->year ? $now->month : 12;
-        $period = (int) ($request->input('period') ?: $defaultPeriod);
-        $period = max(1, min(12, $period));
-
         $companyId = $request->input('company_id', 'all');
         $branchId = $request->input('branch_id', 'all');
 
@@ -72,15 +68,6 @@ class IndirectCashFlowReportController extends Controller
             ->when($companyId !== 'all', fn (Builder $q) => $q->where('journal_entries.company_id', $companyId))
             ->when($branchId !== 'all', fn (Builder $q) => $q->where('journal_entries.branch_id', $branchId))
             ->when($status !== 'all', fn (Builder $q) => $q->where('journal_entries.status', $status));
-
-        $currentYearStart = Carbon::create($year, 1, 1, 0, 0, 0, $timezone)->startOfDay();
-        $currentPeriodEnd = Carbon::create($year, $period, 1, 0, 0, 0, $timezone)->endOfMonth();
-        $currentYearBeginning = $currentYearStart->copy()->subDay();
-
-        $previousYear = $year - 1;
-        $previousYearStart = Carbon::create($previousYear, 1, 1, 0, 0, 0, $timezone)->startOfDay();
-        $previousPeriodEnd = Carbon::create($previousYear, $period, 1, 0, 0, 0, $timezone)->endOfMonth();
-        $previousYearBeginning = $previousYearStart->copy()->subDay();
 
         $accountMeta = ChartOfAccount::query()
             ->select('chart_of_accounts.id', 'chart_of_accounts.name', 'chart_of_accounts.normal_balance', 'account_groups.type as account_group_type')
@@ -133,11 +120,6 @@ class IndirectCashFlowReportController extends Controller
             ->tap($scope)
             ->value('amount');
 
-        $currentStartBalances = $buildBalanceMap($currentYearBeginning);
-        $currentEndBalances = $buildBalanceMap($currentPeriodEnd);
-        $previousStartBalances = $buildBalanceMap($previousYearBeginning);
-        $previousEndBalances = $buildBalanceMap($previousPeriodEnd);
-
         $calcDelta = function ($startMap, $endMap, array $keywords, array $types = []) {
             $match = function (array $row) use ($keywords, $types) {
                 $name = strtolower($row['name'] ?? '');
@@ -169,30 +151,66 @@ class IndirectCashFlowReportController extends Controller
             return $delta;
         };
 
-        $netSalesCurrent = $buildProfit($currentYearStart, $currentPeriodEnd);
-        $netSalesPrevious = $buildProfit($previousYearStart, $previousPeriodEnd);
-
-        $rows = [
-            ['section' => 'operating', 'subgroup' => 'profit_base', 'label' => 'Laba Bersih Setelah Pajak', 'current' => $netSalesCurrent, 'previous' => $netSalesPrevious],
-            ['section' => 'operating', 'subgroup' => 'non_cash_adjustment', 'label' => 'Penyusutan dan Amortisasi', 'current' => $calcDelta($currentStartBalances, $currentEndBalances, ['penyusutan', 'depresiasi', 'amortisasi'], ['expense']), 'previous' => $calcDelta($previousStartBalances, $previousEndBalances, ['penyusutan', 'depresiasi', 'amortisasi'], ['expense'])],
-            ['section' => 'operating', 'subgroup' => 'working_capital', 'label' => 'Kenaikan Piutang Usaha', 'current' => -$calcDelta($currentStartBalances, $currentEndBalances, ['piutang usaha', 'accounts receivable'], ['asset']), 'previous' => -$calcDelta($previousStartBalances, $previousEndBalances, ['piutang usaha', 'accounts receivable'], ['asset'])],
-            ['section' => 'operating', 'subgroup' => 'working_capital', 'label' => 'Kenaikan Persediaan', 'current' => -$calcDelta($currentStartBalances, $currentEndBalances, ['persediaan', 'inventory'], ['asset']), 'previous' => -$calcDelta($previousStartBalances, $previousEndBalances, ['persediaan', 'inventory'], ['asset'])],
-            ['section' => 'operating', 'subgroup' => 'working_capital', 'label' => 'Kenaikan Utang Usaha', 'current' => $calcDelta($currentStartBalances, $currentEndBalances, ['utang usaha', 'accounts payable'], ['liability']), 'previous' => $calcDelta($previousStartBalances, $previousEndBalances, ['utang usaha', 'accounts payable'], ['liability'])],
-            ['section' => 'operating', 'subgroup' => 'working_capital', 'label' => 'Kenaikan Utang Pajak', 'current' => $calcDelta($currentStartBalances, $currentEndBalances, ['utang pajak', 'tax payable'], ['liability']), 'previous' => $calcDelta($previousStartBalances, $previousEndBalances, ['utang pajak', 'tax payable'], ['liability'])],
-            ['section' => 'investing', 'subgroup' => 'capex', 'label' => 'Pembelian Aset Tetap', 'current' => -$calcDelta($currentStartBalances, $currentEndBalances, ['aset tetap', 'kendaraan', 'peralatan', 'mesin'], ['asset']), 'previous' => -$calcDelta($previousStartBalances, $previousEndBalances, ['aset tetap', 'kendaraan', 'peralatan', 'mesin'], ['asset'])],
-            ['section' => 'financing', 'subgroup' => 'borrowing', 'label' => 'Perubahan Pinjaman Bank', 'current' => $calcDelta($currentStartBalances, $currentEndBalances, ['utang bank', 'pinjaman bank'], ['liability']), 'previous' => $calcDelta($previousStartBalances, $previousEndBalances, ['utang bank', 'pinjaman bank'], ['liability'])],
-            ['section' => 'financing', 'subgroup' => 'equity', 'label' => 'Perubahan Modal Disetor', 'current' => $calcDelta($currentStartBalances, $currentEndBalances, ['modal', 'setoran modal'], ['equity']), 'previous' => $calcDelta($previousStartBalances, $previousEndBalances, ['modal', 'setoran modal'], ['equity'])],
-            ['section' => 'financing', 'subgroup' => 'equity', 'label' => 'Pembagian Dividen', 'current' => -abs($calcDelta($currentStartBalances, $currentEndBalances, ['dividen', 'dividend'], ['equity'])), 'previous' => -abs($calcDelta($previousStartBalances, $previousEndBalances, ['dividen', 'dividend'], ['equity']))],
+        $rowDefinitions = [
+            ['key' => 'profit_base', 'section' => 'operating', 'subgroup' => 'profit_base', 'label' => 'Laba Bersih Setelah Pajak'],
+            ['key' => 'depreciation', 'section' => 'operating', 'subgroup' => 'non_cash_adjustment', 'label' => 'Penyusutan dan Amortisasi'],
+            ['key' => 'receivable', 'section' => 'operating', 'subgroup' => 'working_capital', 'label' => 'Kenaikan Piutang Usaha'],
+            ['key' => 'inventory', 'section' => 'operating', 'subgroup' => 'working_capital', 'label' => 'Kenaikan Persediaan'],
+            ['key' => 'account_payable', 'section' => 'operating', 'subgroup' => 'working_capital', 'label' => 'Kenaikan Utang Usaha'],
+            ['key' => 'tax_payable', 'section' => 'operating', 'subgroup' => 'working_capital', 'label' => 'Kenaikan Utang Pajak'],
+            ['key' => 'fixed_asset', 'section' => 'investing', 'subgroup' => 'capex', 'label' => 'Pembelian Aset Tetap'],
+            ['key' => 'bank_loan', 'section' => 'financing', 'subgroup' => 'borrowing', 'label' => 'Perubahan Pinjaman Bank'],
+            ['key' => 'paid_in_capital', 'section' => 'financing', 'subgroup' => 'equity', 'label' => 'Perubahan Modal Disetor'],
+            ['key' => 'dividend', 'section' => 'financing', 'subgroup' => 'equity', 'label' => 'Pembagian Dividen'],
         ];
 
-        $netIncreaseCurrent = collect($rows)->sum('current');
-        $netIncreasePrevious = collect($rows)->sum('previous');
+        $rows = array_map(fn (array $definition) => [
+            'section' => $definition['section'],
+            'subgroup' => $definition['subgroup'],
+            'label' => $definition['label'],
+            'values' => [],
+        ], $rowDefinitions);
 
-        $beginningCashCurrent = $calcDelta(collect(), $currentStartBalances, ['kas', 'bank', 'cash'], ['asset']);
-        $beginningCashPrevious = $calcDelta(collect(), $previousStartBalances, ['kas', 'bank', 'cash'], ['asset']);
+        $months = [];
+        $netIncreaseByMonth = [];
+        $beginningCashByMonth = [];
+        $endingCashByMonth = [];
 
-        $endingCashCurrent = $beginningCashCurrent + $netIncreaseCurrent;
-        $endingCashPrevious = $beginningCashPrevious + $netIncreasePrevious;
+        foreach (range(1, 12) as $month) {
+            $monthStart = Carbon::create($year, $month, 1, 0, 0, 0, $timezone)->startOfDay();
+            $monthEnd = $monthStart->copy()->endOfMonth();
+            $monthBeginning = $monthStart->copy()->subDay();
+
+            $startBalances = $buildBalanceMap($monthBeginning);
+            $endBalances = $buildBalanceMap($monthEnd);
+            $netSales = $buildProfit($monthStart, $monthEnd);
+
+            $amountByKey = [
+                'profit_base' => $netSales,
+                'depreciation' => $calcDelta($startBalances, $endBalances, ['penyusutan', 'depresiasi', 'amortisasi'], ['expense']),
+                'receivable' => -$calcDelta($startBalances, $endBalances, ['piutang usaha', 'accounts receivable'], ['asset']),
+                'inventory' => -$calcDelta($startBalances, $endBalances, ['persediaan', 'inventory'], ['asset']),
+                'account_payable' => $calcDelta($startBalances, $endBalances, ['utang usaha', 'accounts payable'], ['liability']),
+                'tax_payable' => $calcDelta($startBalances, $endBalances, ['utang pajak', 'tax payable'], ['liability']),
+                'fixed_asset' => -$calcDelta($startBalances, $endBalances, ['aset tetap', 'kendaraan', 'peralatan', 'mesin'], ['asset']),
+                'bank_loan' => $calcDelta($startBalances, $endBalances, ['utang bank', 'pinjaman bank'], ['liability']),
+                'paid_in_capital' => $calcDelta($startBalances, $endBalances, ['modal', 'setoran modal'], ['equity']),
+                'dividend' => -abs($calcDelta($startBalances, $endBalances, ['dividen', 'dividend'], ['equity'])),
+            ];
+
+            foreach ($rowDefinitions as $index => $definition) {
+                $rows[$index]['values'][] = (float) ($amountByKey[$definition['key']] ?? 0);
+            }
+
+            $netIncreaseByMonth[] = (float) array_sum($amountByKey);
+            $beginningCashByMonth[] = $calcDelta(collect(), $startBalances, ['kas', 'bank', 'cash'], ['asset']);
+            $endingCashByMonth[] = $calcDelta(collect(), $endBalances, ['kas', 'bank', 'cash'], ['asset']);
+
+            $months[] = [
+                'value' => $month,
+                'label' => Carbon::create($year, $month, 1, 0, 0, 0, $timezone)->locale('id')->translatedFormat('M'),
+            ];
+        }
 
         return [
             'companies' => Company::query()
@@ -213,17 +231,16 @@ class IndirectCashFlowReportController extends Controller
                 'branch_id' => $branchId,
                 'status' => $status,
                 'year' => $year,
-                'period' => $period,
-                'periodLabel' => Carbon::create($year, $period, 1, 0, 0, 0, $timezone)->locale('id')->translatedFormat('F Y'),
             ],
             'report' => [
                 'company' => ['name' => $request->user()?->company?->name ?? config('app.name')],
-                'filters' => ['year' => $year, 'periodLabel' => Carbon::create($year, $period, 1, 0, 0, 0, $timezone)->locale('id')->translatedFormat('F Y'), 'status' => strtoupper($status)],
+                'filters' => ['year' => $year, 'status' => strtoupper($status)],
                 'generatedAt' => now()->locale('id')->translatedFormat('d F Y'),
-                'netSales' => ['current' => $netSalesCurrent, 'previous' => $netSalesPrevious],
+                'months' => $months,
                 'rows' => $rows,
-                'beginningCash' => ['current' => $beginningCashCurrent, 'previous' => $beginningCashPrevious],
-                'endingCash' => ['current' => $endingCashCurrent, 'previous' => $endingCashPrevious],
+                'netIncreaseByMonth' => $netIncreaseByMonth,
+                'beginningCashByMonth' => $beginningCashByMonth,
+                'endingCashByMonth' => $endingCashByMonth,
             ],
         ];
     }
