@@ -117,8 +117,6 @@
     .report-table col.desc    { width: 34%; }
     .report-table col.amt     { width: 12%; }
     .report-table col.pct     { width: 7%; }
-    .report-table col.varamt  { width: 12%; }
-    .report-table col.varpct  { width: 8%; }
 
     .report-table thead th {
         padding: 5px 5px;
@@ -239,7 +237,6 @@
             'previous_year' => (float) ($row['previous_year'] ?? 0),
             'current_year_percent_asset' => (float) ($row['current_year_percent_asset'] ?? 0),
             'previous_year_percent_asset' => (float) ($row['previous_year_percent_asset'] ?? 0),
-            'variance_percent_asset' => (float) ($row['variance_percent_asset'] ?? 0),
         ];
     })->values();
 
@@ -280,15 +277,15 @@
             <col class="pct">
             <col class="amt">
             <col class="pct">
-            <col class="varamt">
-            <col class="varpct">
+            <col class="amt">
+            <col class="pct">
         </colgroup>
         <thead>
             <tr class="group-header">
                 <th rowspan="2" class="left-text">COA Level 3</th>
-                <th colspan="2" class="right-text" id="yearCurrentHead"></th>
-                <th colspan="2" class="right-text" id="yearPreviousHead"></th>
-                <th colspan="2" class="right-text" id="varianceHead"></th>
+                <th colspan="2" class="right-text" id="currentMonthHead"></th>
+                <th colspan="2" class="right-text" id="yearToDateHead"></th>
+                <th colspan="2" class="right-text" id="lastYearToDateHead"></th>
             </tr>
             <tr class="sub-header">
                 <th class="right-text">Amount</th>
@@ -349,6 +346,8 @@
     function renderHeader() {
         const currentYear = Number(report.filters.year);
         const previousYear = currentYear - 1;
+        const periodLabel = report.filters.periodLabel ?? "-";
+        const monthOnlyLabel = String(periodLabel).split(" ")[0];
 
         document.getElementById("companyName").textContent = report.company.name;
         document.getElementById("reportSubtitle").textContent =
@@ -365,22 +364,18 @@
             <div><strong>Dicetak:</strong> ${report.generatedAt}</div>
         `;
 
-        document.getElementById("yearCurrentHead").textContent = currentYear;
-        document.getElementById("yearPreviousHead").textContent = previousYear;
-        document.getElementById("varianceHead").textContent = `Variance ${currentYear} vs ${previousYear}`;
+        document.getElementById("currentMonthHead").textContent = `Current Month (Jan-${monthOnlyLabel} ${currentYear})`;
+        document.getElementById("yearToDateHead").textContent = `Year to Date (Jan-${monthOnlyLabel} ${currentYear})`;
+        document.getElementById("lastYearToDateHead").textContent = `Last Year to Date (Jan-${monthOnlyLabel} ${previousYear})`;
     }
 
     function prepareData() {
         const rows = report.rows.map(row => ({ ...row }));
         const totalAssetCurrent = sum(rows.filter(r => r.segment_key === "asset"), "current_year");
         const totalAssetPrevious = sum(rows.filter(r => r.segment_key === "asset"), "previous_year");
-        const totalAssetVariance = totalAssetCurrent - totalAssetPrevious;
-
-        rows.forEach(row => {
-            row.variance = Number(row.current_year) - Number(row.previous_year);
+        rows.forEach((row) => {
             row.current_year_percent_asset = totalAssetCurrent !== 0 ? (Number(row.current_year) / totalAssetCurrent) * 100 : 0;
             row.previous_year_percent_asset = totalAssetPrevious !== 0 ? (Number(row.previous_year) / totalAssetPrevious) * 100 : 0;
-            row.variance_percent_asset = totalAssetVariance !== 0 ? (Number(row.variance) / totalAssetVariance) * 100 : 0;
         });
 
         return {
@@ -388,7 +383,6 @@
             summary: {
                 total_asset_current_year: totalAssetCurrent,
                 total_asset_previous_year: totalAssetPrevious,
-                total_asset_variance: totalAssetVariance,
                 total_liability_current_year: sum(rows.filter(r => r.segment_key === "liability"), "current_year"),
                 total_liability_previous_year: sum(rows.filter(r => r.segment_key === "liability"), "previous_year"),
                 total_equity_current_year: sum(rows.filter(r => r.segment_key === "equity"), "current_year"),
@@ -413,11 +407,8 @@
             summary.total_equity_previous_year +
             summary.total_profit_previous_year;
 
-        const totalRightVariance = totalRightCurrent - totalRightPrevious;
-
         const balanceCurrent = summary.total_asset_current_year - totalRightCurrent;
         const balancePrevious = summary.total_asset_previous_year - totalRightPrevious;
-        const balanceVariance = balanceCurrent - balancePrevious;
 
         const rowsBySegment = groupBy(rows, "segment_key");
         let html = "";
@@ -428,8 +419,6 @@
 
             const segmentCurrent = sum(segmentRows, "current_year");
             const segmentPrevious = sum(segmentRows, "previous_year");
-            const segmentVariance = segmentCurrent - segmentPrevious;
-
             html += `
                 <tr class="segment-header">
                     <td colspan="7">${segmentLabels[segment] ?? segment}</td>
@@ -443,8 +432,6 @@
                 const subgroupLabel = subgroupRows[0].subgroup_label || subgroupKey;
                 const subCurrent = sum(subgroupRows, "current_year");
                 const subPrevious = sum(subgroupRows, "previous_year");
-                const subVariance = subCurrent - subPrevious;
-
                 html += `
                     <tr class="sub-header-row">
                         <td colspan="7">${subgroupLabel}</td>
@@ -459,11 +446,11 @@
                             <td class="right-text ${classByValue(row.current_year)}">${formatAmount(row.current_year)}</td>
                             <td class="right-text">${formatPercent(row.current_year_percent_asset)}</td>
 
+                            <td class="right-text ${classByValue(row.current_year)}">${formatAmount(row.current_year)}</td>
+                            <td class="right-text">${formatPercent(row.current_year_percent_asset)}</td>
+
                             <td class="right-text ${classByValue(row.previous_year)}">${formatAmount(row.previous_year)}</td>
                             <td class="right-text">${formatPercent(row.previous_year_percent_asset)}</td>
-
-                            <td class="right-text ${classByValue(row.variance, true)}">${formatAmount(row.variance)}</td>
-                            <td class="right-text ${classByValue(row.variance_percent_asset, true)}">${formatPercent(row.variance_percent_asset)}</td>
                         </tr>
                     `;
                 });
@@ -475,11 +462,11 @@
                         <td class="right-text ${classByValue(subCurrent)}">${formatAmount(subCurrent)}</td>
                         <td class="right-text">${formatPercent(summary.total_asset_current_year !== 0 ? (subCurrent / summary.total_asset_current_year) * 100 : 0)}</td>
 
+                        <td class="right-text ${classByValue(subCurrent)}">${formatAmount(subCurrent)}</td>
+                        <td class="right-text">${formatPercent(summary.total_asset_current_year !== 0 ? (subCurrent / summary.total_asset_current_year) * 100 : 0)}</td>
+
                         <td class="right-text ${classByValue(subPrevious)}">${formatAmount(subPrevious)}</td>
                         <td class="right-text">${formatPercent(summary.total_asset_previous_year !== 0 ? (subPrevious / summary.total_asset_previous_year) * 100 : 0)}</td>
-
-                        <td class="right-text ${classByValue(subVariance, true)}">${formatAmount(subVariance)}</td>
-                        <td class="right-text ${classByValue(subVariance, true)}">${formatPercent(summary.total_asset_variance !== 0 ? (subVariance / summary.total_asset_variance) * 100 : 0)}</td>
                     </tr>
                 `;
             });
@@ -491,11 +478,11 @@
                     <td class="right-text ${classByValue(segmentCurrent)}">${formatAmount(segmentCurrent)}</td>
                     <td class="right-text">${formatPercent(summary.total_asset_current_year !== 0 ? (segmentCurrent / summary.total_asset_current_year) * 100 : 0)}</td>
 
+                    <td class="right-text ${classByValue(segmentCurrent)}">${formatAmount(segmentCurrent)}</td>
+                    <td class="right-text">${formatPercent(summary.total_asset_current_year !== 0 ? (segmentCurrent / summary.total_asset_current_year) * 100 : 0)}</td>
+
                     <td class="right-text ${classByValue(segmentPrevious)}">${formatAmount(segmentPrevious)}</td>
                     <td class="right-text">${formatPercent(summary.total_asset_previous_year !== 0 ? (segmentPrevious / summary.total_asset_previous_year) * 100 : 0)}</td>
-
-                    <td class="right-text ${classByValue(segmentVariance, true)}">${formatAmount(segmentVariance)}</td>
-                    <td class="right-text ${classByValue(segmentVariance, true)}">${formatPercent(summary.total_asset_variance !== 0 ? (segmentVariance / summary.total_asset_variance) * 100 : 0)}</td>
                 </tr>
             `;
         });
@@ -505,9 +492,9 @@
                 <td class="left-text">Total Asset</td>
                 <td class="right-text ${classByValue(summary.total_asset_current_year)}">${formatAmount(summary.total_asset_current_year)}</td>
                 <td class="right-text">100,00%</td>
-                <td class="right-text ${classByValue(summary.total_asset_previous_year)}">${formatAmount(summary.total_asset_previous_year)}</td>
+                <td class="right-text ${classByValue(summary.total_asset_current_year)}">${formatAmount(summary.total_asset_current_year)}</td>
                 <td class="right-text">100,00%</td>
-                <td class="right-text ${classByValue(summary.total_asset_variance, true)}">${formatAmount(summary.total_asset_variance)}</td>
+                <td class="right-text ${classByValue(summary.total_asset_previous_year)}">${formatAmount(summary.total_asset_previous_year)}</td>
                 <td class="right-text">100,00%</td>
             </tr>
 
@@ -515,20 +502,20 @@
                 <td class="left-text">Total Liability + Equity + Current Year Profit</td>
                 <td class="right-text ${classByValue(totalRightCurrent)}">${formatAmount(totalRightCurrent)}</td>
                 <td class="right-text">${formatPercent(summary.total_asset_current_year !== 0 ? (totalRightCurrent / summary.total_asset_current_year) * 100 : 0)}</td>
+                <td class="right-text ${classByValue(totalRightCurrent)}">${formatAmount(totalRightCurrent)}</td>
+                <td class="right-text">${formatPercent(summary.total_asset_current_year !== 0 ? (totalRightCurrent / summary.total_asset_current_year) * 100 : 0)}</td>
                 <td class="right-text ${classByValue(totalRightPrevious)}">${formatAmount(totalRightPrevious)}</td>
                 <td class="right-text">${formatPercent(summary.total_asset_previous_year !== 0 ? (totalRightPrevious / summary.total_asset_previous_year) * 100 : 0)}</td>
-                <td class="right-text ${classByValue(totalRightVariance, true)}">${formatAmount(totalRightVariance)}</td>
-                <td class="right-text">${formatPercent(summary.total_asset_variance !== 0 ? (totalRightVariance / summary.total_asset_variance) * 100 : 0)}</td>
             </tr>
 
             <tr class="grand-total">
                 <td class="left-text">Balance Check</td>
                 <td class="right-text ${classByValue(balanceCurrent)}">${formatAmount(balanceCurrent)}</td>
                 <td class="right-text">${formatPercent(summary.total_asset_current_year !== 0 ? (balanceCurrent / summary.total_asset_current_year) * 100 : 0)}</td>
+                <td class="right-text ${classByValue(balanceCurrent)}">${formatAmount(balanceCurrent)}</td>
+                <td class="right-text">${formatPercent(summary.total_asset_current_year !== 0 ? (balanceCurrent / summary.total_asset_current_year) * 100 : 0)}</td>
                 <td class="right-text ${classByValue(balancePrevious)}">${formatAmount(balancePrevious)}</td>
                 <td class="right-text">${formatPercent(summary.total_asset_previous_year !== 0 ? (balancePrevious / summary.total_asset_previous_year) * 100 : 0)}</td>
-                <td class="right-text ${classByValue(balanceVariance, true)}">${formatAmount(balanceVariance)}</td>
-                <td class="right-text">${formatPercent(summary.total_asset_variance !== 0 ? (balanceVariance / summary.total_asset_variance) * 100 : 0)}</td>
             </tr>
         `;
 

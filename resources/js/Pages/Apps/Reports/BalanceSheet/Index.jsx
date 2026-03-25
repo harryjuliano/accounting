@@ -106,16 +106,13 @@ export default function Index() {
     };
 
     const branchOptions = branches.filter((branch) => listFilters.company_id === 'all' || Number(branch.company_id) === Number(listFilters.company_id));
-    const canDrillDown = listFilters.drill_level < 4;
     const totalAssetCurrentYear = Number(summary?.total_asset_current_year || 0);
     const totalAssetPreviousYear = Number(summary?.total_asset_previous_year || 0);
-    const totalAssetVariance = Number(summary?.total_asset_variance || 0);
     const totalLiabilityEquityProfitCurrentYear = Number(summary?.total_right_side_current_year || 0);
     const totalLiabilityEquityProfitPreviousYear = Number(summary?.total_right_side_previous_year || 0);
-    const totalLiabilityEquityProfitVariance = totalLiabilityEquityProfitCurrentYear - totalLiabilityEquityProfitPreviousYear;
     const balanceCurrentYear = totalAssetCurrentYear - totalLiabilityEquityProfitCurrentYear;
     const balancePreviousYear = totalAssetPreviousYear - totalLiabilityEquityProfitPreviousYear;
-    const balanceVariance = totalAssetVariance - totalLiabilityEquityProfitVariance;
+    const selectedMonthLabel = monthOptions.find((item) => item.value === Number(listFilters.period))?.label ?? '-';
 
     const safePercentOfAsset = (value, totalAsset) => (Math.abs(totalAsset) > 0.000001
         ? (Number(value || 0) / totalAsset) * 100
@@ -131,13 +128,7 @@ export default function Index() {
                 </div>
 
                 <div className='rounded-lg border bg-white p-4 dark:border-gray-900 dark:bg-gray-950'>
-                    <div className='grid grid-cols-1 gap-3 md:grid-cols-8'>
-                        <div>
-                            <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>Konsep</label>
-                            <div className='rounded border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'>
-                                Carry Forward (MTD = YTD)
-                            </div>
-                        </div>
+                    <div className='grid grid-cols-1 gap-3 md:grid-cols-7'>
                         <div>
                             <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>Company</label>
                             <select className='w-full rounded border-gray-300 bg-white text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100' value={listFilters.company_id} onChange={(e) => updateFilter('company_id', e.target.value)}>
@@ -171,11 +162,6 @@ export default function Index() {
                             </select>
                         </div>
                         <div className='flex items-end'>
-                            <span className='inline-flex rounded border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300'>
-                                Drill COA Level {listFilters.drill_level}
-                            </span>
-                        </div>
-                        <div className='flex items-end'>
                             <button
                                 type='button'
                                 onClick={exportPdf}
@@ -192,49 +178,29 @@ export default function Index() {
                         <Table className='overflow-visible rounded-none border-0'>
                             <Table.Thead>
                                 <tr>
-                                    <Table.Th className='sticky top-0 z-30 bg-gray-50 dark:bg-gray-950'>Segment</Table.Th>
-                                    <Table.Th className='sticky top-0 z-30 bg-gray-50 dark:bg-gray-950'>COA</Table.Th>
-                                    <Table.Th className='sticky top-0 z-30 bg-gray-50 text-right dark:bg-gray-950'>Current Year</Table.Th>
+                                    <Table.Th className='sticky top-0 z-30 w-[180px] bg-gray-50 dark:bg-gray-950'>Segment</Table.Th>
+                                    <Table.Th className='sticky top-0 z-30 min-w-[320px] bg-gray-50 dark:bg-gray-950'>COA</Table.Th>
+                                    <Table.Th className='sticky top-0 z-30 bg-gray-50 text-right dark:bg-gray-950'>Current Month (Jan-{selectedMonthLabel} {listFilters.year})</Table.Th>
                                     <Table.Th className='sticky top-0 z-30 bg-gray-50 text-right dark:bg-gray-950'>% Total Asset</Table.Th>
-                                    <Table.Th className='sticky top-0 z-30 bg-gray-50 text-right dark:bg-gray-950'>Tahun Sebelumnya</Table.Th>
+                                    <Table.Th className='sticky top-0 z-30 bg-gray-50 text-right dark:bg-gray-950'>Year to Date (Jan-{selectedMonthLabel} {listFilters.year})</Table.Th>
                                     <Table.Th className='sticky top-0 z-30 bg-gray-50 text-right dark:bg-gray-950'>% Total Asset</Table.Th>
-                                    <Table.Th className='sticky top-0 z-30 bg-gray-50 text-right dark:bg-gray-950'>Variance</Table.Th>
+                                    <Table.Th className='sticky top-0 z-30 bg-gray-50 text-right dark:bg-gray-950'>Last Year to Date (Jan-{selectedMonthLabel} {Number(listFilters.year) - 1})</Table.Th>
                                     <Table.Th className='sticky top-0 z-30 bg-gray-50 text-right dark:bg-gray-950'>% Total Asset</Table.Th>
                                 </tr>
                             </Table.Thead>
                             <Table.Tbody>
                                 {rows.length > 0 ? rows.map((row, index) => (
                                     <tr key={`${row.segment_key}-${row.coa_code ?? row.coa_level_1}-${index}`} className={getRowTone(row)}>
-                                        <Table.Td className='font-semibold'>{row.segment}</Table.Td>
-                                        <Table.Td>
-                                            <div className='flex items-center gap-2'>
-                                                <button
-                                                    type='button'
-                                                    className='inline-flex h-5 w-5 items-center justify-center rounded border border-gray-300 bg-white text-xs font-semibold text-gray-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100'
-                                                    onClick={() => updateFilter('drill_level', listFilters.drill_level - 1)}
-                                                    disabled={listFilters.drill_level <= 1}
-                                                    title='Drill up'
-                                                >
-                                                    -
-                                                </button>
-                                                <button
-                                                    type='button'
-                                                    className='inline-flex h-5 w-5 items-center justify-center rounded border border-gray-300 bg-white text-xs font-semibold text-gray-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100'
-                                                    onClick={() => updateFilter('drill_level', listFilters.drill_level + 1)}
-                                                    disabled={!canDrillDown}
-                                                    title='Drill down'
-                                                >
-                                                    +
-                                                </button>
-                                                <span className='font-medium'>{getDisplayLabel(row, listFilters.drill_level)}</span>
-                                            </div>
+                                        <Table.Td className='!py-3 font-semibold'>{row.segment}</Table.Td>
+                                        <Table.Td className='!py-3 !pl-2'>
+                                            <span className='font-medium'>{getDisplayLabel(row, listFilters.drill_level)}</span>
                                         </Table.Td>
-                                        <Table.Td className={getAmountClass(row.current_year)}>{formatAmount(row.current_year)}</Table.Td>
-                                        <Table.Td className='text-right'>{formatPercent(row.current_year_percent_asset)}</Table.Td>
-                                        <Table.Td className={getAmountClass(row.previous_year)}>{formatAmount(row.previous_year)}</Table.Td>
-                                        <Table.Td className='text-right'>{formatPercent(row.previous_year_percent_asset)}</Table.Td>
-                                        <Table.Td className={getAmountClass(row.variance)}>{formatAmount(row.variance)}</Table.Td>
-                                        <Table.Td className='text-right'>{formatPercent(row.variance_percent_asset)}</Table.Td>
+                                        <Table.Td className={`!py-3 ${getAmountClass(row.current_year)}`}>{formatAmount(row.current_year)}</Table.Td>
+                                        <Table.Td className='!py-3 text-right'>{formatPercent(row.current_year_percent_asset)}</Table.Td>
+                                        <Table.Td className={`!py-3 ${getAmountClass(row.current_year)}`}>{formatAmount(row.current_year)}</Table.Td>
+                                        <Table.Td className='!py-3 text-right'>{formatPercent(row.current_year_percent_asset)}</Table.Td>
+                                        <Table.Td className={`!py-3 ${getAmountClass(row.previous_year)}`}>{formatAmount(row.previous_year)}</Table.Td>
+                                        <Table.Td className='!py-3 text-right'>{formatPercent(row.previous_year_percent_asset)}</Table.Td>
                                     </tr>
                                 )) : (
                                     <Table.Empty colSpan={8} message={(
@@ -257,9 +223,9 @@ export default function Index() {
                                             <Table.Td className='sticky bottom-[104px] z-20 bg-slate-100/95 font-semibold dark:bg-slate-900'>Total Asset</Table.Td>
                                             <Table.Td className={`sticky bottom-[104px] z-20 bg-slate-100/95 ${getAmountClass(totalAssetCurrentYear)} dark:bg-slate-900`}>{formatAmount(totalAssetCurrentYear)}</Table.Td>
                                             <Table.Td className='sticky bottom-[104px] z-20 bg-slate-100/95 text-right dark:bg-slate-900'>100.00%</Table.Td>
-                                            <Table.Td className={`sticky bottom-[104px] z-20 bg-slate-100/95 ${getAmountClass(totalAssetPreviousYear)} dark:bg-slate-900`}>{formatAmount(totalAssetPreviousYear)}</Table.Td>
+                                            <Table.Td className={`sticky bottom-[104px] z-20 bg-slate-100/95 ${getAmountClass(totalAssetCurrentYear)} dark:bg-slate-900`}>{formatAmount(totalAssetCurrentYear)}</Table.Td>
                                             <Table.Td className='sticky bottom-[104px] z-20 bg-slate-100/95 text-right dark:bg-slate-900'>100.00%</Table.Td>
-                                            <Table.Td className={`sticky bottom-[104px] z-20 bg-slate-100/95 ${getAmountClass(totalAssetVariance)} dark:bg-slate-900`}>{formatAmount(totalAssetVariance)}</Table.Td>
+                                            <Table.Td className={`sticky bottom-[104px] z-20 bg-slate-100/95 ${getAmountClass(totalAssetPreviousYear)} dark:bg-slate-900`}>{formatAmount(totalAssetPreviousYear)}</Table.Td>
                                             <Table.Td className='sticky bottom-[104px] z-20 bg-slate-100/95 text-right dark:bg-slate-900'>100.00%</Table.Td>
                                         </tr>
                                         <tr className='bg-slate-100/90 text-slate-900 dark:bg-slate-900 dark:text-slate-100'>
@@ -267,20 +233,20 @@ export default function Index() {
                                             <Table.Td className='sticky bottom-[52px] z-20 bg-slate-100/95 font-semibold dark:bg-slate-900'>Total Liability + Equity + Current Year Profit</Table.Td>
                                             <Table.Td className={`sticky bottom-[52px] z-20 bg-slate-100/95 ${getAmountClass(totalLiabilityEquityProfitCurrentYear)} dark:bg-slate-900`}>{formatAmount(totalLiabilityEquityProfitCurrentYear)}</Table.Td>
                                             <Table.Td className='sticky bottom-[52px] z-20 bg-slate-100/95 text-right dark:bg-slate-900'>{formatPercent(safePercentOfAsset(totalLiabilityEquityProfitCurrentYear, totalAssetCurrentYear))}</Table.Td>
+                                            <Table.Td className={`sticky bottom-[52px] z-20 bg-slate-100/95 ${getAmountClass(totalLiabilityEquityProfitCurrentYear)} dark:bg-slate-900`}>{formatAmount(totalLiabilityEquityProfitCurrentYear)}</Table.Td>
+                                            <Table.Td className='sticky bottom-[52px] z-20 bg-slate-100/95 text-right dark:bg-slate-900'>{formatPercent(safePercentOfAsset(totalLiabilityEquityProfitCurrentYear, totalAssetCurrentYear))}</Table.Td>
                                             <Table.Td className={`sticky bottom-[52px] z-20 bg-slate-100/95 ${getAmountClass(totalLiabilityEquityProfitPreviousYear)} dark:bg-slate-900`}>{formatAmount(totalLiabilityEquityProfitPreviousYear)}</Table.Td>
                                             <Table.Td className='sticky bottom-[52px] z-20 bg-slate-100/95 text-right dark:bg-slate-900'>{formatPercent(safePercentOfAsset(totalLiabilityEquityProfitPreviousYear, totalAssetPreviousYear))}</Table.Td>
-                                            <Table.Td className={`sticky bottom-[52px] z-20 bg-slate-100/95 ${getAmountClass(totalLiabilityEquityProfitVariance)} dark:bg-slate-900`}>{formatAmount(totalLiabilityEquityProfitVariance)}</Table.Td>
-                                            <Table.Td className='sticky bottom-[52px] z-20 bg-slate-100/95 text-right dark:bg-slate-900'>{formatPercent(safePercentOfAsset(totalLiabilityEquityProfitVariance, totalAssetVariance))}</Table.Td>
                                         </tr>
                                         <tr className='bg-slate-100/90 text-slate-900 dark:bg-slate-900 dark:text-slate-100'>
                                             <Table.Td className='sticky bottom-0 z-20 bg-slate-100/95 font-semibold dark:bg-slate-900'>Balance</Table.Td>
                                             <Table.Td className='sticky bottom-0 z-20 bg-slate-100/95 font-semibold dark:bg-slate-900'>Balance = Total Asset - (Total Liability + Equity + Current Year Profit)</Table.Td>
                                             <Table.Td className={`sticky bottom-0 z-20 bg-slate-100/95 ${getAmountClass(balanceCurrentYear)} dark:bg-slate-900`}>{formatAmount(balanceCurrentYear)}</Table.Td>
                                             <Table.Td className='sticky bottom-0 z-20 bg-slate-100/95 text-right dark:bg-slate-900'>{formatPercent(safePercentOfAsset(balanceCurrentYear, totalAssetCurrentYear))}</Table.Td>
+                                            <Table.Td className={`sticky bottom-0 z-20 bg-slate-100/95 ${getAmountClass(balanceCurrentYear)} dark:bg-slate-900`}>{formatAmount(balanceCurrentYear)}</Table.Td>
+                                            <Table.Td className='sticky bottom-0 z-20 bg-slate-100/95 text-right dark:bg-slate-900'>{formatPercent(safePercentOfAsset(balanceCurrentYear, totalAssetCurrentYear))}</Table.Td>
                                             <Table.Td className={`sticky bottom-0 z-20 bg-slate-100/95 ${getAmountClass(balancePreviousYear)} dark:bg-slate-900`}>{formatAmount(balancePreviousYear)}</Table.Td>
                                             <Table.Td className='sticky bottom-0 z-20 bg-slate-100/95 text-right dark:bg-slate-900'>{formatPercent(safePercentOfAsset(balancePreviousYear, totalAssetPreviousYear))}</Table.Td>
-                                            <Table.Td className={`sticky bottom-0 z-20 bg-slate-100/95 ${getAmountClass(balanceVariance)} dark:bg-slate-900`}>{formatAmount(balanceVariance)}</Table.Td>
-                                            <Table.Td className='sticky bottom-0 z-20 bg-slate-100/95 text-right dark:bg-slate-900'>{formatPercent(safePercentOfAsset(balanceVariance, totalAssetVariance))}</Table.Td>
                                         </tr>
                                     </>
                                 )}
