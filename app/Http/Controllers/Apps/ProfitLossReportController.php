@@ -50,11 +50,6 @@ class ProfitLossReportController extends Controller
             ->map(fn ($value) => (int) $value)
             ->values();
 
-        $reportType = strtoupper($request->string('type')->toString() ?: 'MTD');
-        if (! in_array($reportType, ['MTD', 'YTD'], true)) {
-            $reportType = 'MTD';
-        }
-
         $requestedYear = (int) $request->integer('year');
         $year = $requestedYear > 0
             ? $requestedYear
@@ -78,17 +73,14 @@ class ProfitLossReportController extends Controller
             $status = 'posted';
         }
 
-        $currentYearStart = Carbon::create($year, 1, 1, 0, 0, 0, $timezone)->startOfDay();
         $currentPeriodStart = Carbon::create($year, $period, 1, 0, 0, 0, $timezone)->startOfDay();
         $currentPeriodEnd = $currentPeriodStart->copy()->endOfMonth();
+        $currentYearStart = Carbon::create($year, 1, 1, 0, 0, 0, $timezone)->startOfDay();
 
         $previousYear = $year - 1;
         $previousYearStart = Carbon::create($previousYear, 1, 1, 0, 0, 0, $timezone)->startOfDay();
         $previousPeriodStart = Carbon::create($previousYear, $period, 1, 0, 0, 0, $timezone)->startOfDay();
         $previousPeriodEnd = $previousPeriodStart->copy()->endOfMonth();
-
-        $currentStart = $reportType === 'YTD' ? $currentYearStart->copy() : $currentPeriodStart->copy();
-        $previousStart = $reportType === 'YTD' ? $previousYearStart->copy() : $previousPeriodStart->copy();
 
         $scope = fn (Builder $query) => $query
             ->when($companyId !== 'all', fn (Builder $q) => $q->where('journal_entries.company_id', $companyId))
@@ -109,8 +101,9 @@ class ProfitLossReportController extends Controller
             ->get()
             ->keyBy('account_id');
 
-        $currentMap = $buildBalanceMap($currentStart, $currentPeriodEnd);
-        $previousMap = $buildBalanceMap($previousStart, $previousPeriodEnd);
+        $currentMonthMap = $buildBalanceMap($currentPeriodStart, $currentPeriodEnd);
+        $currentYtdMap = $buildBalanceMap($currentYearStart, $currentPeriodEnd);
+        $lastYearYtdMap = $buildBalanceMap($previousYearStart, $previousPeriodEnd);
 
         $accounts = ChartOfAccount::query()
             ->select('chart_of_accounts.id', 'chart_of_accounts.company_id', 'chart_of_accounts.parent_id', 'chart_of_accounts.code', 'chart_of_accounts.name', 'chart_of_accounts.level', 'chart_of_accounts.normal_balance', 'chart_of_accounts.is_active', 'account_groups.type as account_group_type')
@@ -128,20 +121,24 @@ class ProfitLossReportController extends Controller
             ->orderBy('chart_of_accounts.code')
             ->get();
 
-        $baseRows = $accounts->map(function (ChartOfAccount $account) use ($currentMap, $previousMap) {
-            $currentDebit = (float) ($currentMap->get($account->id)?->debit ?? 0);
-            $currentCredit = (float) ($currentMap->get($account->id)?->credit ?? 0);
-            $previousDebit = (float) ($previousMap->get($account->id)?->debit ?? 0);
-            $previousCredit = (float) ($previousMap->get($account->id)?->credit ?? 0);
+        $baseRows = $accounts->map(function (ChartOfAccount $account) use ($currentMonthMap, $currentYtdMap, $lastYearYtdMap) {
+            $currentMonthDebit = (float) ($currentMonthMap->get($account->id)?->debit ?? 0);
+            $currentMonthCredit = (float) ($currentMonthMap->get($account->id)?->credit ?? 0);
+            $currentYtdDebit = (float) ($currentYtdMap->get($account->id)?->debit ?? 0);
+            $currentYtdCredit = (float) ($currentYtdMap->get($account->id)?->credit ?? 0);
+            $lastYearYtdDebit = (float) ($lastYearYtdMap->get($account->id)?->debit ?? 0);
+            $lastYearYtdCredit = (float) ($lastYearYtdMap->get($account->id)?->credit ?? 0);
 
             $normalBalance = $account->normal_balance === 'credit' ? 'credit' : 'debit';
-            $currentAmount = $normalBalance === 'credit'
-                ? $currentCredit - $currentDebit
-                : $currentDebit - $currentCredit;
-            $previousAmount = $normalBalance === 'credit'
-                ? $previousCredit - $previousDebit
-                : $previousDebit - $previousCredit;
-            $variance = $currentAmount - $previousAmount;
+            $currentMonthAmount = $normalBalance === 'credit'
+                ? $currentMonthCredit - $currentMonthDebit
+                : $currentMonthDebit - $currentMonthCredit;
+            $currentYtdAmount = $normalBalance === 'credit'
+                ? $currentYtdCredit - $currentYtdDebit
+                : $currentYtdDebit - $currentYtdCredit;
+            $lastYearYtdAmount = $normalBalance === 'credit'
+                ? $lastYearYtdCredit - $lastYearYtdDebit
+                : $lastYearYtdDebit - $lastYearYtdCredit;
 
             $level3 = $account->parent;
             $level2 = $level3?->parent;
@@ -160,9 +157,9 @@ class ProfitLossReportController extends Controller
                 'coa_code' => $account->code,
                 'normal_balance' => $normalBalance,
                 'account_group_type' => $account->account_group_type,
-                'current_year' => $currentAmount,
-                'previous_year' => $previousAmount,
-                'variance' => $variance,
+                'current_month' => $currentMonthAmount,
+                'year_to_date' => $currentYtdAmount,
+                'last_year_to_date' => $lastYearYtdAmount,
             ];
         })->values();
 
@@ -187,107 +184,83 @@ class ProfitLossReportController extends Controller
                     'coa_level_4' => $drillLevel >= 4 ? ($first['coa_level_4'] ?? null) : null,
                     'coa_code' => $drillLevel >= 4 ? ($first['coa_code'] ?? null) : null,
                     'account_group_type' => $first['account_group_type'] ?? null,
-                    'current_year' => (float) $items->sum('current_year'),
-                    'previous_year' => (float) $items->sum('previous_year'),
-                    'variance' => (float) $items->sum('variance'),
+                    'current_month' => (float) $items->sum('current_month'),
+                    'year_to_date' => (float) $items->sum('year_to_date'),
+                    'last_year_to_date' => (float) $items->sum('last_year_to_date'),
                 ];
             })
             ->values();
 
-        $totalSalesCurrent = (float) $baseRows->where('account_group_type', 'revenue')->sum('current_year');
-        $totalSalesPrevious = (float) $baseRows->where('account_group_type', 'revenue')->sum('previous_year');
-        $totalSalesVariance = $totalSalesCurrent - $totalSalesPrevious;
-        $totalCogsCurrent = (float) $baseRows->where('account_group_type', 'cogs')->sum('current_year');
-        $totalCogsPrevious = (float) $baseRows->where('account_group_type', 'cogs')->sum('previous_year');
-        $grossProfitCurrent = $totalSalesCurrent - $totalCogsCurrent;
-        $grossProfitPrevious = $totalSalesPrevious - $totalCogsPrevious;
+        $sumByType = function (string $type, string $column) use ($baseRows): float {
+            return (float) $baseRows->where('account_group_type', $type)->sum($column);
+        };
 
-        $totalOperatingExpenseCurrent = (float) $baseRows->where('account_group_type', 'expense')->sum('current_year');
-        $totalOperatingExpensePrevious = (float) $baseRows->where('account_group_type', 'expense')->sum('previous_year');
-        $totalOtherIncomeCurrent = (float) $baseRows->where('account_group_type', 'other_income')->sum('current_year');
-        $totalOtherIncomePrevious = (float) $baseRows->where('account_group_type', 'other_income')->sum('previous_year');
-        $totalOtherExpenseCurrent = (float) $baseRows->where('account_group_type', 'other_expense')->sum('current_year');
-        $totalOtherExpensePrevious = (float) $baseRows->where('account_group_type', 'other_expense')->sum('previous_year');
+        $totalSalesCurrentMonth = $sumByType('revenue', 'current_month');
+        $totalSalesYtd = $sumByType('revenue', 'year_to_date');
+        $totalSalesLastYearYtd = $sumByType('revenue', 'last_year_to_date');
+        $totalCogsCurrentMonth = $sumByType('cogs', 'current_month');
+        $totalCogsYtd = $sumByType('cogs', 'year_to_date');
+        $totalCogsLastYearYtd = $sumByType('cogs', 'last_year_to_date');
+        $totalOperatingExpenseCurrentMonth = $sumByType('expense', 'current_month');
+        $totalOperatingExpenseYtd = $sumByType('expense', 'year_to_date');
+        $totalOperatingExpenseLastYearYtd = $sumByType('expense', 'last_year_to_date');
+        $totalOtherIncomeCurrentMonth = $sumByType('other_income', 'current_month');
+        $totalOtherIncomeYtd = $sumByType('other_income', 'year_to_date');
+        $totalOtherIncomeLastYearYtd = $sumByType('other_income', 'last_year_to_date');
+        $totalOtherExpenseCurrentMonth = $sumByType('other_expense', 'current_month');
+        $totalOtherExpenseYtd = $sumByType('other_expense', 'year_to_date');
+        $totalOtherExpenseLastYearYtd = $sumByType('other_expense', 'last_year_to_date');
 
-        $netProfitBeforeTaxCurrent = $grossProfitCurrent - $totalOperatingExpenseCurrent - $totalOtherIncomeCurrent - $totalOtherExpenseCurrent;
-        $netProfitBeforeTaxPrevious = $grossProfitPrevious - $totalOperatingExpensePrevious - $totalOtherIncomePrevious - $totalOtherExpensePrevious;
+        $totalExpensesCurrentMonth = (float) ($totalCogsCurrentMonth + $totalOperatingExpenseCurrentMonth + $totalOtherExpenseCurrentMonth - $totalOtherIncomeCurrentMonth);
+        $totalExpensesYtd = (float) ($totalCogsYtd + $totalOperatingExpenseYtd + $totalOtherExpenseYtd - $totalOtherIncomeYtd);
+        $totalExpensesLastYearYtd = (float) ($totalCogsLastYearYtd + $totalOperatingExpenseLastYearYtd + $totalOtherExpenseLastYearYtd - $totalOtherIncomeLastYearYtd);
 
-        $incomeTaxCurrent = 0.0;
-        $incomeTaxPrevious = 0.0;
-        $netProfitAfterTaxCurrent = $netProfitBeforeTaxCurrent - $incomeTaxCurrent;
-        $netProfitAfterTaxPrevious = $netProfitBeforeTaxPrevious - $incomeTaxPrevious;
+        $netProfitCurrentMonth = $totalSalesCurrentMonth - $totalExpensesCurrentMonth;
+        $netProfitYtd = $totalSalesYtd - $totalExpensesYtd;
+        $netProfitLastYearYtd = $totalSalesLastYearYtd - $totalExpensesLastYearYtd;
 
-        $totalExpensesCurrent = (float) ($totalCogsCurrent + $totalOperatingExpenseCurrent + $totalOtherExpenseCurrent - $totalOtherIncomeCurrent + $incomeTaxCurrent);
-        $totalExpensesPrevious = (float) ($totalCogsPrevious + $totalOperatingExpensePrevious + $totalOtherExpensePrevious - $totalOtherIncomePrevious + $incomeTaxPrevious);
-        $totalExpensesVariance = $totalExpensesCurrent - $totalExpensesPrevious;
-
-        $netProfitCurrent = $netProfitAfterTaxCurrent;
-        $netProfitPrevious = $netProfitAfterTaxPrevious;
-        $netProfitVariance = $netProfitCurrent - $netProfitPrevious;
-
-        $netProfitMarginCurrent = abs($totalSalesCurrent) > 0.000001
-            ? ($netProfitCurrent / $totalSalesCurrent) * 100
+        $netProfitMarginCurrentMonth = abs($totalSalesCurrentMonth) > 0.000001
+            ? ($netProfitCurrentMonth / $totalSalesCurrentMonth) * 100
             : 0;
-        $netProfitMarginPrevious = abs($totalSalesPrevious) > 0.000001
-            ? ($netProfitPrevious / $totalSalesPrevious) * 100
+        $netProfitMarginYtd = abs($totalSalesYtd) > 0.000001
+            ? ($netProfitYtd / $totalSalesYtd) * 100
             : 0;
-        $netProfitMarginVariance = abs($totalSalesVariance) > 0.000001
-            ? ($netProfitVariance / $totalSalesVariance) * 100
+        $netProfitMarginLastYearYtd = abs($totalSalesLastYearYtd) > 0.000001
+            ? ($netProfitLastYearYtd / $totalSalesLastYearYtd) * 100
             : 0;
 
-        $rows = $rows->map(function (array $row) use ($totalSalesCurrent, $totalSalesPrevious, $totalSalesVariance) {
-            $currentPercent = abs($totalSalesCurrent) > 0.000001
-                ? ($row['current_year'] / $totalSalesCurrent) * 100
+        $rows = $rows->map(function (array $row) use ($totalSalesCurrentMonth, $totalSalesYtd, $totalSalesLastYearYtd) {
+            $currentMonthPercent = abs($totalSalesCurrentMonth) > 0.000001
+                ? ($row['current_month'] / $totalSalesCurrentMonth) * 100
                 : 0;
-            $previousPercent = abs($totalSalesPrevious) > 0.000001
-                ? ($row['previous_year'] / $totalSalesPrevious) * 100
+            $ytdPercent = abs($totalSalesYtd) > 0.000001
+                ? ($row['year_to_date'] / $totalSalesYtd) * 100
                 : 0;
-            $variancePercent = abs($totalSalesVariance) > 0.000001
-                ? ($row['variance'] / $totalSalesVariance) * 100
+            $lastYearYtdPercent = abs($totalSalesLastYearYtd) > 0.000001
+                ? ($row['last_year_to_date'] / $totalSalesLastYearYtd) * 100
                 : 0;
 
             return [
                 ...$row,
-                'current_year_percent_sales' => $currentPercent,
-                'previous_year_percent_sales' => $previousPercent,
-                'variance_percent_sales' => $variancePercent,
+                'current_month_percent_sales' => $currentMonthPercent,
+                'year_to_date_percent_sales' => $ytdPercent,
+                'last_year_to_date_percent_sales' => $lastYearYtdPercent,
             ];
         })->values();
 
         $summary = [
-            'current_year' => (float) $rows->sum('current_year'),
-            'previous_year' => (float) $rows->sum('previous_year'),
-            'variance' => (float) $rows->sum('variance'),
-            'total_sales_current_year' => $totalSalesCurrent,
-            'total_sales_previous_year' => $totalSalesPrevious,
-            'total_sales_variance' => $totalSalesVariance,
-            'total_cogs_current_year' => $totalCogsCurrent,
-            'total_cogs_previous_year' => $totalCogsPrevious,
-            'total_cogs_variance' => $totalCogsCurrent - $totalCogsPrevious,
-            'gross_profit_current_year' => $grossProfitCurrent,
-            'gross_profit_previous_year' => $grossProfitPrevious,
-            'gross_profit_variance' => $grossProfitCurrent - $grossProfitPrevious,
-            'total_operating_expense_current_year' => $totalOperatingExpenseCurrent,
-            'total_operating_expense_previous_year' => $totalOperatingExpensePrevious,
-            'total_operating_expense_variance' => $totalOperatingExpenseCurrent - $totalOperatingExpensePrevious,
-            'net_profit_before_tax_current_year' => $netProfitBeforeTaxCurrent,
-            'net_profit_before_tax_previous_year' => $netProfitBeforeTaxPrevious,
-            'net_profit_before_tax_variance' => $netProfitBeforeTaxCurrent - $netProfitBeforeTaxPrevious,
-            'income_tax_current_year' => $incomeTaxCurrent,
-            'income_tax_previous_year' => $incomeTaxPrevious,
-            'income_tax_variance' => $incomeTaxCurrent - $incomeTaxPrevious,
-            'net_profit_after_tax_current_year' => $netProfitAfterTaxCurrent,
-            'net_profit_after_tax_previous_year' => $netProfitAfterTaxPrevious,
-            'net_profit_after_tax_variance' => $netProfitAfterTaxCurrent - $netProfitAfterTaxPrevious,
-            'total_expenses_current_year' => $totalExpensesCurrent,
-            'total_expenses_previous_year' => $totalExpensesPrevious,
-            'total_expenses_variance' => $totalExpensesVariance,
-            'net_profit_current_year' => $netProfitCurrent,
-            'net_profit_previous_year' => $netProfitPrevious,
-            'net_profit_variance' => $netProfitVariance,
-            'net_profit_margin_current_year' => $netProfitMarginCurrent,
-            'net_profit_margin_previous_year' => $netProfitMarginPrevious,
-            'net_profit_margin_variance' => $netProfitMarginVariance,
+            'current_month' => (float) $rows->sum('current_month'),
+            'year_to_date' => (float) $rows->sum('year_to_date'),
+            'last_year_to_date' => (float) $rows->sum('last_year_to_date'),
+            'total_sales_current_month' => $totalSalesCurrentMonth,
+            'total_sales_year_to_date' => $totalSalesYtd,
+            'total_sales_last_year_to_date' => $totalSalesLastYearYtd,
+            'net_profit_current_month' => $netProfitCurrentMonth,
+            'net_profit_year_to_date' => $netProfitYtd,
+            'net_profit_last_year_to_date' => $netProfitLastYearYtd,
+            'net_profit_margin_current_month' => $netProfitMarginCurrentMonth,
+            'net_profit_margin_year_to_date' => $netProfitMarginYtd,
+            'net_profit_margin_last_year_to_date' => $netProfitMarginLastYearYtd,
         ];
 
         $selectedCompany = $this->resolveSelectedCompany($request, $companyId);
@@ -326,7 +299,6 @@ class ProfitLossReportController extends Controller
                 ['value' => 'cancelled', 'label' => 'Cancelled'],
             ],
             'filters' => [
-                'type' => $reportType,
                 'company_id' => $companyId,
                 'branch_id' => $branchId,
                 'status' => $status,
