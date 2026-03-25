@@ -8,6 +8,7 @@ use App\Http\Controllers\Apps\CurrencyController;
 use App\Http\Controllers\Apps\DashboardController;
 use App\Http\Controllers\Apps\ExchangeRateController;
 use App\Http\Controllers\Apps\GeneralLedgerReportController;
+use App\Http\Controllers\Apps\IndirectCashFlowReportController;
 use App\Http\Controllers\Apps\ProfitLossReportController;
 use App\Http\Controllers\Apps\TrialBalanceReportController;
 use App\Http\Controllers\Apps\DimensionController;
@@ -83,6 +84,7 @@ Route::group(['prefix' => 'apps', 'as' => 'apps.' , 'middleware' => ['auth']], f
     Route::get('/reports/trial-balance', TrialBalanceReportController::class)->name('reports.trial-balance');
     Route::get('/reports/profit-loss', ProfitLossReportController::class)->name('reports.profit-loss');
     Route::get('/reports/balance-sheet', BalanceSheetReportController::class)->name('reports.balance-sheet');
+    Route::get('/reports/indirect-cash-flow', IndirectCashFlowReportController::class)->name('reports.indirect-cash-flow');
 });
 
 require __DIR__.'/auth.php';
