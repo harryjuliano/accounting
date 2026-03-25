@@ -2,20 +2,7 @@ import AppLayout from '@/Layouts/AppLayout';
 import { Head, router, usePage } from '@inertiajs/react';
 import React from 'react';
 
-const monthOptions = [
-    { value: 1, label: 'Jan' },
-    { value: 2, label: 'Feb' },
-    { value: 3, label: 'Mar' },
-    { value: 4, label: 'Apr' },
-    { value: 5, label: 'Mei' },
-    { value: 6, label: 'Jun' },
-    { value: 7, label: 'Jul' },
-    { value: 8, label: 'Agu' },
-    { value: 9, label: 'Sep' },
-    { value: 10, label: 'Okt' },
-    { value: 11, label: 'Nov' },
-    { value: 12, label: 'Des' },
-];
+const monthOptions = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
 const formatAmount = (value) => new Intl.NumberFormat('id-ID', {
     minimumFractionDigits: 0,
@@ -23,11 +10,6 @@ const formatAmount = (value) => new Intl.NumberFormat('id-ID', {
 }).format(Math.abs(Number(value || 0)));
 
 const printAmount = (value) => (Number(value || 0) < 0 ? `(${formatAmount(value)})` : formatAmount(value));
-
-const formatPercent = (value) => `${new Intl.NumberFormat('id-ID', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-}).format(Number(value || 0))}%`;
 
 export default function Index() {
     const { companies, branches, statusOptions, filters, report, yearOptions = [] } = usePage().props;
@@ -42,7 +24,6 @@ export default function Index() {
         branch_id: `${filters?.branch_id ?? 'all'}`,
         status: filters?.status ?? 'posted',
         year: resolvedYear,
-        period: Number(filters?.period ?? now.getMonth() + 1),
     });
 
     const applyFilters = React.useCallback((nextFilters) => {
@@ -68,9 +49,7 @@ export default function Index() {
     };
 
     const rows = report?.rows || [];
-    const salesCurrent = Number(report?.netSales?.current || 0);
-    const salesPrevious = Number(report?.netSales?.previous || 0);
-    const salesVariance = salesCurrent - salesPrevious;
+    const months = report?.months || monthOptions.map((label, index) => ({ value: index + 1, label }));
     const branchOptions = branches.filter((branch) => listFilters.company_id === 'all' || Number(branch.company_id) === Number(listFilters.company_id));
 
     return (
@@ -81,7 +60,7 @@ export default function Index() {
                 <p className='mb-4 text-sm text-gray-500 dark:text-gray-400'>Laporan Keuangan &gt; Arus Kas Tidak Langsung</p>
 
                 <div className='rounded-lg border bg-white p-4 text-gray-800 dark:border-gray-900 dark:bg-gray-950 dark:text-gray-100'>
-                    <div className='grid grid-cols-1 gap-3 md:grid-cols-6'>
+                    <div className='grid grid-cols-1 gap-3 md:grid-cols-5'>
                         <select className='rounded border-gray-300 bg-white text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100' value={listFilters.company_id} onChange={(e) => updateFilter('company_id', e.target.value)}>
                             <option value='all'>All Company</option>
                             {companies.map((company) => <option key={company.id} value={company.id}>{company.name}</option>)}
@@ -96,9 +75,6 @@ export default function Index() {
                         <select className='rounded border-gray-300 bg-white text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100' value={listFilters.year} onChange={(e) => updateFilter('year', Number(e.target.value))}>
                             {yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}
                         </select>
-                        <select className='rounded border-gray-300 bg-white text-sm text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100' value={listFilters.period} onChange={(e) => updateFilter('period', Number(e.target.value))}>
-                            {monthOptions.map((month) => <option key={month.value} value={month.value}>{month.label}</option>)}
-                        </select>
                         <button type='button' onClick={exportPdf} className='rounded bg-blue-600 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-700'>Export PDF</button>
                     </div>
                 </div>
@@ -107,21 +83,20 @@ export default function Index() {
                     <table className='min-w-full border-collapse'>
                         <thead>
                             <tr className='border-b border-gray-200 text-left dark:border-gray-700'>
-                                <th className='py-2'>Uraian</th><th className='py-2 text-right'>{listFilters.year}</th><th className='py-2 text-right'>{listFilters.year - 1}</th><th className='py-2 text-right'>Variance</th>
+                                <th className='py-2'>Uraian</th>
+                                {months.map((month) => (
+                                    <th key={month.value} className='py-2 text-right'>{month.label}</th>
+                                ))}
                             </tr>
                         </thead>
                         <tbody>
                             {rows.map((row, idx) => {
-                                const variance = Number(row.current || 0) - Number(row.previous || 0);
-                                const currPct = salesCurrent ? (Number(row.current || 0) / salesCurrent) * 100 : 0;
-                                const prevPct = salesPrevious ? (Number(row.previous || 0) / salesPrevious) * 100 : 0;
-                                const varPct = salesVariance ? (variance / salesVariance) * 100 : 0;
                                 return (
                                     <tr key={`${row.label}-${idx}`} className='border-b border-gray-200 dark:border-gray-800'>
                                         <td className='py-2'>{row.label}</td>
-                                        <td className='py-2 text-right'>{printAmount(row.current)} <span className='text-xs text-gray-500 dark:text-gray-300'>({formatPercent(currPct)})</span></td>
-                                        <td className='py-2 text-right'>{printAmount(row.previous)} <span className='text-xs text-gray-500 dark:text-gray-300'>({formatPercent(prevPct)})</span></td>
-                                        <td className='py-2 text-right'>{printAmount(variance)} <span className='text-xs text-gray-500 dark:text-gray-300'>({formatPercent(varPct)})</span></td>
+                                        {(row.values || []).map((value, monthIndex) => (
+                                            <td key={`${row.label}-${monthIndex}`} className='py-2 text-right'>{printAmount(value)}</td>
+                                        ))}
                                     </tr>
                                 );
                             })}
