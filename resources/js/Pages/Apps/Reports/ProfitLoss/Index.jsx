@@ -29,20 +29,6 @@ const monthOptions = [
     { value: 12, label: 'Des' },
 ];
 
-const getParentTone = (label) => {
-    const text = `${label ?? ''}`.toLowerCase();
-
-    if (text.includes('pendapatan') || text.includes('revenue')) {
-        return 'bg-blue-50/70 text-blue-900 dark:bg-blue-950/30 dark:text-blue-100';
-    }
-
-    if (text.includes('beban') || text.includes('expense') || text.includes('harga pokok') || text.includes('cogs')) {
-        return 'bg-rose-50/70 text-rose-900 dark:bg-rose-950/30 dark:text-rose-100';
-    }
-
-    return 'bg-slate-50/80 text-slate-800 dark:bg-slate-900/80 dark:text-slate-100';
-};
-
 const getAmountClass = (value, isBold = false) => {
     const weightClass = isBold ? 'font-semibold' : 'font-medium';
 
@@ -68,93 +54,100 @@ const getGeneralLedgerLink = (filters, coaId) => {
 
 const toNumber = (value) => Number(value || 0);
 
-const buildTreeRows = (rows) => {
-    const groups = new Map();
+const buildFlatRows = (rows) => {
+    const map = new Map();
+    const order = [];
 
-    const ensureNode = (key, level, label, parentKey) => {
-        if (!groups.has(key)) {
-            groups.set(key, {
-                key,
-                parentKey,
+    const ensureRow = (id, parentId, level, label, kind = 'group') => {
+        if (!map.has(id)) {
+            const next = {
+                id,
+                parentId,
                 level,
                 label: label || '-',
+                kind,
                 current_month: 0,
                 year_to_date: 0,
                 last_year_to_date: 0,
                 current_month_percent_sales: 0,
                 year_to_date_percent_sales: 0,
                 last_year_to_date_percent_sales: 0,
-                children: new Set(),
                 isLeaf: false,
                 coa_id: null,
-            });
+                coa_code: null,
+            };
+            map.set(id, next);
+            order.push(id);
         }
 
-        return groups.get(key);
+        return map.get(id);
     };
 
     rows.forEach((row, index) => {
-        const level1Key = `l1-${row.coa_level_1_id ?? row.coa_level_1 ?? index}`;
-        const level2Key = `l2-${row.coa_level_2_id ?? `${level1Key}-${row.coa_level_2 ?? index}`}`;
-        const level3Key = `l3-${row.coa_level_3_id ?? `${level2Key}-${row.coa_level_3 ?? index}`}`;
-        const leafKey = `leaf-${row.coa_id ?? row.coa_level_4_id ?? `${level3Key}-${row.coa_code ?? index}`}`;
+        const level1Id = `l1-${row.coa_level_1_id ?? row.coa_level_1 ?? index}`;
+        const level2Id = `l2-${row.coa_level_2_id ?? `${level1Id}-${row.coa_level_2 ?? index}`}`;
+        const level3Id = `l3-${row.coa_level_3_id ?? `${level2Id}-${row.coa_level_3 ?? index}`}`;
+        const leafId = `leaf-${row.coa_id ?? row.coa_level_4_id ?? `${level3Id}-${row.coa_code ?? index}`}`;
 
-        const lvl1 = ensureNode(level1Key, 1, row.coa_level_1, null);
-        const lvl2 = ensureNode(level2Key, 2, row.coa_level_2, level1Key);
-        const lvl3 = ensureNode(level3Key, 3, row.coa_level_3, level2Key);
-        const leaf = ensureNode(leafKey, 4, row.coa_level_4 || row.coa_code, level3Key);
+        const topLabel = `${row.coa_level_1 ?? ''}`.toLowerCase();
+        const topKind = topLabel.includes('pendapatan') || topLabel.includes('revenue')
+            ? 'revenue'
+            : (topLabel.includes('beban') || topLabel.includes('expense') || topLabel.includes('harga pokok') || topLabel.includes('cogs') ? 'expense' : 'group');
 
-        lvl1.children.add(level2Key);
-        lvl2.children.add(level3Key);
-        lvl3.children.add(leafKey);
+        const level1 = ensureRow(level1Id, null, 0, row.coa_level_1, topKind);
+        const level2 = ensureRow(level2Id, level1Id, 1, row.coa_level_2);
+        const level3 = ensureRow(level3Id, level2Id, 2, row.coa_level_3);
+        const leaf = ensureRow(leafId, level3Id, 3, row.coa_level_4 || row.coa_code, 'detail');
 
         const currentMonth = toNumber(row.current_month);
         const ytd = toNumber(row.year_to_date);
-        const lastYear = toNumber(row.last_year_to_date);
+        const lastYtd = toNumber(row.last_year_to_date);
 
-        [lvl1, lvl2, lvl3].forEach((node) => {
-            node.current_month += currentMonth;
-            node.year_to_date += ytd;
-            node.last_year_to_date += lastYear;
+        [level1, level2, level3].forEach((item) => {
+            item.current_month += currentMonth;
+            item.year_to_date += ytd;
+            item.last_year_to_date += lastYtd;
         });
 
         leaf.current_month = currentMonth;
         leaf.year_to_date = ytd;
-        leaf.last_year_to_date = lastYear;
+        leaf.last_year_to_date = lastYtd;
         leaf.current_month_percent_sales = toNumber(row.current_month_percent_sales);
         leaf.year_to_date_percent_sales = toNumber(row.year_to_date_percent_sales);
         leaf.last_year_to_date_percent_sales = toNumber(row.last_year_to_date_percent_sales);
+        leaf.isLeaf = true;
         leaf.coa_id = row.coa_id;
         leaf.coa_code = row.coa_code;
-        leaf.isLeaf = true;
     });
 
-    const level1Nodes = Array.from(groups.values()).filter((node) => node.level === 1);
+    const topRevenue = order
+        .map((id) => map.get(id))
+        .filter((row) => row.level === 0 && row.kind === 'revenue');
 
-    const calcPercent = (value, totalRevenue) => {
-        if (Math.abs(totalRevenue) <= 0.000001) return 0;
+    const calcPercent = (value, total) => (Math.abs(total) <= 0.000001 ? 0 : ((value / total) * 100));
+    const totalCurrent = topRevenue.reduce((acc, item) => acc + item.current_month, 0);
+    const totalYtd = topRevenue.reduce((acc, item) => acc + item.year_to_date, 0);
+    const totalLastYtd = topRevenue.reduce((acc, item) => acc + item.last_year_to_date, 0);
 
-        return (value / totalRevenue) * 100;
+    order.forEach((id) => {
+        const item = map.get(id);
+        if (item.isLeaf) return;
+        item.current_month_percent_sales = calcPercent(item.current_month, totalCurrent);
+        item.year_to_date_percent_sales = calcPercent(item.year_to_date, totalYtd);
+        item.last_year_to_date_percent_sales = calcPercent(item.last_year_to_date, totalLastYtd);
+    });
+
+    return {
+        order,
+        map,
+        childrenMap: order.reduce((carry, id) => {
+            const item = map.get(id);
+            const key = item.parentId ?? '__root__';
+            if (!carry.has(key)) carry.set(key, []);
+            carry.get(key).push(id);
+            return carry;
+        }, new Map()),
     };
-
-    const totalRevenueCurrentMonth = level1Nodes
-        .filter((node) => `${node.label}`.toLowerCase().includes('pendapatan') || `${node.label}`.toLowerCase().includes('revenue'))
-        .reduce((carry, node) => carry + node.current_month, 0);
-    const totalRevenueYtd = level1Nodes
-        .filter((node) => `${node.label}`.toLowerCase().includes('pendapatan') || `${node.label}`.toLowerCase().includes('revenue'))
-        .reduce((carry, node) => carry + node.year_to_date, 0);
-    const totalRevenueLastYear = level1Nodes
-        .filter((node) => `${node.label}`.toLowerCase().includes('pendapatan') || `${node.label}`.toLowerCase().includes('revenue'))
-        .reduce((carry, node) => carry + node.last_year_to_date, 0);
-
-    groups.forEach((node) => {
-        if (node.isLeaf) return;
-        node.current_month_percent_sales = calcPercent(node.current_month, totalRevenueCurrentMonth);
-        node.year_to_date_percent_sales = calcPercent(node.year_to_date, totalRevenueYtd);
-        node.last_year_to_date_percent_sales = calcPercent(node.last_year_to_date, totalRevenueLastYear);
-    });
-
-    return groups;
 };
 
 export default function Index() {
@@ -205,60 +198,76 @@ export default function Index() {
     const branchOptions = branches.filter((branch) => listFilters.company_id === 'all' || Number(branch.company_id) === Number(listFilters.company_id));
     const selectedMonthLabel = monthOptions.find((item) => item.value === Number(listFilters.period))?.label ?? '-';
 
-    const treeMap = React.useMemo(() => buildTreeRows(rows), [rows]);
-    const topLevelRows = React.useMemo(() => Array.from(treeMap.values()).filter((node) => node.level === 1), [treeMap]);
+    const normalizedRows = React.useMemo(() => buildFlatRows(rows), [rows]);
 
     React.useEffect(() => {
         const defaultExpanded = {};
-        Array.from(treeMap.values())
-            .filter((node) => !node.isLeaf)
-            .forEach((node) => {
-                defaultExpanded[node.key] = node.level <= 2;
-            });
+        normalizedRows.order.forEach((id) => {
+            const row = normalizedRows.map.get(id);
+            if (!row || row.isLeaf) return;
+            if ((normalizedRows.childrenMap.get(id) || []).length > 0) {
+                defaultExpanded[id] = row.level <= 1;
+            }
+        });
         setExpandedNodes(defaultExpanded);
-    }, [treeMap]);
+    }, [normalizedRows]);
 
-    const toggleNode = (key) => {
-        setExpandedNodes((prev) => ({ ...prev, [key]: !prev[key] }));
+    const hasChildren = React.useCallback((id) => (normalizedRows.childrenMap.get(id) || []).length > 0, [normalizedRows]);
+
+    const isVisible = React.useCallback((row) => {
+        if (!row.parentId) return true;
+        let currentParentId = row.parentId;
+        while (currentParentId) {
+            if (!expandedNodes[currentParentId]) return false;
+            currentParentId = normalizedRows.map.get(currentParentId)?.parentId ?? null;
+        }
+
+        return true;
+    }, [expandedNodes, normalizedRows]);
+
+    const rowClass = React.useCallback((row) => {
+        if (row.kind === 'revenue') return 'bg-blue-50/70 text-blue-900 dark:bg-blue-950/30 dark:text-blue-100';
+        if (row.kind === 'expense') return 'bg-rose-50/70 text-rose-900 dark:bg-rose-950/30 dark:text-rose-100';
+        if (!row.isLeaf) return 'bg-slate-50/80 text-slate-800 dark:bg-slate-900/80 dark:text-slate-100';
+        return 'bg-white text-gray-800 dark:bg-gray-950 dark:text-gray-100';
+    }, []);
+
+    const visibleRows = React.useMemo(() => {
+        const base = normalizedRows.order
+            .map((id) => normalizedRows.map.get(id))
+            .filter(Boolean)
+            .filter(isVisible);
+
+        if (viewMode === 'summary') {
+            return base.filter((row) => !row.isLeaf);
+        }
+
+        return base;
+    }, [isVisible, normalizedRows, viewMode]);
+
+    const toggleNode = (id) => {
+        setExpandedNodes((prev) => ({ ...prev, [id]: !prev[id] }));
     };
 
     const expandAll = () => {
         const next = {};
-        Array.from(treeMap.values()).forEach((node) => {
-            if (!node.isLeaf) next[node.key] = true;
+        normalizedRows.order.forEach((id) => {
+            if (hasChildren(id)) {
+                next[id] = true;
+            }
         });
         setExpandedNodes(next);
     };
 
     const collapseAll = () => {
         const next = {};
-        Array.from(treeMap.values()).forEach((node) => {
-            if (!node.isLeaf) next[node.key] = false;
+        normalizedRows.order.forEach((id) => {
+            if (hasChildren(id)) {
+                next[id] = false;
+            }
         });
         setExpandedNodes(next);
     };
-
-    const visibleRows = React.useMemo(() => {
-        const flattened = [];
-
-        const appendNode = (node) => {
-            flattened.push(node);
-            if (node.isLeaf || !expandedNodes[node.key]) return;
-
-            Array.from(node.children)
-                .map((key) => treeMap.get(key))
-                .filter(Boolean)
-                .forEach(appendNode);
-        };
-
-        topLevelRows.forEach(appendNode);
-
-        if (viewMode === 'summary') {
-            return flattened.filter((node) => !node.isLeaf);
-        }
-
-        return flattened;
-    }, [expandedNodes, topLevelRows, treeMap, viewMode]);
 
     return (
         <AppLayout>
@@ -341,18 +350,18 @@ export default function Index() {
                             <Table.Tbody>
                                 {visibleRows.length > 0 ? visibleRows.map((node) => {
                                     const isParent = !node.isLeaf;
-                                    const hasChildren = node.children.size > 0;
-                                    const leftPadding = 12 + ((node.level - 1) * 20);
-                                    const rowTone = isParent ? getParentTone(node.label) : 'bg-white text-gray-800 dark:bg-gray-950 dark:text-gray-100';
+                                    const canToggle = hasChildren(node.id);
+                                    const leftPadding = 12 + (node.level * 28);
+                                    const rowTone = rowClass(node);
                                     const label = node.isLeaf && node.coa_code ? `${node.coa_code} - ${node.label}` : node.label;
 
                                     return (
-                                        <tr key={node.key} className={rowTone}>
+                                        <tr key={node.id} className={rowTone}>
                                             <Table.Td>
                                                 <div className='flex items-center gap-2' style={{ paddingLeft: `${leftPadding}px` }}>
-                                                    {isParent && hasChildren ? (
-                                                        <button type='button' onClick={() => toggleNode(node.key)} className='rounded p-0.5 text-gray-600 hover:bg-gray-200/70 dark:text-gray-300 dark:hover:bg-gray-800/70'>
-                                                            {expandedNodes[node.key] ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
+                                                    {isParent && canToggle ? (
+                                                        <button type='button' onClick={() => toggleNode(node.id)} className='rounded border border-gray-300 p-0.5 text-gray-600 hover:bg-gray-200/70 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800/70'>
+                                                            {expandedNodes[node.id] ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
                                                         </button>
                                                     ) : (
                                                         <span className='inline-block w-[18px]' />
