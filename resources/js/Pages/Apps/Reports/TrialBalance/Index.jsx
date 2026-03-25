@@ -153,7 +153,16 @@ export default function Index() {
 
 
                 <div className='mt-4 overflow-hidden rounded-lg border bg-white dark:border-gray-900 dark:bg-gray-950'>
-                    <Table>
+                    <Table tableClassName='table-fixed'>
+                        <colgroup>
+                            <col className='w-16' />
+                            <col className='w-32' />
+                            <col />
+                            <col className='w-48' />
+                            <col className='w-48' />
+                            <col className='w-48' />
+                            <col className='w-48' />
+                        </colgroup>
                         <Table.Thead>
                             <tr>
                                 <th colSpan={3} className='h-12 px-4 text-left align-middle font-medium text-gray-700 dark:text-gray-100'>Summary</th>
@@ -176,7 +185,16 @@ export default function Index() {
                 </div>
 
                 <div className='mt-4 overflow-hidden rounded-lg border bg-white dark:border-gray-900 dark:bg-gray-950'>
-                    <Table>
+                    <Table tableClassName='table-fixed'>
+                        <colgroup>
+                            <col className='w-16' />
+                            <col className='w-32' />
+                            <col />
+                            <col className='w-48' />
+                            <col className='w-48' />
+                            <col className='w-48' />
+                            <col className='w-48' />
+                        </colgroup>
                         <Table.Thead>
                             <tr>
                                 <Table.Th>No</Table.Th>
