@@ -156,7 +156,7 @@ export default function Index() {
                     <Table>
                         <Table.Thead>
                             <tr>
-                                <th colSpan={5} className='h-12 px-4 text-left align-middle font-medium text-gray-700 dark:text-gray-100'>Summary</th>
+                                <th colSpan={3} className='h-12 px-4 text-left align-middle font-medium text-gray-700 dark:text-gray-100'>Summary</th>
                                 <Table.Th className='text-right'>Total: Saldo Awal</Table.Th>
                                 <Table.Th className='text-right'>Total: Mutasi Debet</Table.Th>
                                 <Table.Th className='text-right'>Total: Mutasi Kredit</Table.Th>
@@ -165,7 +165,7 @@ export default function Index() {
                         </Table.Thead>
                         <Table.Tbody>
                             <tr>
-                                <td colSpan={5} className='whitespace-nowrap p-4 align-middle text-gray-700 dark:text-gray-200' />
+                                <td colSpan={3} className='whitespace-nowrap p-4 align-middle text-gray-700 dark:text-gray-200' />
                                 <Table.Td className='text-right font-medium'>{formatAmount(summary?.opening_balance)}</Table.Td>
                                 <Table.Td className='text-right font-medium'>{formatAmount(summary?.mutation_debit)}</Table.Td>
                                 <Table.Td className='text-right font-medium'>{formatAmount(summary?.mutation_credit)}</Table.Td>
@@ -179,11 +179,9 @@ export default function Index() {
                     <Table>
                         <Table.Thead>
                             <tr>
-                                <Table.Th>COA Level 1</Table.Th>
-                                <Table.Th>COA Level 2</Table.Th>
-                                <Table.Th>COA Level 3</Table.Th>
-                                <Table.Th>COA Level 4</Table.Th>
+                                <Table.Th>No</Table.Th>
                                 <Table.Th>Kode COA</Table.Th>
+                                <Table.Th>COA Level 4</Table.Th>
                                 <Table.Th className='text-right'>Saldo Awal</Table.Th>
                                 <Table.Th className='text-right'>Mutasi Debet</Table.Th>
                                 <Table.Th className='text-right'>Mutasi Kredit</Table.Th>
@@ -193,20 +191,18 @@ export default function Index() {
                         <Table.Tbody>
                             {rows.length > 0 ? rows.map((row, index) => (
                                 <tr key={`${row.coa_code}-${index}`}>
-                                    <Table.Td>{row.coa_level_1 || '-'}</Table.Td>
-                                    <Table.Td>{row.coa_level_2 || '-'}</Table.Td>
-                                    <Table.Td>{row.coa_level_3 || '-'}</Table.Td>
-                                    <Table.Td>
-                                        {row.coa_level_4 ? (
-                                            <a href={getGeneralLedgerLink(row.coa_id)} className='text-blue-600 hover:underline dark:text-blue-400'>
-                                                {row.coa_level_4}
-                                            </a>
-                                        ) : '-'}
-                                    </Table.Td>
+                                    <Table.Td>{index + 1}</Table.Td>
                                     <Table.Td>
                                         {row.coa_code ? (
                                             <a href={getGeneralLedgerLink(row.coa_id)} className='text-blue-600 hover:underline dark:text-blue-400'>
                                                 {row.coa_code}
+                                            </a>
+                                        ) : '-'}
+                                    </Table.Td>
+                                    <Table.Td>
+                                        {row.coa_level_4 ? (
+                                            <a href={getGeneralLedgerLink(row.coa_id)} className='text-blue-600 hover:underline dark:text-blue-400'>
+                                                {row.coa_level_4}
                                             </a>
                                         ) : '-'}
                                     </Table.Td>
@@ -216,7 +212,7 @@ export default function Index() {
                                     <Table.Td className='text-right font-medium'>{formatAmount(row.closing_balance)}</Table.Td>
                                 </tr>
                             )) : (
-                                <Table.Empty colSpan={9} message={
+                                <Table.Empty colSpan={7} message={
                                     <div className='flex flex-col items-center gap-1 text-sm text-gray-500 dark:text-gray-300'>
                                         <IconDatabaseOff size={24} />
                                         <span>Data Trial Balance tidak ditemukan.</span>
