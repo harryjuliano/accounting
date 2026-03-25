@@ -18,6 +18,75 @@ class TrialBalanceReportController extends Controller
 
     public function __invoke(Request $request)
     {
+        $report = $this->buildReportData($request);
+
+        return inertia('Apps/Reports/TrialBalance/Index', [
+            'rows' => $report['rows'],
+            'summary' => $report['summary'],
+            'yearOptions' => $report['yearOptions'],
+            'companies' => $this->getAccessibleCompanies(),
+            'branches' => Branch::query()
+                ->select('id', 'company_id', 'code', 'name')
+                ->where('is_active', true)
+                ->when($this->isCompanyAdmin(), fn (Builder $query) => $query->where('company_id', $request->user()->company_id))
+                ->orderBy('code')
+                ->get(),
+            'statusOptions' => [
+                ['value' => 'all', 'label' => 'All'],
+                ['value' => 'draft', 'label' => 'Draft'],
+                ['value' => 'pending_approval', 'label' => 'Pending Approval'],
+                ['value' => 'approved', 'label' => 'Approved'],
+                ['value' => 'posted', 'label' => 'Posted'],
+                ['value' => 'reversed', 'label' => 'Reversed'],
+                ['value' => 'cancelled', 'label' => 'Cancelled'],
+            ],
+            'filters' => $report['filters'],
+        ]);
+    }
+
+    public function export(Request $request)
+    {
+        $report = $this->buildReportData($request);
+        $rows = $report['rows'];
+        $summary = $report['summary'];
+        $filters = $report['filters'];
+        $filename = sprintf('trial-balance-%s-%s.csv', strtolower($filters['type']), now()->format('Ymd-His'));
+
+        return response()->streamDownload(function () use ($rows, $summary) {
+            $output = fopen('php://output', 'w');
+
+            fputcsv($output, ['COA Level 1', 'COA Level 2', 'COA Level 3', 'COA Level 4', 'Kode COA', 'Saldo Awal', 'Mutasi Debet', 'Mutasi Kredit', 'Saldo Akhir']);
+
+            foreach ($rows as $row) {
+                fputcsv($output, [
+                    $row['coa_level_1'] ?? '',
+                    $row['coa_level_2'] ?? '',
+                    $row['coa_level_3'] ?? '',
+                    $row['coa_level_4'] ?? '',
+                    $row['coa_code'] ?? '',
+                    round((float) $row['opening_balance'], 2),
+                    round((float) $row['mutation_debit'], 2),
+                    round((float) $row['mutation_credit'], 2),
+                    round((float) $row['closing_balance'], 2),
+                ]);
+            }
+
+            fputcsv($output, []);
+            fputcsv($output, ['TOTAL', '', '', '', '',
+                round((float) $summary['opening_balance'], 2),
+                round((float) $summary['mutation_debit'], 2),
+                round((float) $summary['mutation_credit'], 2),
+                round((float) $summary['closing_balance'], 2),
+            ]);
+
+            fclose($output);
+        }, $filename, [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
+    }
+
+    private function buildReportData(Request $request): array
+    {
         $timezone = $request->user()?->company?->timezone ?? config('app.timezone', 'UTC');
         $now = Carbon::now($timezone);
 
@@ -153,26 +222,10 @@ class TrialBalanceReportController extends Controller
             'closing_balance' => (float) $rows->sum('closing_balance'),
         ];
 
-        return inertia('Apps/Reports/TrialBalance/Index', [
+        return [
             'rows' => $rows,
             'summary' => $summary,
             'yearOptions' => $yearOptions,
-            'companies' => $this->getAccessibleCompanies(),
-            'branches' => Branch::query()
-                ->select('id', 'company_id', 'code', 'name')
-                ->where('is_active', true)
-                ->when($this->isCompanyAdmin(), fn (Builder $query) => $query->where('company_id', $request->user()->company_id))
-                ->orderBy('code')
-                ->get(),
-            'statusOptions' => [
-                ['value' => 'all', 'label' => 'All'],
-                ['value' => 'draft', 'label' => 'Draft'],
-                ['value' => 'pending_approval', 'label' => 'Pending Approval'],
-                ['value' => 'approved', 'label' => 'Approved'],
-                ['value' => 'posted', 'label' => 'Posted'],
-                ['value' => 'reversed', 'label' => 'Reversed'],
-                ['value' => 'cancelled', 'label' => 'Cancelled'],
-            ],
             'filters' => [
                 'type' => $reportType,
                 'company_id' => $companyId,
@@ -181,6 +234,6 @@ class TrialBalanceReportController extends Controller
                 'year' => $year,
                 'period' => $period,
             ],
-        ]);
+        ];
     }
 }

@@ -2,7 +2,7 @@ import AppLayout from '@/Layouts/AppLayout';
 import { Head, router, usePage } from '@inertiajs/react';
 import React from 'react';
 import Table from '@/Components/Table';
-import { IconDatabaseOff } from '@tabler/icons-react';
+import { IconDatabaseOff, IconFileSpreadsheet } from '@tabler/icons-react';
 
 const formatAmount = (value) => new Intl.NumberFormat('id-ID', {
     minimumFractionDigits: 2,
@@ -55,6 +55,19 @@ export default function Index() {
         applyFilters(nextFilters);
     };
 
+    const exportExcel = () => {
+        const params = new URLSearchParams({
+            type: listFilters.type,
+            company_id: listFilters.company_id,
+            branch_id: listFilters.branch_id,
+            status: listFilters.status,
+            year: `${listFilters.year}`,
+            period: `${listFilters.period}`,
+        });
+
+        window.location.href = `${route('apps.reports.trial-balance.export')}?${params.toString()}`;
+    };
+
     const branchOptions = branches.filter((branch) => listFilters.company_id === 'all' || Number(branch.company_id) === Number(listFilters.company_id));
     const getGeneralLedgerLink = (coaId) => {
         const periodStart = new Date(Date.UTC(Number(listFilters.year), Number(listFilters.period) - 1, 1));
@@ -79,9 +92,19 @@ export default function Index() {
         <AppLayout>
             <Head title='Trial Balance Report' />
             <div className='p-6'>
-                <div className='mb-4'>
-                    <h1 className='text-xl font-semibold text-gray-800 dark:text-gray-100'>Trial Balance Report</h1>
-                    <p className='text-sm text-gray-500 dark:text-gray-400'>Laporan Keuangan &gt; Trial Balance</p>
+                <div className='mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between'>
+                    <div>
+                        <h1 className='text-xl font-semibold text-gray-800 dark:text-gray-100'>Trial Balance Report</h1>
+                        <p className='text-sm text-gray-500 dark:text-gray-400'>Laporan Keuangan &gt; Trial Balance</p>
+                    </div>
+                    <button
+                        type='button'
+                        onClick={exportExcel}
+                        className='inline-flex items-center gap-2 rounded-md bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700'
+                    >
+                        <IconFileSpreadsheet size={16} strokeWidth={1.5} />
+                        Export Excel
+                    </button>
                 </div>
 
                 <div className='rounded-lg border bg-white p-4 dark:border-gray-900 dark:bg-gray-950'>
@@ -133,6 +156,7 @@ export default function Index() {
                     <Table>
                         <Table.Thead>
                             <tr>
+                                <th colSpan={5} className='h-12 px-4 text-left align-middle font-medium text-gray-700 dark:text-gray-100'>Summary</th>
                                 <Table.Th className='text-right'>Total: Saldo Awal</Table.Th>
                                 <Table.Th className='text-right'>Total: Mutasi Debet</Table.Th>
                                 <Table.Th className='text-right'>Total: Mutasi Kredit</Table.Th>
@@ -141,6 +165,7 @@ export default function Index() {
                         </Table.Thead>
                         <Table.Tbody>
                             <tr>
+                                <td colSpan={5} className='whitespace-nowrap p-4 align-middle text-gray-700 dark:text-gray-200' />
                                 <Table.Td className='text-right font-medium'>{formatAmount(summary?.opening_balance)}</Table.Td>
                                 <Table.Td className='text-right font-medium'>{formatAmount(summary?.mutation_debit)}</Table.Td>
                                 <Table.Td className='text-right font-medium'>{formatAmount(summary?.mutation_credit)}</Table.Td>

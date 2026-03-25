@@ -408,3 +408,137 @@ it('defaults trial balance filter year to latest posting year and keeps YTD peri
         ->and($response->json('props.yearOptions.0'))->toBe(2025)
         ->and($response->json('props.summary.mutation_debit'))->toBe(75.0);
 });
+
+it('exports trial balance as csv with numeric values for spreadsheet calculation', function () {
+    $user = User::factory()->create();
+
+    $company = Company::create([
+        'code' => 'CMP-TB-3',
+        'name' => 'PT Trial Balance Export',
+        'base_currency_code' => 'IDR',
+        'country_code' => 'ID',
+    ]);
+
+    $branch = Branch::create([
+        'company_id' => $company->id,
+        'code' => 'SBY',
+        'name' => 'Surabaya',
+        'is_active' => true,
+    ]);
+
+    Currency::firstOrCreate(['code' => 'IDR'], [
+        'name' => 'Rupiah',
+        'symbol' => 'Rp',
+        'decimal_places' => 2,
+        'is_active' => true,
+    ]);
+
+    $fiscalYear = FiscalYear::create([
+        'company_id' => $company->id,
+        'year_label' => '2026',
+        'start_date' => '2026-01-01',
+        'end_date' => '2026-12-31',
+        'status' => 'open',
+    ]);
+
+    $periodJan = AccountingPeriod::create([
+        'company_id' => $company->id,
+        'fiscal_year_id' => $fiscalYear->id,
+        'period_no' => 1,
+        'period_name' => 'January 2026',
+        'start_date' => '2026-01-01',
+        'end_date' => '2026-01-31',
+        'status' => 'open',
+    ]);
+
+    $coaLevel1 = ChartOfAccount::create([
+        'company_id' => $company->id,
+        'code' => '1000',
+        'name' => 'Assets',
+        'level' => 1,
+        'account_type' => 'assets',
+        'normal_balance' => 'debit',
+        'financial_statement_group' => 'balance_sheet',
+    ]);
+
+    $coaLevel2 = ChartOfAccount::create([
+        'company_id' => $company->id,
+        'parent_id' => $coaLevel1->id,
+        'code' => '1100',
+        'name' => 'Current Assets',
+        'level' => 2,
+        'account_type' => 'assets',
+        'normal_balance' => 'debit',
+        'financial_statement_group' => 'balance_sheet',
+    ]);
+
+    $coaLevel3 = ChartOfAccount::create([
+        'company_id' => $company->id,
+        'parent_id' => $coaLevel2->id,
+        'code' => '1110',
+        'name' => 'Cash',
+        'level' => 3,
+        'account_type' => 'assets',
+        'normal_balance' => 'debit',
+        'financial_statement_group' => 'balance_sheet',
+    ]);
+
+    $coaLevel4 = ChartOfAccount::create([
+        'company_id' => $company->id,
+        'parent_id' => $coaLevel3->id,
+        'code' => '111001',
+        'name' => 'Cash on Hand',
+        'level' => 4,
+        'account_type' => 'assets',
+        'normal_balance' => 'debit',
+        'financial_statement_group' => 'balance_sheet',
+    ]);
+
+    $entry = JournalEntry::create([
+        'company_id' => $company->id,
+        'branch_id' => $branch->id,
+        'accounting_period_id' => $periodJan->id,
+        'journal_no' => 'JV-2026-EXP',
+        'journal_type' => 'manual',
+        'entry_date' => '2026-01-05',
+        'posting_date' => '2026-01-05',
+        'description' => 'Trial balance export',
+        'currency_code' => 'IDR',
+        'exchange_rate' => 1,
+        'total_debit' => 1234.56,
+        'total_credit' => 0,
+        'status' => 'posted',
+        'created_by' => $user->id,
+    ]);
+
+    JournalLine::create([
+        'journal_entry_id' => $entry->id,
+        'line_no' => 1,
+        'account_id' => $coaLevel4->id,
+        'base_currency_debit' => 1234.56,
+        'base_currency_credit' => 0,
+        'debit' => 1234.56,
+        'credit' => 0,
+        'original_currency_code' => 'IDR',
+        'original_currency_amount' => 1234.56,
+    ]);
+
+    $response = $this
+        ->actingAs($user)
+        ->get(route('apps.reports.trial-balance.export', [
+            'type' => 'YTD',
+            'company_id' => $company->id,
+            'branch_id' => $branch->id,
+            'status' => 'posted',
+            'year' => 2026,
+            'period' => 1,
+        ]))
+        ->assertOk();
+
+    $content = $response->streamedContent();
+
+    expect($response->headers->get('content-type'))->toContain('text/csv')
+        ->and($content)->toContain('COA Level 1,COA Level 2,COA Level 3,COA Level 4,Kode COA,Saldo Awal,Mutasi Debet,Mutasi Kredit,Saldo Akhir')
+        ->and($content)->toContain('111001,0,1234.56,0,1234.56')
+        ->and($content)->toContain('TOTAL,,,,,0,1234.56,0,1234.56');
+});
