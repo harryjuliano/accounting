@@ -4,6 +4,7 @@ import Widget from '@/Components/Widget';
 import AppLayout from '@/Layouts/AppLayout';
 import { Head } from '@inertiajs/react';
 import {
+    IconArrowUpRight,
     IconBook2,
     IconChecklist,
     IconClockCheck,
@@ -14,72 +15,73 @@ import {
     IconScale,
 } from '@tabler/icons-react';
 
-export default function Dashboard() {
+export default function Dashboard({ kpis, statusSummary, periodSummary, topExpenseAccounts, integrationQueue, asOfDate }) {
+    const currency = new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        maximumFractionDigits: 0,
+    });
+
+    const numberFormat = new Intl.NumberFormat('id-ID');
+
     const kpiCards = [
         {
             title: 'Total Aset',
-            subtitle: 'Statement of Financial Position',
-            total: 'Rp 125.450.000.000',
+            subtitle: 'Posisi Keuangan (s.d bulan berjalan)',
+            total: currency.format(kpis.total_asset ?? 0),
             icon: <IconScale size={20} strokeWidth={1.5} />,
         },
         {
             title: 'Laba Bersih YTD',
-            subtitle: 'Profit or Loss',
-            total: 'Rp 8.240.000.000',
+            subtitle: 'Akumulasi tahun berjalan',
+            total: currency.format(kpis.net_profit_ytd ?? 0),
             icon: <IconReportMoney size={20} strokeWidth={1.5} />,
         },
         {
-            title: 'Arus Kas Operasi',
-            subtitle: 'PSAK 207 / IAS 7',
-            total: 'Rp 3.110.000.000',
+            title: 'Posting Bulan Ini',
+            subtitle: `${numberFormat.format(kpis.monthly_posted_entries ?? 0)} jurnal posted`,
+            total: currency.format(kpis.monthly_posted_amount ?? 0),
             icon: <IconReceiptTax size={20} strokeWidth={1.5} />,
         },
     ];
 
     const closingChecklist = [
-        { task: 'Rekonsiliasi AR/AP dengan GL', owner: 'GL Accountant', status: 'Selesai' },
-        { task: 'Depresiasi aset tetap bulanan', owner: 'Finance Admin', status: 'Berjalan' },
-        { task: 'FX revaluation multi-currency', owner: 'Treasury', status: 'Menunggu Approver' },
-        { task: 'Soft close periode Maret 2026', owner: 'Controller', status: 'Belum Dimulai' },
+        {
+            task: 'Jurnal Posted (All Time)',
+            owner: 'General Ledger',
+            status: `${numberFormat.format(statusSummary.posted ?? 0)} jurnal`,
+        },
+        {
+            task: 'Jurnal Menunggu Approval',
+            owner: 'Approver',
+            status: `${numberFormat.format(statusSummary.pending_approval ?? 0)} jurnal`,
+        },
+        {
+            task: 'Jurnal Draft',
+            owner: 'Finance Team',
+            status: `${numberFormat.format(statusSummary.draft ?? 0)} jurnal`,
+        },
+        {
+            task: 'Periode Open / Soft Closed',
+            owner: 'Controller',
+            status: `${numberFormat.format(periodSummary.open ?? 0)} / ${numberFormat.format(periodSummary.soft_closed ?? 0)}`,
+        },
     ];
-
-    const integrationQueue = [
-        { source: 'CRM', event: 'sales_invoice_approved', posted: 142, failed: 2 },
-        { source: 'Procurement', event: 'vendor_bill_approved', posted: 67, failed: 1 },
-        { source: 'Cash Management', event: 'customer_payment_received', posted: 98, failed: 0 },
-        { source: 'Payroll', event: 'payroll_posted', posted: 12, failed: 0 },
-    ];
-
-    const statusBadge = (status) => {
-        const styles = {
-            Selesai: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-500',
-            Berjalan: 'border-blue-500/40 bg-blue-500/10 text-blue-500',
-            'Menunggu Approver': 'border-amber-500/40 bg-amber-500/10 text-amber-500',
-            'Belum Dimulai': 'border-rose-500/40 bg-rose-500/10 text-rose-500',
-        };
-
-        return (
-            <span className={`rounded-full px-2.5 py-1 text-xs font-medium border ${styles[status]}`}>
-                {status}
-            </span>
-        );
-    };
 
     return (
         <>
             <Head title="Accounting Dashboard" />
 
             <div className="mb-6 rounded-lg border bg-gradient-to-r from-slate-900 via-slate-800 to-slate-700 p-6 text-white dark:border-gray-800">
-                <h1 className="text-2xl font-semibold">Accounting & General Ledger Hub</h1>
+                <h1 className="text-2xl font-semibold">Accounting & KPI Dashboard</h1>
                 <p className="mt-2 text-sm text-slate-200">
-                    Single source of truth untuk jurnal, saldo buku besar, period closing, dan pelaporan keuangan
-                    sesuai praktik SAK Indonesia (PSAK) dan IFRS.
+                    KPI di bawah ini dihitung dari data jurnal akuntansi aktual untuk memonitor posisi keuangan,
+                    performa laba-rugi, dan disiplin proses closing.
                 </p>
                 <div className="mt-4 flex flex-wrap gap-2 text-xs">
-                    <span className="rounded-full bg-white/15 px-3 py-1">PSAK 201 - Penyajian Laporan Keuangan</span>
-                    <span className="rounded-full bg-white/15 px-3 py-1">PSAK 207 - Laporan Arus Kas</span>
-                    <span className="rounded-full bg-white/15 px-3 py-1">Comparative Reporting</span>
-                    <span className="rounded-full bg-white/15 px-3 py-1">Period Lock & Audit Trail</span>
+                    <span className="rounded-full bg-white/15 px-3 py-1">As of: {asOfDate}</span>
+                    <span className="rounded-full bg-white/15 px-3 py-1">Period Governance Ready</span>
+                    <span className="rounded-full bg-white/15 px-3 py-1">Jurnal & Subledger Monitoring</span>
                 </div>
             </div>
 
@@ -98,13 +100,13 @@ export default function Dashboard() {
 
             <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-3">
                 <div className="xl:col-span-2">
-                    <Table.Card title="Closing Checklist Bulanan" icon={<IconChecklist size={20} strokeWidth={1.5} />}>
+                    <Table.Card title="KPI Proses Closing" icon={<IconChecklist size={20} strokeWidth={1.5} />}>
                         <Table>
                             <Table.Thead>
                                 <tr>
-                                    <Table.Th>Tahapan</Table.Th>
+                                    <Table.Th>Indikator</Table.Th>
                                     <Table.Th>Owner</Table.Th>
-                                    <Table.Th className="text-center">Status</Table.Th>
+                                    <Table.Th className="text-center">Nilai</Table.Th>
                                 </tr>
                             </Table.Thead>
                             <Table.Tbody>
@@ -112,7 +114,7 @@ export default function Dashboard() {
                                     <tr key={item.task} className="hover:bg-gray-100 dark:hover:bg-gray-900">
                                         <Table.Td>{item.task}</Table.Td>
                                         <Table.Td>{item.owner}</Table.Td>
-                                        <Table.Td className="text-center">{statusBadge(item.status)}</Table.Td>
+                                        <Table.Td className="text-center font-medium">{item.status}</Table.Td>
                                     </tr>
                                 ))}
                             </Table.Tbody>
@@ -122,32 +124,69 @@ export default function Dashboard() {
 
                 <div>
                     <Card
-                        title="Kontrol Governance"
-                        footer={<span className="text-xs text-gray-500">Terakhir diperbarui: 10 Mar 2026 09:00 WIB</span>}
+                        title="Ringkasan Neraca"
+                        footer={<span className="text-xs text-gray-500">Auto-refresh mengikuti data jurnal</span>}
                     >
                         <div className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
-                            <div className="flex items-start gap-2">
-                                <IconLock size={18} className="mt-0.5" />
-                                <span>Periode Feb 2026 sudah hard close dan terkunci untuk posting.</span>
+                            <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                    <IconBook2 size={18} className="mt-0.5" />
+                                    <span>Total Liabilitas</span>
+                                </div>
+                                <span className="font-medium">{currency.format(kpis.total_liability ?? 0)}</span>
                             </div>
-                            <div className="flex items-start gap-2">
-                                <IconClockCheck size={18} className="mt-0.5" />
-                                <span>Seluruh posted journal immutable, koreksi via reversal.</span>
+                            <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                    <IconLock size={18} className="mt-0.5" />
+                                    <span>Total Ekuitas</span>
+                                </div>
+                                <span className="font-medium">{currency.format(kpis.total_equity ?? 0)}</span>
                             </div>
-                            <div className="flex items-start gap-2">
-                                <IconFileAnalytics size={18} className="mt-0.5" />
-                                <span>Audit trail aktif untuk approval, posting, dan perubahan rule.</span>
+                            <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                    <IconClockCheck size={18} className="mt-0.5" />
+                                    <span>Hard Closed Period</span>
+                                </div>
+                                <span className="font-medium">{numberFormat.format(periodSummary.hard_closed ?? 0)} periode</span>
                             </div>
-                            <div className="flex items-start gap-2">
-                                <IconBook2 size={18} className="mt-0.5" />
-                                <span>Template laporan mendukung Neraca, Laba Rugi, OCI, dan Arus Kas.</span>
+                            <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                    <IconFileAnalytics size={18} className="mt-0.5" />
+                                    <span>Audit Closed Period</span>
+                                </div>
+                                <span className="font-medium">{numberFormat.format(periodSummary.audit_closed ?? 0)} periode</span>
                             </div>
                         </div>
                     </Card>
                 </div>
             </div>
 
-            <div className="mt-5">
+            <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
+                <Table.Card title="Top Beban Bulan Berjalan" icon={<IconArrowUpRight size={20} strokeWidth={1.5} />}>
+                    <Table>
+                        <Table.Thead>
+                            <tr>
+                                <Table.Th>Kode COA</Table.Th>
+                                <Table.Th>Akun</Table.Th>
+                                <Table.Th className="text-right">Nominal</Table.Th>
+                            </tr>
+                        </Table.Thead>
+                        <Table.Tbody>
+                            {topExpenseAccounts.length === 0 ? (
+                                <Table.Empty colSpan={3} message="Belum ada transaksi beban di periode ini." />
+                            ) : (
+                                topExpenseAccounts.map((item) => (
+                                    <tr key={`${item.coa_code}-${item.coa_name}`} className="hover:bg-gray-100 dark:hover:bg-gray-900">
+                                        <Table.Td>{item.coa_code}</Table.Td>
+                                        <Table.Td>{item.coa_name}</Table.Td>
+                                        <Table.Td className="text-right font-medium">{currency.format(item.amount)}</Table.Td>
+                                    </tr>
+                                ))
+                            )}
+                        </Table.Tbody>
+                    </Table>
+                </Table.Card>
+
                 <Table.Card title="Subledger Integration Queue" icon={<IconFileAnalytics size={20} strokeWidth={1.5} />}>
                     <Table>
                         <Table.Thead>
@@ -159,16 +198,20 @@ export default function Dashboard() {
                             </tr>
                         </Table.Thead>
                         <Table.Tbody>
-                            {integrationQueue.map((item) => (
-                                <tr key={`${item.source}-${item.event}`} className="hover:bg-gray-100 dark:hover:bg-gray-900">
-                                    <Table.Td>{item.source}</Table.Td>
-                                    <Table.Td>
-                                        <code className="rounded bg-gray-100 px-2 py-1 text-xs dark:bg-gray-900">{item.event}</code>
-                                    </Table.Td>
-                                    <Table.Td className="text-center">{item.posted}</Table.Td>
-                                    <Table.Td className="text-center">{item.failed}</Table.Td>
-                                </tr>
-                            ))}
+                            {integrationQueue.length === 0 ? (
+                                <Table.Empty colSpan={4} message="Belum ada event integrasi pada periode ini." />
+                            ) : (
+                                integrationQueue.map((item) => (
+                                    <tr key={`${item.source}-${item.event}`} className="hover:bg-gray-100 dark:hover:bg-gray-900">
+                                        <Table.Td>{item.source}</Table.Td>
+                                        <Table.Td>
+                                            <code className="rounded bg-gray-100 px-2 py-1 text-xs dark:bg-gray-900">{item.event}</code>
+                                        </Table.Td>
+                                        <Table.Td className="text-center">{item.posted}</Table.Td>
+                                        <Table.Td className="text-center">{item.failed}</Table.Td>
+                                    </tr>
+                                ))
+                            )}
                         </Table.Tbody>
                     </Table>
                 </Table.Card>
