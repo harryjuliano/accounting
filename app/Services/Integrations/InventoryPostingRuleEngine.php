@@ -34,7 +34,8 @@ class InventoryPostingRuleEngine
             ->where('is_active', true)
             ->whereDate('effective_from', '<=', $eventDate)
             ->where(function ($query) use ($eventDate) {
-                $query->whereNull('effective_to')->orWhereDate('effective_to', '>=', $eventDate);
+                $query->whereNull('effective_to')
+                    ->orWhereDate('effective_to', '>=', $eventDate);
             })
             ->orderBy('priority')
             ->orderByDesc('version')
@@ -83,7 +84,18 @@ class InventoryPostingRuleEngine
         $totalCredit = 0.0;
 
         foreach ($rule->lines as $line) {
-            $accountId = $this->resolveAccountId($event, $line->account_source_type, $line->fixed_account_id, $line->mapping_key);
+            $resolvedMappingKey = $this->resolveDynamicMappingKey($line->mapping_key, $payload);
+
+            if ($line->account_source_type === 'mapping' && blank($resolvedMappingKey)) {
+                return [[], 'invalid_mapping_key_placeholder'];
+            }
+
+            $accountId = $this->resolveAccountId(
+                $event,
+                $line->account_source_type,
+                $line->fixed_account_id,
+                $resolvedMappingKey
+            );
 
             if (! $accountId) {
                 return [[], 'account_mapping_not_found'];
@@ -105,6 +117,7 @@ class InventoryPostingRuleEngine
                 'line_no' => $line->line_no,
                 'line_side' => $line->line_side,
                 'account_id' => $accountId,
+                'mapping_key' => $resolvedMappingKey,
                 'amount' => round($amount, 2),
                 'description_template' => $line->description_template,
             ];
@@ -180,6 +193,30 @@ class InventoryPostingRuleEngine
         }
 
         return null;
+    }
+
+    private function resolveDynamicMappingKey(?string $mappingKey, array $payload): ?string
+    {
+        if (blank($mappingKey)) {
+            return $mappingKey;
+        }
+
+        if (! str_contains($mappingKey, '{')) {
+            return $mappingKey;
+        }
+
+        $resolved = preg_replace_callback('/\{(.*?)\}/', function ($matches) use ($payload) {
+            $key = $matches[1];
+            $value = data_get($payload, $key);
+
+            if (is_array($value) || is_object($value) || $value === null || $value === '') {
+                return '';
+            }
+
+            return (string) $value;
+        }, $mappingKey);
+
+        return str_contains($resolved, '{}') ? null : $resolved;
     }
 
     private function markFailed(IntegrationEvent $event, string $error): array
