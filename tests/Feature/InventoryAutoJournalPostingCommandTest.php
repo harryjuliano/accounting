@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\AccountingPeriod;
+use App\Models\Branch;
 use App\Models\ChartOfAccount;
 use App\Models\Company;
 use App\Models\Currency;
@@ -28,6 +29,12 @@ function createPhaseThreeContext(string $periodStatus = 'open'): array
 
     $user = User::factory()->create([
         'company_id' => $company->id,
+    ]);
+
+    $branch = Branch::create([
+        'company_id' => $company->id,
+        'code' => 'BR-01',
+        'name' => 'Main Branch',
     ]);
 
     $fiscalYear = FiscalYear::create([
@@ -68,7 +75,7 @@ function createPhaseThreeContext(string $periodStatus = 'open'): array
         'is_active' => true,
     ]);
 
-    return compact('company', 'user', 'inventoryAccount', 'grniAccount');
+    return compact('company', 'user', 'branch', 'inventoryAccount', 'grniAccount');
 }
 
 it('posts validated inventory event into auto journal entry and journal lines', function () {
@@ -85,7 +92,14 @@ it('posts validated inventory event into auto journal entry and journal lines', 
         'event_datetime' => '2026-03-28 09:00:00',
         'processing_status' => 'validated',
         'payload_json' => [
+            'entry_date' => '2026-03-28',
+            'posting_date' => '2026-03-28',
+            'reference_no' => 'GRN-REF-3001',
+            'description' => 'Inventory receipt auto journal',
             'currency_code' => 'IDR',
+            '_meta' => [
+                'branch_id' => $ctx['branch']->id,
+            ],
             '_posting_preview' => [
                 'currency_code' => 'IDR',
                 'total_debit' => 50000,
@@ -120,6 +134,9 @@ it('posts validated inventory event into auto journal entry and journal lines', 
 
     expect($journal->journal_type)->toBe('auto');
     expect($journal->status)->toBe('posted');
+    expect($journal->branch_id)->toBe($ctx['branch']->id);
+    expect($journal->reference_no)->toBe('GRN-REF-3001');
+    expect($journal->description)->toBe('Inventory receipt auto journal');
     expect((float) $journal->total_debit)->toBe(50000.0);
     expect((float) $journal->total_credit)->toBe(50000.0);
     expect($journal->lines()->count())->toBe(2);
