@@ -70,6 +70,12 @@ Hasil command:
 - event dengan rule valid berubah ke `validated` dan payload menyimpan `_posting_rule` + `_posting_preview`;
 - event tanpa rule/mapping akan menjadi `failed` dengan `error_message`.
 
+> ⚠️ Jalankan command Artisan dari terminal server (bash), **bukan** dari prompt MariaDB (`MariaDB [db]>`).
+>
+> Contoh urutan benar:
+> 1. `exit` dari MariaDB.
+> 2. Di shell project Laravel, jalankan `php artisan integration:inventory:validate --limit=100`.
+
 
 ## Menjalankan Phase 3 (Auto Journal Posting)
 
@@ -82,6 +88,10 @@ php artisan integration:inventory:post --limit=100
 Hasil command:
 - event valid akan menjadi `processed` dan payload menyimpan `_journal_entry_id` + `_journal_no`;
 - jika periode tidak `open` atau akun invalid, event akan menjadi `failed` dengan `error_message`.
+
+Catatan payload amount untuk rule default `INV_RECEIPT_BASIC`:
+- sistem akan baca nilai total dari salah satu field berikut (urut fallback): `payload.amounts.total`, `payload.total_amount`, `payload.amount`;
+- jika semua field amount tidak ada, sistem akan hitung otomatis dari `sum(lines.qty * lines.unit_cost)`.
 
 
 ## Menjalankan Phase 3.1 (Hardening: Logs, Failures, Retry)

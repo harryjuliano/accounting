@@ -112,6 +112,40 @@ it('validates received inventory events using posting rules command', function (
     expect(data_get($event->payload_json, '_posting_preview.total_credit'))->toBe(100000.0);
 });
 
+it('validates received inventory events using total_amount payload field', function () {
+    $ctx = createPostingRuleContext();
+
+    $event = IntegrationEvent::create([
+        'company_id' => $ctx['company']->id,
+        'source_module' => 'inventory',
+        'event_name' => 'inventory.receipt.posted',
+        'idempotency_key' => 'INV-VALIDATE-1002',
+        'payload_json' => [
+            'transaction_type' => 'inventory.receipt.posted',
+            'total_amount' => 500000,
+            'currency_code' => 'IDR',
+            'lines' => [
+                [
+                    'item_code' => 'SKU-TEST',
+                    'qty' => 20,
+                    'unit_cost' => 25000,
+                ],
+            ],
+        ],
+        'event_datetime' => '2026-03-28 10:00:00',
+        'processing_status' => 'received',
+    ]);
+
+    $this->artisan('integration:inventory:validate --limit=10')
+        ->assertSuccessful();
+
+    $event->refresh();
+
+    expect($event->processing_status)->toBe('validated');
+    expect(data_get($event->payload_json, '_posting_preview.total_debit'))->toBe(500000.0);
+    expect(data_get($event->payload_json, '_posting_preview.total_credit'))->toBe(500000.0);
+});
+
 it('marks event failed when posting rule is missing', function () {
     $company = Company::create([
         'code' => 'CMP-NORULE',
