@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
             CurrencySeeder::class,
             ChartOfAccountSeeder::class,
             BranchSeeder::class,
+            InventoryPostingRuleSeeder::class,
         ]);
     }
 }
