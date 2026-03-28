@@ -151,23 +151,30 @@ export default function Menu() {
             details: [
                 {
                     title: 'Manual Journal',
-                    href: '/apps/manual-journals',
-                    active: url.startsWith('/apps/manual-journals'),
                     icon: <IconClipboardText size={20} strokeWidth={1.5} />,
                     permissions: accountingAccess,
+                    subdetails: [
+                        {
+                            title: 'Manual Journal',
+                            href: '/apps/manual-journals',
+                            active: url.startsWith('/apps/manual-journals') && !url.startsWith('/apps/manual-journals/integration-journal'),
+                            icon: <IconClipboardText size={18} strokeWidth={1.5} />,
+                            permissions: accountingAccess,
+                        },
+                        {
+                            title: 'Integration Journal',
+                            href: '/apps/manual-journals/integration-journal',
+                            active: url.startsWith('/apps/manual-journals/integration-journal'),
+                            icon: <IconAdjustments size={18} strokeWidth={1.5} />,
+                            permissions: accountingAccess,
+                        },
+                    ],
                 },
                 {
                     title: 'Recurring & Reversal',
                     href: '#recurring-journal',
                     active: false,
                     icon: <IconArrowsTransferDown size={20} strokeWidth={1.5} />,
-                    permissions: accountingAccess,
-                },
-                {
-                    title: 'Subledger Integration',
-                    href: '#subledger-integration',
-                    active: false,
-                    icon: <IconAdjustments size={20} strokeWidth={1.5} />,
                     permissions: accountingAccess,
                 },
             ],
