@@ -125,11 +125,31 @@ class InventoryPostingRuleEngine
     private function resolveAmount(array $payload, string $amountSource): float
     {
         return match ($amountSource) {
-            'payload_total' => (float) ($payload['amounts']['total'] ?? $payload['amount'] ?? 0),
+            'payload_total' => $this->resolvePayloadTotal($payload),
             'payload_tax' => (float) ($payload['amounts']['tax'] ?? 0),
             'payload_net' => (float) ($payload['amounts']['net'] ?? 0),
             default => 0,
         };
+    }
+
+    private function resolvePayloadTotal(array $payload): float
+    {
+        if (isset($payload['amounts']['total'])) {
+            return (float) $payload['amounts']['total'];
+        }
+
+        if (isset($payload['total_amount'])) {
+            return (float) $payload['total_amount'];
+        }
+
+        if (isset($payload['amount'])) {
+            return (float) $payload['amount'];
+        }
+
+        $lineTotal = collect($payload['lines'] ?? [])
+            ->sum(fn ($line) => (float) ($line['qty'] ?? 0) * (float) ($line['unit_cost'] ?? 0));
+
+        return (float) $lineTotal;
     }
 
     private function resolveAccountId(IntegrationEvent $event, string $sourceType, ?int $fixedAccountId, ?string $mappingKey): ?int
