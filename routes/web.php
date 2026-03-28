@@ -9,6 +9,7 @@ use App\Http\Controllers\Apps\DashboardController;
 use App\Http\Controllers\Apps\ExchangeRateController;
 use App\Http\Controllers\Apps\GeneralLedgerReportController;
 use App\Http\Controllers\Apps\IndirectCashFlowReportController;
+use App\Http\Controllers\Apps\IntegrationClientSecretController;
 use App\Http\Controllers\Apps\ProfitLossReportController;
 use App\Http\Controllers\Apps\TrialBalanceReportController;
 use App\Http\Controllers\Apps\DimensionController;
@@ -86,6 +87,8 @@ Route::group(['prefix' => 'apps', 'as' => 'apps.' , 'middleware' => ['auth']], f
     Route::get('/reports/profit-loss', ProfitLossReportController::class)->name('reports.profit-loss');
     Route::get('/reports/balance-sheet', BalanceSheetReportController::class)->name('reports.balance-sheet');
     Route::get('/reports/indirect-cash-flow', IndirectCashFlowReportController::class)->name('reports.indirect-cash-flow');
+    Route::get('/integration/client-secrets', [IntegrationClientSecretController::class, 'index'])->name('integration-client-secrets.index');
+    Route::post('/integration/client-secrets', [IntegrationClientSecretController::class, 'store'])->name('integration-client-secrets.store');
 });
 
 require __DIR__.'/auth.php';
