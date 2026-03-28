@@ -238,6 +238,13 @@ export default function Menu() {
                     icon: <IconPlugConnected size={20} strokeWidth={1.5} />,
                     permissions: accountingAccess,
                 },
+                {
+                    title: 'Posting Rules',
+                    href: '/apps/integration/posting-rules',
+                    active: url.startsWith('/apps/integration/posting-rules'),
+                    icon: <IconAdjustments size={20} strokeWidth={1.5} />,
+                    permissions: accountingAccess,
+                },
             ],
         },
 

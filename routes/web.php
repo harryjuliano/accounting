@@ -10,6 +10,7 @@ use App\Http\Controllers\Apps\ExchangeRateController;
 use App\Http\Controllers\Apps\GeneralLedgerReportController;
 use App\Http\Controllers\Apps\IndirectCashFlowReportController;
 use App\Http\Controllers\Apps\IntegrationClientSecretController;
+use App\Http\Controllers\Apps\PostingRuleSetupController;
 use App\Http\Controllers\Apps\ProfitLossReportController;
 use App\Http\Controllers\Apps\TrialBalanceReportController;
 use App\Http\Controllers\Apps\DimensionController;
@@ -92,6 +93,7 @@ Route::group(['prefix' => 'apps', 'as' => 'apps.' , 'middleware' => ['auth']], f
     Route::put('/integration/client-secrets/{integrationClientSecret}', [IntegrationClientSecretController::class, 'update'])->name('integration-client-secrets.update');
     Route::delete('/integration/client-secrets/{integrationClientSecret}', [IntegrationClientSecretController::class, 'destroy'])->name('integration-client-secrets.destroy');
     Route::patch('/integration/client-secrets/{integrationClientSecret}/toggle-status', [IntegrationClientSecretController::class, 'toggleStatus'])->name('integration-client-secrets.toggle-status');
+    Route::resource('/integration/posting-rules', PostingRuleSetupController::class)->except(['create', 'edit', 'show'])->parameters(['posting-rules' => 'integrationPostingRule']);
 });
 
 require __DIR__.'/auth.php';
