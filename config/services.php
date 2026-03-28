@@ -31,4 +31,8 @@ return [
         ],
     ],
 
+    'integration' => [
+        'inventory_token' => env('INTEGRATION_INVENTORY_TOKEN'),
+    ],
+
 ];
