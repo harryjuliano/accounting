@@ -12,7 +12,8 @@ Endpoint ini dipakai agar accounting hub dapat menerima payload event inventory 
 
 ```json
 {
-  "company_id": 1,
+  "client_key": "INVENTORY-ABCD1234EFGH",
+  "client_secret": "<client-secret>",
   "event_name": "inventory.receipt.posted",
   "event_datetime": "2026-03-28T10:00:00Z",
   "idempotency_key": "INV-RECEIPT-1001",
@@ -34,6 +35,20 @@ Endpoint ini dipakai agar accounting hub dapat menerima payload event inventory 
 }
 ```
 
+## Provisioning credential client
+
+Buat credential sekali per modul + company + branch dengan command:
+
+```bash
+php artisan integration:client:create <company_id> <branch_id> --module=inventory --name="Inventory WMS"
+```
+
+Output command akan menampilkan:
+- `client_key`
+- `client_secret` (ditampilkan sekali, simpan di secret manager)
+
+Accounting Hub menyimpan `client_secret` dalam bentuk hash SHA-256 (`client_secret_hash`) dan melakukan verifikasi saat request masuk.
+
 ## Success response
 
 - **201 Created** untuk event baru.
@@ -47,7 +62,9 @@ Contoh response:
   "data": {
     "integration_event_id": 10,
     "processing_status": "received",
-    "is_duplicate": false
+    "is_duplicate": false,
+    "company_id": 1,
+    "branch_id": 2
   }
 }
 ```
@@ -55,7 +72,8 @@ Contoh response:
 ## Catatan implementasi
 
 - Event masuk disimpan ke tabel `integration_events` dengan `processing_status=received`.
-- Idempotency dijaga oleh kombinasi `company_id + idempotency_key`.
+- Idempotency dijaga oleh kombinasi `company_id (hasil resolusi dari client_key) + idempotency_key`.
+- `company_id` dan `branch_id` **tidak perlu dikirim** oleh client; Accounting Hub mengambil otomatis dari credential.
 - Event duplicate tidak dibuatkan row baru.
 
 ## Menjalankan Phase 2 (Rule Validation)

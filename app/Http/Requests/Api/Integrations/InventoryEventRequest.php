@@ -14,7 +14,10 @@ class InventoryEventRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'company_id' => ['required', 'integer', 'exists:companies,id'],
+            'client_key' => ['required', 'string', 'max:100'],
+            'client_secret' => ['required', 'string', 'max:191'],
+            'company_id' => ['prohibited'],
+            'branch_id' => ['prohibited'],
             'event_name' => ['required', 'string', 'max:100'],
             'event_datetime' => ['required', 'date'],
             'idempotency_key' => ['required', 'string', 'max:191'],

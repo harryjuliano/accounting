@@ -1,6 +1,8 @@
 <?php
 
+use App\Models\Branch;
 use App\Models\Company;
+use App\Models\IntegrationClientCredential;
 use App\Models\IntegrationEvent;
 use Illuminate\Support\Facades\Config;
 
@@ -14,11 +16,35 @@ function createInventoryIntegrationCompany(): Company
     ]);
 }
 
-it('receives inventory event payload from api and stores integration inbox data', function () {
+function createInventoryCredential(Company $company, Branch $branch): array
+{
+    $clientKey = 'INV-CLIENT-001';
+    $clientSecret = 'super-secret-client';
+
+    IntegrationClientCredential::create([
+        'client_key' => $clientKey,
+        'client_secret_hash' => hash('sha256', $clientSecret),
+        'source_module' => 'inventory',
+        'company_id' => $company->id,
+        'branch_id' => $branch->id,
+        'is_active' => true,
+    ]);
+
+    return [$clientKey, $clientSecret];
+}
+
+it('receives inventory event payload from api and stores integration inbox data using client credentials', function () {
     $company = createInventoryIntegrationCompany();
+    $branch = Branch::create([
+        'company_id' => $company->id,
+        'code' => 'JKT',
+        'name' => 'Jakarta',
+    ]);
+    [$clientKey, $clientSecret] = createInventoryCredential($company, $branch);
 
     $payload = [
-        'company_id' => $company->id,
+        'client_key' => $clientKey,
+        'client_secret' => $clientSecret,
         'event_name' => 'inventory.receipt.posted',
         'event_datetime' => '2026-03-28T10:00:00Z',
         'idempotency_key' => 'INV-RECEIPT-1001',
@@ -40,7 +66,9 @@ it('receives inventory event payload from api and stores integration inbox data'
     $response
         ->assertCreated()
         ->assertJsonPath('data.processing_status', 'received')
-        ->assertJsonPath('data.is_duplicate', false);
+        ->assertJsonPath('data.is_duplicate', false)
+        ->assertJsonPath('data.company_id', $company->id)
+        ->assertJsonPath('data.branch_id', $branch->id);
 
     $this->assertDatabaseHas('integration_events', [
         'company_id' => $company->id,
@@ -53,14 +81,23 @@ it('receives inventory event payload from api and stores integration inbox data'
     ]);
 
     $event = IntegrationEvent::query()->where('idempotency_key', 'INV-RECEIPT-1001')->firstOrFail();
-    expect($event->payload_json['_meta']['schema_version'])->toBe('v1');
+    expect($event->payload_json['_meta']['schema_version'])->toBe('v1')
+        ->and($event->payload_json['_meta']['company_id'])->toBe($company->id)
+        ->and($event->payload_json['_meta']['branch_id'])->toBe($branch->id);
 });
 
 it('returns duplicate response and does not create second row for same idempotency key', function () {
     $company = createInventoryIntegrationCompany();
+    $branch = Branch::create([
+        'company_id' => $company->id,
+        'code' => 'JKT',
+        'name' => 'Jakarta',
+    ]);
+    [$clientKey, $clientSecret] = createInventoryCredential($company, $branch);
 
     $payload = [
-        'company_id' => $company->id,
+        'client_key' => $clientKey,
+        'client_secret' => $clientSecret,
         'event_name' => 'inventory.cogs.posted',
         'event_datetime' => '2026-03-28T10:05:00Z',
         'idempotency_key' => 'INV-COGS-2001',
@@ -81,16 +118,48 @@ it('returns duplicate response and does not create second row for same idempoten
     expect(IntegrationEvent::query()->where('idempotency_key', 'INV-COGS-2001')->count())->toBe(1);
 });
 
+it('rejects request when client credentials are invalid', function () {
+    $company = createInventoryIntegrationCompany();
+    $branch = Branch::create([
+        'company_id' => $company->id,
+        'code' => 'JKT',
+        'name' => 'Jakarta',
+    ]);
+    [$clientKey] = createInventoryCredential($company, $branch);
+
+    $payload = [
+        'client_key' => $clientKey,
+        'client_secret' => 'wrong-secret',
+        'event_name' => 'inventory.adjustment.posted',
+        'event_datetime' => '2026-03-28T11:00:00Z',
+        'idempotency_key' => 'INV-ADJ-3001',
+        'payload' => [
+            'reason' => 'stock_opname',
+            'amount' => 15000,
+        ],
+    ];
+
+    $this->postJson('/api/integrations/inventory/events', $payload)
+        ->assertUnauthorized();
+});
+
 it('validates integration token header when token is configured', function () {
     $company = createInventoryIntegrationCompany();
+    $branch = Branch::create([
+        'company_id' => $company->id,
+        'code' => 'JKT',
+        'name' => 'Jakarta',
+    ]);
+    [$clientKey, $clientSecret] = createInventoryCredential($company, $branch);
 
     Config::set('services.integration.inventory_token', 'secure-token');
 
     $payload = [
-        'company_id' => $company->id,
+        'client_key' => $clientKey,
+        'client_secret' => $clientSecret,
         'event_name' => 'inventory.adjustment.posted',
         'event_datetime' => '2026-03-28T11:00:00Z',
-        'idempotency_key' => 'INV-ADJ-3001',
+        'idempotency_key' => 'INV-ADJ-3002',
         'payload' => [
             'reason' => 'stock_opname',
             'amount' => 15000,
