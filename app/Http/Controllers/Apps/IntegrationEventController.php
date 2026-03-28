@@ -5,7 +5,10 @@ namespace App\Http\Controllers\Apps;
 use App\Http\Controllers\Concerns\InteractsWithCompanyScope;
 use App\Http\Controllers\Controller;
 use App\Models\IntegrationEvent;
+use App\Services\Integrations\InventoryAutoJournalService;
+use App\Services\Integrations\InventoryPostingRuleEngine;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
@@ -38,12 +41,14 @@ class IntegrationEventController extends Controller implements HasMiddleware
             ])
             ->select([
                 'id',
+                'company_id',
                 'source_module',
                 'event_name',
                 'source_document_type',
                 'source_document_no',
                 'idempotency_key',
                 'event_datetime',
+                'payload_json',
                 'processing_status',
                 'processed_at',
                 'error_message',
@@ -60,6 +65,7 @@ class IntegrationEventController extends Controller implements HasMiddleware
                 'source_document_no' => $event->source_document_no,
                 'idempotency_key' => $event->idempotency_key,
                 'event_datetime' => optional($event->event_datetime)?->toDateTimeString(),
+                'payload_json' => $event->payload_json,
                 'processing_status' => $event->processing_status,
                 'processed_at' => optional($event->processed_at)?->toDateTimeString(),
                 'open_failure_count' => (int) $event->open_failure_count,
@@ -82,6 +88,56 @@ class IntegrationEventController extends Controller implements HasMiddleware
                 'failed' => (int) $statusSummary->get('failed', 0),
                 'ignored' => (int) $statusSummary->get('ignored', 0),
             ],
+        ]);
+    }
+
+    public function validateEvent(Request $request, IntegrationEvent $integrationEvent, InventoryPostingRuleEngine $engine): RedirectResponse
+    {
+        $this->enforceCompanyAccess((int) $integrationEvent->company_id);
+
+        if ($integrationEvent->source_module !== 'inventory') {
+            return back()->withErrors(['integration' => 'Hanya event inventory yang bisa divalidasi dari monitor.']);
+        }
+
+        if ($integrationEvent->processing_status !== 'received') {
+            return back()->withErrors(['integration' => 'Event hanya bisa divalidasi jika status saat ini adalah received.']);
+        }
+
+        $result = $engine->validateAndMark($integrationEvent);
+
+        if (($result['status'] ?? null) !== 'validated') {
+            return back()->withErrors([
+                'integration' => 'Validasi gagal untuk event #' . $integrationEvent->id . ': ' . ($result['error'] ?? 'unknown_error'),
+            ]);
+        }
+
+        return back()->with('success', 'Event #' . $integrationEvent->id . ' berhasil divalidasi.');
+    }
+
+    public function postEvent(Request $request, IntegrationEvent $integrationEvent, InventoryAutoJournalService $service): RedirectResponse
+    {
+        $this->enforceCompanyAccess((int) $integrationEvent->company_id);
+
+        if ($integrationEvent->source_module !== 'inventory') {
+            return back()->withErrors(['integration' => 'Hanya event inventory yang bisa diposting dari monitor.']);
+        }
+
+        if ($integrationEvent->processing_status !== 'validated') {
+            return back()->withErrors(['integration' => 'Event hanya bisa diposting jika status saat ini adalah validated.']);
+        }
+
+        $result = $service->postValidatedEvent($integrationEvent);
+
+        if (($result['status'] ?? null) === 'processed') {
+            return back()->with('success', 'Event #' . $integrationEvent->id . ' berhasil diposting ke jurnal #' . $result['journal_entry_id'] . '.');
+        }
+
+        if (($result['status'] ?? null) === 'duplicate') {
+            return back()->with('success', 'Event #' . $integrationEvent->id . ' sudah pernah diposting. Jurnal #' . $result['journal_entry_id'] . ' digunakan ulang.');
+        }
+
+        return back()->withErrors([
+            'integration' => 'Posting gagal untuk event #' . $integrationEvent->id . ': ' . ($result['error'] ?? 'unknown_error'),
         ]);
     }
 }
