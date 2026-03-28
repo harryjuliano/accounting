@@ -10,6 +10,7 @@ use App\Http\Controllers\Apps\ExchangeRateController;
 use App\Http\Controllers\Apps\GeneralLedgerReportController;
 use App\Http\Controllers\Apps\IndirectCashFlowReportController;
 use App\Http\Controllers\Apps\IntegrationClientSecretController;
+use App\Http\Controllers\Apps\IntegrationEventController;
 use App\Http\Controllers\Apps\IntegrationJournalController;
 use App\Http\Controllers\Apps\PostingRuleSetupController;
 use App\Http\Controllers\Apps\ProfitLossReportController;
@@ -77,6 +78,7 @@ Route::group(['prefix' => 'apps', 'as' => 'apps.' , 'middleware' => ['auth']], f
     // manual journals route
     Route::resource('/manual-journals', ManualJournalController::class)->except(['create', 'edit', 'show'])->parameters(['manual-journals' => 'manual_journal']);
     Route::get('/manual-journals/integration-journal', IntegrationJournalController::class)->name('manual-journals.integration-journal');
+    Route::get('/integration-events', IntegrationEventController::class)->name('integration-events.index');
     Route::post('/manual-journals/bulk-post', [ManualJournalController::class, 'bulkPost'])->name('manual-journals.bulk-post');
     Route::post('/manual-journals/import', [ManualJournalController::class, 'importFromCsv'])->name('manual-journals.import');
     Route::get('/manual-journals/import-template', [ManualJournalController::class, 'downloadImportTemplate'])->name('manual-journals.import-template');
