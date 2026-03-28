@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Apps;
 
+use App\Http\Controllers\Concerns\InteractsWithCompanyScope;
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
 use App\Models\Company;
@@ -17,12 +18,14 @@ use Inertia\Response;
 
 class IntegrationClientSecretController extends Controller
 {
+    use InteractsWithCompanyScope;
+
     public function index(): Response
     {
         $integrationTableReady = Schema::hasTable('integration_client_credentials');
 
         $credentials = $integrationTableReady
-            ? IntegrationClientCredential::query()
+            ? $this->scopeCompany(IntegrationClientCredential::query())
                 ->select('id', 'client_key', 'source_module', 'client_name', 'company_id', 'branch_id', 'is_active', 'last_used_at', 'created_at')
                 ->with([
                     'company:id,name',
@@ -40,7 +43,7 @@ class IntegrationClientSecretController extends Controller
             ];
 
         return Inertia::render('Apps/IntegrationClientSecrets/Index', [
-            'companies' => Company::query()
+            'companies' => $this->scopeCompany(Company::query(), 'id')
                 ->select('id', 'name')
                 ->where('is_active', true)
                 ->with(['branches' => fn ($query) => $query
@@ -64,6 +67,7 @@ class IntegrationClientSecretController extends Controller
         }
 
         $validated = $this->validateCredential($request);
+        $this->enforceCompanyAccess((int) $validated['company_id']);
 
         $clientKey = Str::upper($validated['source_module']) . '-' . Str::upper(Str::random(12));
         $clientSecret = $validated['client_secret'] ?: Str::random(48);
@@ -89,6 +93,8 @@ class IntegrationClientSecretController extends Controller
     public function update(Request $request, IntegrationClientCredential $integrationClientSecret): RedirectResponse
     {
         $validated = $this->validateCredential($request);
+        $this->enforceCompanyAccess((int) $integrationClientSecret->company_id);
+        $this->enforceCompanyAccess((int) $validated['company_id']);
 
         $updates = [
             'source_module' => Str::lower($validated['source_module']),
@@ -115,6 +121,7 @@ class IntegrationClientSecretController extends Controller
 
     public function destroy(IntegrationClientCredential $integrationClientSecret): RedirectResponse
     {
+        $this->enforceCompanyAccess((int) $integrationClientSecret->company_id);
         $integrationClientSecret->delete();
 
         return redirect()
@@ -124,6 +131,7 @@ class IntegrationClientSecretController extends Controller
 
     public function toggleStatus(IntegrationClientCredential $integrationClientSecret): RedirectResponse
     {
+        $this->enforceCompanyAccess((int) $integrationClientSecret->company_id);
         $integrationClientSecret->update([
             'is_active' => ! $integrationClientSecret->is_active,
         ]);
