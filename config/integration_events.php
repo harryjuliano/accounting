@@ -1,0 +1,77 @@
+<?php
+
+return [
+
+    'inventory' => [
+
+        /*
+        |--------------------------------------------------------------------------
+        | INVENTORY RECEIPT (Barang Masuk)
+        |--------------------------------------------------------------------------
+        */
+        'inventory.receipt.posted' => [
+            'label' => 'Inventory Receipt Posted',
+            'transaction_type' => 'inventory.receipt.posted',
+            'template' => 'inventory_receipt',
+            'description' => 'Goods receipt has been posted'
+        ],
+
+        /*
+        |--------------------------------------------------------------------------
+        | INVENTORY ISSUE (Barang Keluar - Dynamic Purpose)
+        |--------------------------------------------------------------------------
+        */
+        'inventory.issue.posted' => [
+            'label' => 'Inventory Issue Posted',
+            'transaction_type' => 'inventory.issue.posted',
+            'template' => 'inventory_issue_dynamic',
+            'description' => 'Inventory issued based on purpose',
+            'required_payload' => [
+                'issue_purpose'
+            ],
+            'allowed_values' => [
+                'issue_purpose' => [
+                    'maintenance',
+                    'production',
+                    'cogs',
+                    'scrap'
+                ]
+            ]
+        ],
+
+        /*
+        |--------------------------------------------------------------------------
+        | INVENTORY ADJUSTMENT INCREASE
+        |--------------------------------------------------------------------------
+        */
+        'inventory.adjustment.increase' => [
+            'label' => 'Inventory Adjustment Increase',
+            'transaction_type' => 'inventory.adjustment.increase',
+            'template' => 'inventory_adjustment_plus',
+        ],
+
+        /*
+        |--------------------------------------------------------------------------
+        | INVENTORY ADJUSTMENT DECREASE
+        |--------------------------------------------------------------------------
+        */
+        'inventory.adjustment.decrease' => [
+            'label' => 'Inventory Adjustment Decrease',
+            'transaction_type' => 'inventory.adjustment.decrease',
+            'template' => 'inventory_adjustment_minus',
+        ],
+
+        /*
+        |--------------------------------------------------------------------------
+        | INVENTORY COGS (Sales)
+        |--------------------------------------------------------------------------
+        */
+        'inventory.cogs.posted' => [
+            'label' => 'Inventory COGS Posted',
+            'transaction_type' => 'inventory.cogs.posted',
+            'template' => 'inventory_cogs',
+        ],
+
+    ],
+
+];
