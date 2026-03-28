@@ -8,7 +8,7 @@ import { IconKey, IconPlus, IconShieldLock } from '@tabler/icons-react';
 import React, { useMemo } from 'react';
 
 export default function Index() {
-    const { companies, credentials, generatedCredential, errors } = usePage().props;
+    const { companies, credentials, generatedCredential, integrationTableReady, errors } = usePage().props;
 
     const { data, setData, post, processing } = useForm({
         company_id: companies[0]?.id ?? '',
@@ -31,6 +31,17 @@ export default function Index() {
     return (
         <>
             <Head title="Client Secret" />
+
+
+            {!integrationTableReady && (
+                <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:bg-amber-950/20 dark:border-amber-900 dark:text-amber-300">
+                    Tabel <span className="font-mono">integration_client_credentials</span> belum tersedia. Silakan jalankan migrasi database dulu.
+                </div>
+            )}
+
+            {errors.integration && (
+                <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:bg-red-950/20 dark:border-red-900 dark:text-red-300">{errors.integration}</div>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-4">
                 <Table.Card title="Generate Client Key & Secret" className="lg:col-span-2">
@@ -97,7 +108,7 @@ export default function Index() {
                             variant="gray"
                             icon={<IconPlus size={18} strokeWidth={1.5} />}
                             label={processing ? 'Generating...' : 'Generate Credential'}
-                            disabled={processing || !availableBranches.length || !companies.length}
+                            disabled={processing || !availableBranches.length || !companies.length || !integrationTableReady}
                         />
                     </form>
                 </Table.Card>

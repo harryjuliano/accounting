@@ -10,6 +10,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -17,6 +18,26 @@ class IntegrationClientSecretController extends Controller
 {
     public function index(): Response
     {
+        $integrationTableReady = Schema::hasTable('integration_client_credentials');
+
+        $credentials = $integrationTableReady
+            ? IntegrationClientCredential::query()
+                ->select('id', 'client_key', 'source_module', 'client_name', 'company_id', 'branch_id', 'is_active', 'last_used_at', 'created_at')
+                ->with([
+                    'company:id,name',
+                    'branch:id,name',
+                ])
+                ->latest('id')
+                ->paginate(10)
+                ->withQueryString()
+            : [
+                'data' => [],
+                'current_page' => 1,
+                'per_page' => 10,
+                'last_page' => 1,
+                'links' => [],
+            ];
+
         return Inertia::render('Apps/IntegrationClientSecrets/Index', [
             'companies' => Company::query()
                 ->select('id', 'name')
@@ -27,21 +48,20 @@ class IntegrationClientSecretController extends Controller
                     ->orderBy('name')])
                 ->orderBy('name')
                 ->get(),
-            'credentials' => IntegrationClientCredential::query()
-                ->select('id', 'client_key', 'source_module', 'client_name', 'company_id', 'branch_id', 'is_active', 'last_used_at', 'created_at')
-                ->with([
-                    'company:id,name',
-                    'branch:id,name',
-                ])
-                ->latest('id')
-                ->paginate(10)
-                ->withQueryString(),
+            'credentials' => $credentials,
             'generatedCredential' => session('generatedCredential'),
+            'integrationTableReady' => $integrationTableReady,
         ]);
     }
 
     public function store(Request $request): RedirectResponse
     {
+        if (! Schema::hasTable('integration_client_credentials')) {
+            return back()->withErrors([
+                'integration' => 'Tabel integration_client_credentials belum tersedia. Jalankan migrasi terlebih dahulu.',
+            ]);
+        }
+
         $validated = $request->validate([
             'company_id' => ['required', 'integer', Rule::exists('companies', 'id')],
             'branch_id' => [
