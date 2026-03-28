@@ -13,6 +13,7 @@ import {
     IconHierarchy3,
     IconLock,
     IconPercentage,
+    IconPlugConnected,
     IconReportMoney,
     IconSettings,
     IconShieldCheck,
@@ -225,6 +226,21 @@ export default function Menu() {
                 },
             ],
         },
+
+        {
+            title: 'Integration Module',
+            permissions: accountingAccess,
+            details: [
+                {
+                    title: 'Client Secret',
+                    href: '/apps/integration/client-secrets',
+                    active: url.startsWith('/apps/integration/client-secrets'),
+                    icon: <IconPlugConnected size={20} strokeWidth={1.5} />,
+                    permissions: accountingAccess,
+                },
+            ],
+        },
+
         {
             title: 'Laporan Keuangan',
             permissions: accountingAccess,
