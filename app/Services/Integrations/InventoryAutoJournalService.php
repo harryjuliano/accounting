@@ -3,6 +3,7 @@
 namespace App\Services\Integrations;
 
 use App\Models\AccountingPeriod;
+use App\Models\Branch;
 use App\Models\ChartOfAccount;
 use App\Models\Company;
 use App\Models\IntegrationEvent;
@@ -50,7 +51,10 @@ class InventoryAutoJournalService
             ];
         }
 
-        $postingDate = Carbon::parse($event->event_datetime)->toDateString();
+        $entryDate = (string) ($payload['entry_date'] ?? Carbon::parse($event->event_datetime)->toDateString());
+        $postingDate = (string) ($payload['posting_date'] ?? $entryDate);
+        $referenceNo = isset($payload['reference_no']) ? (string) $payload['reference_no'] : null;
+        $branchId = $this->resolveBranchId($event->company_id, data_get($payload, '_meta.branch_id'));
 
         $period = AccountingPeriod::query()
             ->with('fiscalYear:id,status')
@@ -89,9 +93,10 @@ class InventoryAutoJournalService
             return $this->markFailed($event, 'unbalanced_journal');
         }
 
-        $journalEntry = DB::transaction(function () use ($event, $period, $postingDate, $createdBy, $currencyCode, $exchangeRate, $preview, $integrationKey, $totalDebit, $totalCredit) {
+        $journalEntry = DB::transaction(function () use ($event, $period, $entryDate, $postingDate, $createdBy, $currencyCode, $exchangeRate, $preview, $integrationKey, $totalDebit, $totalCredit, $branchId, $referenceNo, $payload) {
             $journalEntry = JournalEntry::create([
                 'company_id' => $event->company_id,
+                'branch_id' => $branchId,
                 'accounting_period_id' => $period->id,
                 'journal_no' => $this->generateJournalNumber($event),
                 'journal_type' => 'auto',
@@ -101,9 +106,10 @@ class InventoryAutoJournalService
                 'source_document_id' => $event->source_document_id,
                 'source_document_no' => $event->source_document_no,
                 'integration_key' => $integrationKey,
-                'entry_date' => $postingDate,
+                'entry_date' => $entryDate,
                 'posting_date' => $postingDate,
-                'description' => 'Auto journal from inventory event #' . $event->id,
+                'reference_no' => $referenceNo,
+                'description' => (string) ($payload['description'] ?? ('Auto journal from inventory event #' . $event->id)),
                 'currency_code' => $currencyCode,
                 'exchange_rate' => $exchangeRate,
                 'total_debit' => round($totalDebit, 2),
@@ -222,5 +228,21 @@ class InventoryAutoJournalService
             'journal_entry_id' => null,
             'error' => $error,
         ];
+    }
+
+    private function resolveBranchId(int $companyId, mixed $branchId): ?int
+    {
+        $resolvedBranchId = is_numeric($branchId) ? (int) $branchId : 0;
+
+        if ($resolvedBranchId <= 0) {
+            return null;
+        }
+
+        $exists = Branch::query()
+            ->where('company_id', $companyId)
+            ->whereKey($resolvedBranchId)
+            ->exists();
+
+        return $exists ? $resolvedBranchId : null;
     }
 }
