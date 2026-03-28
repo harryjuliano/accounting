@@ -89,6 +89,9 @@ Route::group(['prefix' => 'apps', 'as' => 'apps.' , 'middleware' => ['auth']], f
     Route::get('/reports/indirect-cash-flow', IndirectCashFlowReportController::class)->name('reports.indirect-cash-flow');
     Route::get('/integration/client-secrets', [IntegrationClientSecretController::class, 'index'])->name('integration-client-secrets.index');
     Route::post('/integration/client-secrets', [IntegrationClientSecretController::class, 'store'])->name('integration-client-secrets.store');
+    Route::put('/integration/client-secrets/{integrationClientSecret}', [IntegrationClientSecretController::class, 'update'])->name('integration-client-secrets.update');
+    Route::delete('/integration/client-secrets/{integrationClientSecret}', [IntegrationClientSecretController::class, 'destroy'])->name('integration-client-secrets.destroy');
+    Route::patch('/integration/client-secrets/{integrationClientSecret}/toggle-status', [IntegrationClientSecretController::class, 'toggleStatus'])->name('integration-client-secrets.toggle-status');
 });
 
 require __DIR__.'/auth.php';
