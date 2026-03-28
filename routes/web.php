@@ -79,6 +79,8 @@ Route::group(['prefix' => 'apps', 'as' => 'apps.' , 'middleware' => ['auth']], f
     Route::resource('/manual-journals', ManualJournalController::class)->except(['create', 'edit', 'show'])->parameters(['manual-journals' => 'manual_journal']);
     Route::get('/manual-journals/integration-journal', IntegrationJournalController::class)->name('manual-journals.integration-journal');
     Route::get('/integration-events', IntegrationEventController::class)->name('integration-events.index');
+    Route::post('/integration-events/{integrationEvent}/validate', [IntegrationEventController::class, 'validateEvent'])->name('integration-events.validate');
+    Route::post('/integration-events/{integrationEvent}/post', [IntegrationEventController::class, 'postEvent'])->name('integration-events.post');
     Route::post('/manual-journals/bulk-post', [ManualJournalController::class, 'bulkPost'])->name('manual-journals.bulk-post');
     Route::post('/manual-journals/import', [ManualJournalController::class, 'importFromCsv'])->name('manual-journals.import');
     Route::get('/manual-journals/import-template', [ManualJournalController::class, 'downloadImportTemplate'])->name('manual-journals.import-template');
