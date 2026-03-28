@@ -5,13 +5,16 @@ namespace App\Http\Controllers\Api\Integrations;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\Integrations\InventoryEventRequest;
 use App\Models\IntegrationEvent;
+use App\Services\Integrations\IntegrationClientCredentialService;
 use App\Services\Integrations\IntegrationEventLifecycleService;
 use Illuminate\Http\JsonResponse;
 
 class InventoryEventController extends Controller
 {
-    public function __construct(private readonly IntegrationEventLifecycleService $lifecycle)
-    {
+    public function __construct(
+        private readonly IntegrationEventLifecycleService $lifecycle,
+        private readonly IntegrationClientCredentialService $credentialService,
+    ) {
     }
 
     public function store(InventoryEventRequest $request): JsonResponse
@@ -20,9 +23,17 @@ class InventoryEventController extends Controller
 
         $validated = $request->validated();
 
+        $credential = $this->credentialService->resolve(
+            'inventory',
+            (string) $validated['client_key'],
+            (string) $validated['client_secret'],
+        );
+
+        abort_unless($credential, 401, 'Invalid client credential.');
+
         $event = IntegrationEvent::query()->firstOrCreate(
             [
-                'company_id' => $validated['company_id'],
+                'company_id' => $credential->company_id,
                 'idempotency_key' => $validated['idempotency_key'],
             ],
             [
@@ -37,6 +48,9 @@ class InventoryEventController extends Controller
                         '_meta' => [
                             'schema_version' => $validated['schema_version'] ?? 'v1',
                             'ingested_via' => 'inventory_api',
+                            'client_key' => $credential->client_key,
+                            'company_id' => $credential->company_id,
+                            'branch_id' => $credential->branch_id,
                         ],
                     ]
                 ),
@@ -50,6 +64,9 @@ class InventoryEventController extends Controller
         $this->lifecycle->log($event, $isDuplicate ? 'warning' : 'info', $isDuplicate ? 'Duplicate inventory event received.' : 'Inventory event received.', [
             'idempotency_key' => $validated['idempotency_key'],
             'event_name' => $validated['event_name'],
+            'client_key' => $credential->client_key,
+            'company_id' => $credential->company_id,
+            'branch_id' => $credential->branch_id,
         ]);
 
         return response()->json([
@@ -58,6 +75,8 @@ class InventoryEventController extends Controller
                 'integration_event_id' => $event->id,
                 'processing_status' => $event->processing_status,
                 'is_duplicate' => $isDuplicate,
+                'company_id' => $credential->company_id,
+                'branch_id' => $credential->branch_id,
             ],
         ], $isDuplicate ? 200 : 201);
     }

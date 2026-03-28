@@ -1,10 +1,13 @@
 <?php
 
+use App\Models\Branch;
+use App\Models\IntegrationClientCredential;
 use App\Models\IntegrationEvent;
 use App\Services\Integrations\InventoryAutoJournalService;
 use App\Services\Integrations\InventoryPostingRuleEngine;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Str;
 
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
@@ -148,3 +151,40 @@ Artisan::command('integration:inventory:retry-failed {--limit=100} {--stage=all}
 
     return self::SUCCESS;
 })->purpose('Requeue failed inventory integration events for retry');
+
+
+Artisan::command('integration:client:create {company_id} {branch_id} {--module=inventory} {--name=}', function () {
+    $companyId = (int) $this->argument('company_id');
+    $branchId = (int) $this->argument('branch_id');
+    $module = (string) $this->option('module');
+
+    $branch = Branch::query()
+        ->where('id', $branchId)
+        ->where('company_id', $companyId)
+        ->first();
+
+    if (! $branch) {
+        $this->error('Branch not found for the given company.');
+
+        return self::FAILURE;
+    }
+
+    $clientKey = strtoupper($module) . '-' . Str::upper(Str::random(12));
+    $clientSecret = Str::random(48);
+
+    IntegrationClientCredential::create([
+        'client_key' => $clientKey,
+        'client_secret_hash' => hash('sha256', $clientSecret),
+        'source_module' => $module,
+        'company_id' => $companyId,
+        'branch_id' => $branchId,
+        'client_name' => $this->option('name') ?: null,
+        'is_active' => true,
+    ]);
+
+    $this->info('Client credential created. Save this secret now (it will not be shown again).');
+    $this->line('client_key: ' . $clientKey);
+    $this->line('client_secret: ' . $clientSecret);
+
+    return self::SUCCESS;
+})->purpose('Create client_key/client_secret for integration payload verification scope (module/company/branch)');
