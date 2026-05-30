@@ -19,7 +19,7 @@ export default function Sidebar({ sidebarOpen }) {
     );
 
     const [expandedGroups, setExpandedGroups] = useState(() =>
-        Object.fromEntries(allowedGroups.map((item) => [item.title, true])),
+        Object.fromEntries(allowedGroups.map((item) => [item.title, false])),
     );
 
     const toggleGroup = (groupTitle) => {
@@ -98,29 +98,17 @@ export default function Sidebar({ sidebarOpen }) {
                     <div className='w-full px-6 py-3 flex justify-center items-center gap-4 border-b bg-white dark:bg-gray-950/50 dark:border-gray-900'>
                         <img src={auth.user.avatar} className='w-8 h-8 rounded-full'/>
                     </div>
-                    <div className='w-full flex flex-col overflow-y-auto items-center justify-center'>
-                        {menuNavigation.map((link, i) => (
-                            <div className='flex flex-col min-w-full items-center' key={i}>
-                                {link.details.map((detail, x) =>
-                                    detail.hasOwnProperty('subdetails') ?
-                                        <LinkItemDropdown
-                                            sidebarOpen={sidebarOpen}
-                                            key={x}
-                                            data={detail.subdetails}
-                                            icon={detail.icon}
-                                            href={detail.href}
-                                            access={detail.permissions}
-                                        />
-                                    :
-                                        <LinkItem
-                                            sidebarOpen={sidebarOpen}
-                                            key={x}
-                                            access={detail.permissions}
-                                            icon={detail.icon}
-                                            href={detail.href}
-                                        />
-                                )}
-                            </div>
+                    <div className='w-full flex flex-col overflow-y-auto items-center justify-center py-2'>
+                        {menuNavigation.map((item, index) => (
+                            item.permissions &&
+                                <button
+                                    type="button"
+                                    key={index}
+                                    title={item.title}
+                                    className="w-full flex justify-center text-gray-500 text-xs py-3 font-bold uppercase hover:text-gray-700 dark:hover:text-gray-300"
+                                >
+                                    {item.title.substring(0, 2)}
+                                </button>
                         ))}
                     </div>
                 </>

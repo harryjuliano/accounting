@@ -10,8 +10,8 @@ export default function AppLayout({children}) {
     const {darkMode, themeSwitcher } = useTheme();
 
    // define state sidebarOpen
-    const [sidebarOpen, setSidebarOpen] = useState(
-        localStorage.getItem('sidebarOpen') === 'true'
+    const [sidebarOpen, setSidebarOpen] = useState(() =>
+        localStorage.getItem('sidebarOpen') !== 'false'
     );
 
     // define react hooks
