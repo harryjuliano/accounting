@@ -48,7 +48,7 @@ const buildInitialData = (companies) => ({
 
 export default function Index() {
     const { rules, companies, chartOfAccounts, mappingByCompanyModule, errors } = usePage().props;
-    const { data, setData, post, processing } = useForm(buildInitialData(companies));
+    const { data, setData, post, put, processing } = useForm(buildInitialData(companies));
 
     const availableAccounts = useMemo(
         () => chartOfAccounts.filter((coa) => Number(coa.company_id) === Number(data.company_id)),
@@ -104,13 +104,17 @@ export default function Index() {
 
     const submit = (e) => {
         e.preventDefault();
-        post(data.isUpdate ? route('apps.integration-posting-rules.update', data.id) : route('apps.integration-posting-rules.store'), {
-            data: {
-                ...data,
-                _method: data.isUpdate ? 'put' : 'post',
-            },
+
+        const options = {
             onSuccess: resetForm,
-        });
+        };
+
+        if (data.isUpdate) {
+            put(route('apps.integration-posting-rules.update', data.id), options);
+            return;
+        }
+
+        post(route('apps.integration-posting-rules.store'), options);
     };
 
     const updateLine = (index, field, value) => {
