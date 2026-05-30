@@ -99,8 +99,8 @@ class IntegrationEventController extends Controller implements HasMiddleware
             return back()->withErrors(['integration' => 'Hanya event inventory yang bisa divalidasi dari monitor.']);
         }
 
-        if ($integrationEvent->processing_status !== 'received') {
-            return back()->withErrors(['integration' => 'Event hanya bisa divalidasi jika status saat ini adalah received.']);
+        if (! in_array($integrationEvent->processing_status, ['received', 'failed'], true)) {
+            return back()->withErrors(['integration' => 'Event hanya bisa divalidasi ulang jika status saat ini adalah received atau failed.']);
         }
 
         $result = $engine->validateAndMark($integrationEvent);
@@ -122,8 +122,8 @@ class IntegrationEventController extends Controller implements HasMiddleware
             return back()->withErrors(['integration' => 'Hanya event inventory yang bisa diposting dari monitor.']);
         }
 
-        if ($integrationEvent->processing_status !== 'validated') {
-            return back()->withErrors(['integration' => 'Event hanya bisa diposting jika status saat ini adalah validated.']);
+        if (! in_array($integrationEvent->processing_status, ['validated', 'failed'], true)) {
+            return back()->withErrors(['integration' => 'Event hanya bisa diposting/re-post jika status saat ini adalah validated atau failed.']);
         }
 
         $result = $service->postValidatedEvent($integrationEvent);

@@ -24,6 +24,10 @@ export default function IntegrationEventsIndex({ receivedEvents, statusSummary }
         return JSON.stringify(selectedEvent.payload_json ?? {}, null, 2);
     }, [selectedEvent]);
 
+    const canValidate = (event) => ['received', 'failed'].includes(event.processing_status);
+    const hasPostingPreview = (event) => Array.isArray(event.payload_json?._posting_preview?.lines) && event.payload_json._posting_preview.lines.length > 0;
+    const canPost = (event) => event.processing_status === 'validated' || (event.processing_status === 'failed' && hasPostingPreview(event));
+
     const handleValidate = (event) => {
         router.post(route('apps.integration-events.validate', event.id));
     };
@@ -106,17 +110,17 @@ export default function IntegrationEventsIndex({ receivedEvents, statusSummary }
                                                     type="button"
                                                     className="rounded-md bg-amber-100 px-3 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
                                                     onClick={() => handleValidate(item)}
-                                                    disabled={item.processing_status !== 'received'}
+                                                    disabled={!canValidate(item)}
                                                 >
-                                                    Validate
+                                                    {item.processing_status === 'failed' ? 'Re-validate' : 'Validate'}
                                                 </button>
                                                 <button
                                                     type="button"
                                                     className="rounded-md bg-emerald-100 px-3 py-1.5 text-xs font-medium text-emerald-700 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-60"
                                                     onClick={() => handlePost(item)}
-                                                    disabled={item.processing_status !== 'validated'}
+                                                    disabled={!canPost(item)}
                                                 >
-                                                    Post
+                                                    {item.processing_status === 'failed' ? 'Re-post' : 'Post'}
                                                 </button>
                                             </div>
                                         </Table.Td>
