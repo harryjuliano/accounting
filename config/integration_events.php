@@ -11,9 +11,15 @@ return [
         */
         'inventory.receipt.posted' => [
             'label' => 'Inventory Receipt Posted',
-            'transaction_type' => 'inventory.receipt.posted',
-            'template' => 'inventory_receipt',
-            'description' => 'Goods receipt has been posted'
+            'transaction_type' => 'inventory.receipt.purchase',
+            'template' => 'inventory_receipt_purchase',
+            'description' => 'Goods receipt from purchase has been posted',
+            'allowed_values' => [
+                'transaction_type' => [
+                    'inventory.receipt.purchase',
+                    'inventory.receipt.purchase_return',
+                ],
+            ],
         ],
 
         /*

@@ -7,21 +7,40 @@ return [
     | INVENTORY RECEIPT
     |--------------------------------------------------------------------------
     */
-    'inventory_receipt' => [
+    'inventory_receipt_purchase' => [
         'lines' => [
             [
                 'line_no' => 1,
                 'side' => 'debit',
-                'mapping_key' => 'inventory.receipt.debit.asset',
+                'mapping_key' => 'inventory.receipt.purchase.debit.inventory',
                 'amount_source' => 'payload_total',
-                'description' => 'Inventory receipt asset'
+                'description' => 'Inventory receipt from purchase'
             ],
             [
                 'line_no' => 2,
                 'side' => 'credit',
-                'mapping_key' => 'inventory.receipt.credit.grni',
+                'mapping_key' => 'inventory.receipt.purchase.credit.grni',
                 'amount_source' => 'payload_total',
-                'description' => 'GRNI'
+                'description' => 'Purchase receipt GRNI/AP clearing'
+            ],
+        ]
+    ],
+
+    'inventory_receipt_purchase_return' => [
+        'lines' => [
+            [
+                'line_no' => 1,
+                'side' => 'debit',
+                'mapping_key' => 'inventory.receipt.purchase_return.debit.inventory',
+                'amount_source' => 'payload_total',
+                'description' => 'Inventory receipt from purchase return'
+            ],
+            [
+                'line_no' => 2,
+                'side' => 'credit',
+                'mapping_key' => 'inventory.receipt.purchase_return.credit.clearing',
+                'amount_source' => 'payload_total',
+                'description' => 'Purchase return receipt clearing'
             ],
         ]
     ],
