@@ -137,7 +137,7 @@ export default function Index() {
                 <Button type="button" variant="gray" icon={<IconPlus size={18} strokeWidth={1.5} />} label="Tambah Posting Rule" onClick={openCreate} />
             </div>
 
-            <Modal show={data.isOpen} onClose={resetForm} title={data.isUpdate ? 'Edit Posting Rule Package' : 'Tambah Posting Rule Package'}>
+            <Modal show={data.isOpen} onClose={resetForm} title={data.isUpdate ? 'Edit Posting Rule Package' : 'Tambah Posting Rule Package'} maxWidth="6xl">
                 <form onSubmit={submit} className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="flex flex-col gap-2">
@@ -189,8 +189,8 @@ export default function Index() {
                             <Button type="button" variant="gray" icon={<IconPlus size={14} />} label="Tambah Line" onClick={() => setData('lines', [...data.lines, defaultLine(data.lines.length + 1)])} />
                         </div>
                         {data.lines.map((line, index) => (
-                            <div key={index} className="grid grid-cols-1 md:grid-cols-5 gap-2 items-end rounded border border-gray-100 dark:border-gray-900 p-2">
-                                <Input label="Line No" type="number" value={line.line_no} onChange={(e) => updateLine(index, 'line_no', Number(e.target.value))} />
+                            <div key={index} className="grid grid-cols-1 md:grid-cols-[5ch_minmax(7rem,0.75fr)_minmax(25ch,1.4fr)_minmax(10rem,1fr)_5ch] gap-2 items-end rounded border border-gray-100 dark:border-gray-900 p-2">
+                                <Input label="Line No" type="number" className="px-1 text-center" value={line.line_no} onChange={(e) => updateLine(index, 'line_no', Number(e.target.value))} />
                                 <div>
                                     <label className="text-xs text-gray-500">Side</label>
                                     <select className="w-full px-3 py-1.5 border text-sm rounded-md" value={line.line_side} onChange={(e) => updateLine(index, 'line_side', e.target.value)}>
@@ -208,7 +208,7 @@ export default function Index() {
                                         <option value="formula">formula</option>
                                     </select>
                                 </div>
-                                <Button type="button" variant="rose" icon={<IconTrash size={14} />} onClick={() => setData('lines', data.lines.filter((_, idx) => idx !== index))} />
+                                <Button type="button" variant="rose" className="w-[5ch] justify-center px-0" icon={<IconTrash size={14} />} onClick={() => setData('lines', data.lines.filter((_, idx) => idx !== index))} />
                             </div>
                         ))}
                         {errors.lines && <small className="text-xs text-red-500">{errors.lines}</small>}
@@ -220,7 +220,7 @@ export default function Index() {
                             <Button type="button" variant="gray" icon={<IconPlus size={14} />} label="Tambah Mapping" onClick={() => setData('coa_mappings', [...data.coa_mappings, defaultMapping()])} />
                         </div>
                         {data.coa_mappings.map((mapping, index) => (
-                            <div key={index} className="grid grid-cols-1 md:grid-cols-4 gap-2 items-end rounded border border-gray-100 dark:border-gray-900 p-2">
+                            <div key={index} className="grid grid-cols-1 md:grid-cols-[minmax(25ch,1.2fr)_minmax(25ch,1.4fr)_minmax(14rem,1fr)_5ch] gap-2 items-end rounded border border-gray-100 dark:border-gray-900 p-2">
                                 <Input label="Mapping Key" type="text" value={mapping.mapping_key} onChange={(e) => updateMapping(index, 'mapping_key', e.target.value)} />
                                 <div>
                                     <label className="text-xs text-gray-500">Account</label>
@@ -236,7 +236,7 @@ export default function Index() {
                                     </select>
                                 </div>
                                 <Input label="Description" type="text" value={mapping.description} onChange={(e) => updateMapping(index, 'description', e.target.value)} />
-                                <Button type="button" variant="rose" icon={<IconTrash size={14} />} onClick={() => setData('coa_mappings', data.coa_mappings.filter((_, idx) => idx !== index))} />
+                                <Button type="button" variant="rose" className="w-[5ch] justify-center px-0" icon={<IconTrash size={14} />} onClick={() => setData('coa_mappings', data.coa_mappings.filter((_, idx) => idx !== index))} />
                             </div>
                         ))}
                         {errors.coa_mappings && <small className="text-xs text-red-500">{errors.coa_mappings}</small>}
