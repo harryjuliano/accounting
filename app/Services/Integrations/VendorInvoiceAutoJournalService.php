@@ -24,19 +24,21 @@ class VendorInvoiceAutoJournalService
         $payload = is_array($event->payload_json) ? $event->payload_json : [];
         $preview = data_get($payload, '_posting_preview');
 
-        $this->lifecycle->log($event, 'info', 'Vendor invoice auto posting started.', [
+        $this->lifecycle->log($event, 'info', 'Accounts payable auto posting started.', [
             'event_name' => $event->event_name,
         ]);
 
-        if ($event->source_module !== 'accounts_payable' || $event->event_name !== 'vendor.invoice.posted') {
-            return $this->markFailed($event, 'unsupported_vendor_invoice_event');
+        if (! $this->isSupportedAccountsPayableEvent($event)) {
+            return $this->markFailed($event, 'unsupported_accounts_payable_event');
         }
 
         if (! is_array($preview) || empty($preview['lines'])) {
             return $this->markFailed($event, 'posting_preview_missing');
         }
 
-        $integrationKey = 'accounts_payable:vendor_invoice:event:' . $event->id;
+        $integrationKey = $event->event_name === 'vendor.invoice.posted'
+            ? 'accounts_payable:vendor_invoice:event:' . $event->id
+            : 'accounts_payable:vendor_payment:event:' . $event->id;
 
         $existing = JournalEntry::query()
             ->where('company_id', $event->company_id)
@@ -113,7 +115,7 @@ class VendorInvoiceAutoJournalService
                 'entry_date' => $entryDate,
                 'posting_date' => $postingDate,
                 'reference_no' => $referenceNo,
-                'description' => (string) ($payload['description'] ?? ('Auto journal from vendor invoice event #' . $event->id)),
+                'description' => (string) ($payload['description'] ?? ('Auto journal from accounts payable event #' . $event->id)),
                 'currency_code' => $currencyCode,
                 'exchange_rate' => $exchangeRate,
                 'total_debit' => round($totalDebit, 2),
@@ -156,7 +158,7 @@ class VendorInvoiceAutoJournalService
         ]);
 
         $this->lifecycle->resolveOpenFailures($event);
-        $this->lifecycle->log($event, 'info', 'Vendor invoice auto posting completed.', [
+        $this->lifecycle->log($event, 'info', 'Accounts payable auto posting completed.', [
             'journal_entry_id' => $journalEntry->id,
             'journal_no' => $journalEntry->journal_no,
         ]);
@@ -166,6 +168,12 @@ class VendorInvoiceAutoJournalService
             'journal_entry_id' => $journalEntry->id,
             'error' => null,
         ];
+    }
+
+    private function isSupportedAccountsPayableEvent(IntegrationEvent $event): bool
+    {
+        return $event->source_module === 'accounts_payable'
+            && in_array($event->event_name, ['vendor.invoice.posted', 'vendor.payment.posted'], true);
     }
 
     private function resolveTotalsAndValidateAccounts(array $lines, int $companyId): array
@@ -205,7 +213,7 @@ class VendorInvoiceAutoJournalService
     private function generateJournalNumber(IntegrationEvent $event): string
     {
         $datePart = Carbon::parse($event->event_datetime)->format('Ymd');
-        $prefix = 'VI-AUTO-' . $datePart . '-';
+        $prefix = ($event->event_name === 'vendor.payment.posted' ? 'VP-AUTO-' : 'VI-AUTO-') . $datePart . '-';
         $counter = JournalEntry::query()
             ->where('company_id', $event->company_id)
             ->where('journal_no', 'like', $prefix . '%')
@@ -222,8 +230,8 @@ class VendorInvoiceAutoJournalService
             'error_message' => $error,
         ]);
 
-        $this->lifecycle->recordFailure($event, 'posting', $error, 'Vendor invoice auto posting failed: ' . $error);
-        $this->lifecycle->log($event, 'error', 'Vendor invoice auto posting failed.', [
+        $this->lifecycle->recordFailure($event, 'posting', $error, 'Accounts payable auto posting failed: ' . $error);
+        $this->lifecycle->log($event, 'error', 'Accounts payable auto posting failed.', [
             'error_code' => $error,
         ]);
 

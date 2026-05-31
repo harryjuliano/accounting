@@ -160,7 +160,7 @@ class IntegrationEventController extends Controller implements HasMiddleware
             return app(InventoryPostingRuleEngine::class);
         }
 
-        if ($event->source_module === 'accounts_payable' && $event->event_name === 'vendor.invoice.posted') {
+        if ($event->source_module === 'accounts_payable' && in_array($event->event_name, ['vendor.invoice.posted', 'vendor.payment.posted'], true)) {
             return app(VendorInvoicePostingRuleEngine::class);
         }
 
@@ -177,7 +177,7 @@ class IntegrationEventController extends Controller implements HasMiddleware
             return app(InventoryAutoJournalService::class);
         }
 
-        if ($event->source_module === 'accounts_payable' && $event->event_name === 'vendor.invoice.posted') {
+        if ($event->source_module === 'accounts_payable' && in_array($event->event_name, ['vendor.invoice.posted', 'vendor.payment.posted'], true)) {
             return app(VendorInvoiceAutoJournalService::class);
         }
 

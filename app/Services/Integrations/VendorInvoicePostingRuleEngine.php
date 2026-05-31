@@ -2,6 +2,7 @@
 
 namespace App\Services\Integrations;
 
+use App\Models\BankAccount;
 use App\Models\ChartOfAccount;
 use App\Models\IntegrationEvent;
 use App\Models\PostingRule;
@@ -20,13 +21,13 @@ class VendorInvoicePostingRuleEngine
         $payload = is_array($event->payload_json) ? $event->payload_json : [];
         $transactionType = (string) ($payload['transaction_type'] ?? $event->event_name);
 
-        $this->lifecycle->log($event, 'info', 'Vendor invoice validation started.', [
+        $this->lifecycle->log($event, 'info', 'Accounts payable validation started.', [
             'event_name' => $event->event_name,
             'transaction_type' => $transactionType,
         ]);
 
-        if ($event->source_module !== 'accounts_payable' || $event->event_name !== 'vendor.invoice.posted') {
-            return $this->markFailed($event, 'unsupported_vendor_invoice_event');
+        if (! $this->isSupportedAccountsPayableEvent($event)) {
+            return $this->markFailed($event, 'unsupported_accounts_payable_event');
         }
 
         $rule = PostingRule::query()
@@ -70,7 +71,7 @@ class VendorInvoicePostingRuleEngine
         ]);
 
         $this->lifecycle->resolveOpenFailures($event);
-        $this->lifecycle->log($event, 'info', 'Vendor invoice validation completed.', [
+        $this->lifecycle->log($event, 'info', 'Accounts payable validation completed.', [
             'rule_id' => $rule->id,
             'rule_code' => $rule->rule_code,
         ]);
@@ -79,6 +80,12 @@ class VendorInvoicePostingRuleEngine
             'status' => 'validated',
             'error' => null,
         ];
+    }
+
+    private function isSupportedAccountsPayableEvent(IntegrationEvent $event): bool
+    {
+        return $event->source_module === 'accounts_payable'
+            && in_array($event->event_name, ['vendor.invoice.posted', 'vendor.payment.posted'], true);
     }
 
     private function buildPreview(IntegrationEvent $event, PostingRule $rule, array $payload): array
@@ -108,7 +115,8 @@ class VendorInvoicePostingRuleEngine
                 $event,
                 $line->account_source_type,
                 $line->fixed_account_id,
-                $resolvedMappingKey
+                $resolvedMappingKey,
+                $payload
             );
 
             if (! $accountId) {
@@ -168,6 +176,18 @@ class VendorInvoicePostingRuleEngine
             return (float) data_get($payload, (string) ($formulaJson['path'] ?? ''), 0);
         }
 
+        if (($formulaJson['type'] ?? null) === 'vendor_payment_invoice_total') {
+            return $this->resolveVendorPaymentInvoiceTotal($payload);
+        }
+
+        if (($formulaJson['type'] ?? null) === 'vendor_payment_wht_total') {
+            return $this->resolveVendorPaymentWhtTotal($payload);
+        }
+
+        if (($formulaJson['type'] ?? null) === 'vendor_payment_cash_out') {
+            return $this->resolveVendorPaymentCashOut($payload);
+        }
+
         return 0;
     }
 
@@ -191,7 +211,50 @@ class VendorInvoicePostingRuleEngine
         return (float) $lineTotal;
     }
 
-    private function resolveAccountId(IntegrationEvent $event, string $sourceType, ?int $fixedAccountId, ?string $mappingKey): ?int
+    private function resolveVendorPaymentInvoiceTotal(array $payload): float
+    {
+        foreach (['amounts.invoice_payment_total', 'amounts.payment_total', 'amounts.invoice_amount', 'amounts.total'] as $path) {
+            $amount = data_get($payload, $path);
+
+            if ($amount !== null) {
+                return (float) $amount;
+            }
+        }
+
+        return (float) collect($payload['invoice_lines'] ?? [])
+            ->sum(fn ($line) => (float) ($line['payment_amount'] ?? $line['invoice_amount'] ?? 0));
+    }
+
+    private function resolveVendorPaymentWhtTotal(array $payload): float
+    {
+        foreach (['amounts.withholding_tax_total', 'amounts.wht_total', 'amounts.withholding_tax', 'amounts.wht'] as $path) {
+            $amount = data_get($payload, $path);
+
+            if ($amount !== null) {
+                return (float) $amount;
+            }
+        }
+
+        return (float) collect($payload['invoice_lines'] ?? [])
+            ->sum(fn ($line) => (float) ($line['withholding_tax'] ?? $line['wht'] ?? 0));
+    }
+
+    private function resolveVendorPaymentCashOut(array $payload): float
+    {
+        $explicitCashOut = data_get($payload, 'amounts.cash_out');
+
+        if ($explicitCashOut !== null) {
+            return (float) $explicitCashOut;
+        }
+
+        return $this->resolveVendorPaymentInvoiceTotal($payload)
+            - $this->resolveVendorPaymentWhtTotal($payload)
+            + (float) data_get($payload, 'amounts.stamp_duty', 0)
+            + (float) data_get($payload, 'amounts.bank_charge', 0)
+            + (float) data_get($payload, 'amounts.freight', 0);
+    }
+
+    private function resolveAccountId(IntegrationEvent $event, string $sourceType, ?int $fixedAccountId, ?string $mappingKey, array $payload): ?int
     {
         if ($sourceType === 'fixed') {
             return $fixedAccountId;
@@ -203,6 +266,10 @@ class VendorInvoicePostingRuleEngine
                 ->where('module_name', 'accounts_payable')
                 ->where('mapping_key', $mappingKey)
                 ->value('account_id') ?? 0) ?: null;
+        }
+
+        if ($sourceType === 'dynamic' && $mappingKey === 'vendor.payment.credit.cash_bank') {
+            return $this->resolveSelectedCashAccount($event, $payload);
         }
 
         if ($sourceType === 'payload') {
@@ -219,6 +286,33 @@ class VendorInvoicePostingRuleEngine
         }
 
         return null;
+    }
+
+    private function resolveSelectedCashAccount(IntegrationEvent $event, array $payload): ?int
+    {
+        $cashAccountId = data_get($payload, 'cash_account_id', data_get($payload, 'bank_account_id'));
+
+        if (! is_numeric($cashAccountId) || (int) $cashAccountId <= 0) {
+            return null;
+        }
+
+        $bankAccount = BankAccount::query()
+            ->where('company_id', $event->company_id)
+            ->whereKey((int) $cashAccountId)
+            ->where('is_active', true)
+            ->first();
+
+        if (! $bankAccount) {
+            return null;
+        }
+
+        $accountExists = ChartOfAccount::query()
+            ->where('company_id', $event->company_id)
+            ->whereKey($bankAccount->gl_account_id)
+            ->where('is_active', true)
+            ->exists();
+
+        return $accountExists ? (int) $bankAccount->gl_account_id : null;
     }
 
     private function resolveDynamicMappingKey(?string $mappingKey, array $payload): ?string
@@ -253,8 +347,8 @@ class VendorInvoicePostingRuleEngine
             'error_message' => $error,
         ]);
 
-        $this->lifecycle->recordFailure($event, 'validation', $error, 'Vendor invoice validation failed: ' . $error);
-        $this->lifecycle->log($event, 'error', 'Vendor invoice validation failed.', [
+        $this->lifecycle->recordFailure($event, 'validation', $error, 'Accounts payable validation failed: ' . $error);
+        $this->lifecycle->log($event, 'error', 'Accounts payable validation failed.', [
             'error_code' => $error,
         ]);
 
