@@ -5,6 +5,8 @@ use App\Models\IntegrationClientCredential;
 use App\Models\IntegrationEvent;
 use App\Services\Integrations\InventoryAutoJournalService;
 use App\Services\Integrations\InventoryPostingRuleEngine;
+use App\Services\Integrations\VendorInvoiceAutoJournalService;
+use App\Services\Integrations\VendorInvoicePostingRuleEngine;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Str;
@@ -97,6 +99,94 @@ Artisan::command('integration:inventory:post {--limit=100}', function (Inventory
 
     return self::SUCCESS;
 })->purpose('Create auto journals from validated inventory integration events');
+
+
+Artisan::command('integration:vendor-invoice:validate {--limit=100}', function (VendorInvoicePostingRuleEngine $engine) {
+    $limit = (int) $this->option('limit');
+
+    $events = IntegrationEvent::query()
+        ->where('source_module', 'accounts_payable')
+        ->where('event_name', 'vendor.invoice.posted')
+        ->whereIn('processing_status', ['received'])
+        ->orderBy('id')
+        ->limit($limit)
+        ->get();
+
+    if ($events->isEmpty()) {
+        $this->info('No vendor invoice integration events with status received.');
+
+        return self::SUCCESS;
+    }
+
+    $success = 0;
+    $failed = 0;
+
+    foreach ($events as $event) {
+        $result = $engine->validateAndMark($event);
+
+        if ($result['status'] === 'validated') {
+            $success++;
+            $this->line("[OK] event_id={$event->id} status=validated");
+
+            continue;
+        }
+
+        $failed++;
+        $this->warn("[FAIL] event_id={$event->id} error={$result['error']}");
+    }
+
+    $this->info("Done. validated={$success}, failed={$failed}");
+
+    return self::SUCCESS;
+})->purpose('Validate received vendor invoice integration events using posting rules');
+
+
+Artisan::command('integration:vendor-invoice:post {--limit=100}', function (VendorInvoiceAutoJournalService $service) {
+    $limit = (int) $this->option('limit');
+
+    $events = IntegrationEvent::query()
+        ->where('source_module', 'accounts_payable')
+        ->where('event_name', 'vendor.invoice.posted')
+        ->where('processing_status', 'validated')
+        ->orderBy('id')
+        ->limit($limit)
+        ->get();
+
+    if ($events->isEmpty()) {
+        $this->info('No validated vendor invoice integration events ready for posting.');
+
+        return self::SUCCESS;
+    }
+
+    $processed = 0;
+    $failed = 0;
+    $duplicate = 0;
+
+    foreach ($events as $event) {
+        $result = $service->postValidatedEvent($event);
+
+        if ($result['status'] === 'processed') {
+            $processed++;
+            $this->line("[POSTED] event_id={$event->id} journal_id={$result['journal_entry_id']}");
+
+            continue;
+        }
+
+        if ($result['status'] === 'duplicate') {
+            $duplicate++;
+            $this->line("[DUPLICATE] event_id={$event->id} journal_id={$result['journal_entry_id']}");
+
+            continue;
+        }
+
+        $failed++;
+        $this->warn("[FAIL] event_id={$event->id} error={$result['error']}");
+    }
+
+    $this->info("Done. processed={$processed}, duplicate={$duplicate}, failed={$failed}");
+
+    return self::SUCCESS;
+})->purpose('Create auto journals from validated vendor invoice integration events');
 
 
 Artisan::command('integration:inventory:retry-failed {--limit=100} {--stage=all}', function () {
