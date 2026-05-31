@@ -88,6 +88,16 @@ class VendorInvoicePostingRuleEngine
         $totalCredit = 0.0;
 
         foreach ($rule->lines as $line) {
+            $amount = round($this->resolveAmount($payload, (string) $line->amount_source, $line->formula_json), 2);
+
+            if ($amount < 0) {
+                return [[], 'invalid_line_amount'];
+            }
+
+            if ($amount === 0.0) {
+                continue;
+            }
+
             $resolvedMappingKey = $this->resolveDynamicMappingKey($line->mapping_key, $payload);
 
             if ($line->account_source_type === 'mapping' && blank($resolvedMappingKey)) {
@@ -105,12 +115,6 @@ class VendorInvoicePostingRuleEngine
                 return [[], 'account_mapping_not_found'];
             }
 
-            $amount = $this->resolveAmount($payload, (string) $line->amount_source, $line->formula_json);
-
-            if ($amount <= 0) {
-                return [[], 'invalid_line_amount'];
-            }
-
             if ($line->line_side === 'debit') {
                 $totalDebit += $amount;
             } else {
@@ -125,6 +129,10 @@ class VendorInvoicePostingRuleEngine
                 'amount' => round($amount, 2),
                 'description_template' => $line->description_template,
             ];
+        }
+
+        if ($lines === []) {
+            return [[], 'invalid_line_amount'];
         }
 
         if (round($totalDebit, 2) !== round($totalCredit, 2)) {
