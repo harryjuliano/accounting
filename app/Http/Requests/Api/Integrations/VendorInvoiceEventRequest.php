@@ -31,6 +31,7 @@ class VendorInvoiceEventRequest extends FormRequest
             'payload.amounts.tax' => ['required', 'numeric', 'min:0'],
             'payload.amounts.freight' => ['required', 'numeric', 'min:0'],
             'payload.amounts.withholding_tax' => ['required', 'numeric', 'min:0'],
+            'payload.amounts.purchase_discount' => ['required', 'numeric', 'min:0'],
             'payload.amounts.payable_total' => ['required', 'numeric', 'min:0'],
             'schema_version' => ['nullable', 'string', 'max:50'],
         ];
