@@ -7,6 +7,8 @@ use App\Http\Controllers\Controller;
 use App\Models\IntegrationEvent;
 use App\Services\Integrations\InventoryAutoJournalService;
 use App\Services\Integrations\InventoryPostingRuleEngine;
+use App\Services\Integrations\VendorInvoiceAutoJournalService;
+use App\Services\Integrations\VendorInvoicePostingRuleEngine;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -91,16 +93,18 @@ class IntegrationEventController extends Controller implements HasMiddleware
         ]);
     }
 
-    public function validateEvent(Request $request, IntegrationEvent $integrationEvent, InventoryPostingRuleEngine $engine): RedirectResponse
+    public function validateEvent(Request $request, IntegrationEvent $integrationEvent): RedirectResponse
     {
         $this->enforceCompanyAccess((int) $integrationEvent->company_id);
 
-        if ($integrationEvent->source_module !== 'inventory') {
-            return back()->withErrors(['integration' => 'Hanya event inventory yang bisa divalidasi dari monitor.']);
-        }
-
         if (! in_array($integrationEvent->processing_status, ['received', 'failed'], true)) {
             return back()->withErrors(['integration' => 'Event hanya bisa divalidasi ulang jika status saat ini adalah received atau failed.']);
+        }
+
+        $engine = $this->resolveValidationEngine($integrationEvent);
+
+        if (! $engine) {
+            return back()->withErrors(['integration' => 'Module/event belum didukung untuk validasi dari monitor.']);
         }
 
         $result = $engine->validateAndMark($integrationEvent);
@@ -114,16 +118,18 @@ class IntegrationEventController extends Controller implements HasMiddleware
         return back()->with('success', 'Event #' . $integrationEvent->id . ' berhasil divalidasi.');
     }
 
-    public function postEvent(Request $request, IntegrationEvent $integrationEvent, InventoryAutoJournalService $service): RedirectResponse
+    public function postEvent(Request $request, IntegrationEvent $integrationEvent): RedirectResponse
     {
         $this->enforceCompanyAccess((int) $integrationEvent->company_id);
 
-        if ($integrationEvent->source_module !== 'inventory') {
-            return back()->withErrors(['integration' => 'Hanya event inventory yang bisa diposting dari monitor.']);
-        }
-
         if (! in_array($integrationEvent->processing_status, ['validated', 'failed'], true)) {
             return back()->withErrors(['integration' => 'Event hanya bisa diposting/re-post jika status saat ini adalah validated atau failed.']);
+        }
+
+        $service = $this->resolvePostingService($integrationEvent);
+
+        if (! $service) {
+            return back()->withErrors(['integration' => 'Module/event belum didukung untuk posting dari monitor.']);
         }
 
         $result = $service->postValidatedEvent($integrationEvent);
@@ -139,5 +145,31 @@ class IntegrationEventController extends Controller implements HasMiddleware
         return back()->withErrors([
             'integration' => 'Posting gagal untuk event #' . $integrationEvent->id . ': ' . ($result['error'] ?? 'unknown_error'),
         ]);
+    }
+
+    private function resolveValidationEngine(IntegrationEvent $event): InventoryPostingRuleEngine|VendorInvoicePostingRuleEngine|null
+    {
+        if ($event->source_module === 'inventory') {
+            return app(InventoryPostingRuleEngine::class);
+        }
+
+        if ($event->source_module === 'accounts_payable' && $event->event_name === 'vendor.invoice.posted') {
+            return app(VendorInvoicePostingRuleEngine::class);
+        }
+
+        return null;
+    }
+
+    private function resolvePostingService(IntegrationEvent $event): InventoryAutoJournalService|VendorInvoiceAutoJournalService|null
+    {
+        if ($event->source_module === 'inventory') {
+            return app(InventoryAutoJournalService::class);
+        }
+
+        if ($event->source_module === 'accounts_payable' && $event->event_name === 'vendor.invoice.posted') {
+            return app(VendorInvoiceAutoJournalService::class);
+        }
+
+        return null;
     }
 }

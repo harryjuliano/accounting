@@ -33,6 +33,7 @@ return [
 
     'integration' => [
         'inventory_token' => env('INTEGRATION_INVENTORY_TOKEN'),
+        'vendor_invoice_token' => env('INTEGRATION_VENDOR_INVOICE_TOKEN'),
     ],
 
 ];
