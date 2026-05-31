@@ -66,6 +66,7 @@ function createVendorPaymentPostingContext(): array
         ['code' => '7130-020', 'name' => 'Freight', 'account_type' => 'expense', 'normal_balance' => 'debit', 'financial_statement_group' => 'income_statement'],
         ['code' => '7160-050', 'name' => 'Bank Charges', 'account_type' => 'expense', 'normal_balance' => 'debit', 'financial_statement_group' => 'income_statement'],
         ['code' => '1120-010', 'name' => 'Bank BCA', 'account_type' => 'asset', 'normal_balance' => 'debit', 'financial_statement_group' => 'balance_sheet'],
+        ['code' => '1120-020', 'name' => 'Bank Mandiri', 'account_type' => 'assets', 'normal_balance' => 'debit', 'financial_statement_group' => 'balance_sheet'],
     ] as $account) {
         $accounts[$account['code']] = ChartOfAccount::create(array_merge($account, [
             'company_id' => $company->id,
@@ -181,6 +182,50 @@ it('posts validated vendor payment preview into auto journal lines', function ()
         ->and((float) $lines[4]->credit)->toBe(128000.0)
         ->and((float) $lines[5]->credit)->toBe(7024080.0)
         ->and($lines[5]->account_id)->toBe($ctx['accounts']['1120-010']->id);
+});
+
+
+it('validates vendor payment using GL account code without Finance Hub bank account master', function () {
+    $ctx = createVendorPaymentPostingContext();
+    BankAccount::query()->delete();
+
+    $event = createVendorPaymentEvent($ctx, payloadOverrides: [
+        'cash_account_id' => null,
+        'bank_account_id' => null,
+        'gl_account_code' => '1120-020',
+        'source_cash_account' => [
+            'id' => 3,
+            'code' => 'B-1002',
+            'name' => 'Bank Mandiri',
+            'cash_type' => 'BANK',
+            'currency_code' => 'IDR',
+        ],
+        'amounts' => [
+            'invoice_payment_total' => 1665000,
+            'withholding_tax_total' => 0,
+            'stamp_duty' => 0,
+            'bank_charge' => 0,
+            'freight' => 0,
+        ],
+        'invoice_lines' => [
+            [
+                'invoice_no' => 'INV-10001',
+                'payment_amount' => 1665000,
+                'withholding_tax' => 0,
+            ],
+        ],
+    ]);
+
+    $this->artisan('integration:vendor-payment:validate --limit=10')
+        ->assertSuccessful();
+
+    $event->refresh();
+
+    expect($event->processing_status)->toBe('validated')
+        ->and(data_get($event->payload_json, '_posting_preview.total_debit'))->toBe(1665000.0)
+        ->and(data_get($event->payload_json, '_posting_preview.total_credit'))->toBe(1665000.0)
+        ->and(data_get($event->payload_json, '_posting_preview.lines'))->toHaveCount(2)
+        ->and(data_get($event->payload_json, '_posting_preview.lines.1.account_id'))->toBe($ctx['accounts']['1120-020']->id);
 });
 
 it('validates vendor payment without payment WHT when WHT was handled at invoice', function () {

@@ -299,15 +299,32 @@ class VendorInvoicePostingRuleEngine
 
     private function resolveSelectedCashAccount(IntegrationEvent $event, array $payload): ?int
     {
-        $cashAccountId = data_get($payload, 'cash_account_id', data_get($payload, 'bank_account_id'));
+        $glAccountCode = data_get($payload, 'gl_account_code');
 
-        if (! is_numeric($cashAccountId) || (int) $cashAccountId <= 0) {
-            return null;
+        if (filled($glAccountCode)) {
+            return $this->resolveCashGlAccountByCode($event, (string) $glAccountCode);
         }
 
+        $cashAccountCoaId = data_get($payload, 'cash_account_coa_id');
+
+        if (is_numeric($cashAccountCoaId) && (int) $cashAccountCoaId > 0) {
+            return $this->resolveCashGlAccountById($event, (int) $cashAccountCoaId);
+        }
+
+        $cashAccountId = data_get($payload, 'cash_account_id', data_get($payload, 'bank_account_id'));
+
+        if (is_numeric($cashAccountId) && (int) $cashAccountId > 0) {
+            return $this->resolveBankAccountGlAccountId($event, (int) $cashAccountId);
+        }
+
+        return null;
+    }
+
+    private function resolveBankAccountGlAccountId(IntegrationEvent $event, int $cashAccountId): ?int
+    {
         $bankAccount = BankAccount::query()
             ->where('company_id', $event->company_id)
-            ->whereKey((int) $cashAccountId)
+            ->whereKey($cashAccountId)
             ->where('is_active', true)
             ->first();
 
@@ -315,13 +332,27 @@ class VendorInvoicePostingRuleEngine
             return null;
         }
 
-        $accountExists = ChartOfAccount::query()
-            ->where('company_id', $event->company_id)
-            ->whereKey($bankAccount->gl_account_id)
-            ->where('is_active', true)
-            ->exists();
+        return $this->resolveCashGlAccountById($event, (int) $bankAccount->gl_account_id);
+    }
 
-        return $accountExists ? (int) $bankAccount->gl_account_id : null;
+    private function resolveCashGlAccountById(IntegrationEvent $event, int $accountId): ?int
+    {
+        return (int) (ChartOfAccount::query()
+            ->where('company_id', $event->company_id)
+            ->whereKey($accountId)
+            ->where('is_active', true)
+            ->whereIn('account_type', ['asset', 'assets'])
+            ->value('id') ?? 0) ?: null;
+    }
+
+    private function resolveCashGlAccountByCode(IntegrationEvent $event, string $accountCode): ?int
+    {
+        return (int) (ChartOfAccount::query()
+            ->where('company_id', $event->company_id)
+            ->where('code', $accountCode)
+            ->where('is_active', true)
+            ->whereIn('account_type', ['asset', 'assets'])
+            ->value('id') ?? 0) ?: null;
     }
 
     private function resolveDynamicMappingKey(?string $mappingKey, array $payload): ?string
