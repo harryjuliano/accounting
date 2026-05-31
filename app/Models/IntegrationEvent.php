@@ -40,4 +40,9 @@ class IntegrationEvent extends Model
     {
         return $this->hasMany(IntegrationFailure::class);
     }
+
+    public function outboxes(): HasMany
+    {
+        return $this->hasMany(IntegrationOutbox::class);
+    }
 }
