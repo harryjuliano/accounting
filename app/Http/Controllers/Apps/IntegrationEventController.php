@@ -7,6 +7,9 @@ use App\Http\Controllers\Controller;
 use App\Models\IntegrationEvent;
 use App\Services\Integrations\InventoryAutoJournalService;
 use App\Services\Integrations\InventoryPostingRuleEngine;
+use App\Services\Integrations\ModulePresetAutoJournalService;
+use App\Services\Integrations\ModulePresetJournalValidator;
+use App\Services\Integrations\PostingMode;
 use App\Services\Integrations\VendorInvoiceAutoJournalService;
 use App\Services\Integrations\VendorInvoicePostingRuleEngine;
 use Illuminate\Database\Eloquent\Builder;
@@ -147,8 +150,12 @@ class IntegrationEventController extends Controller implements HasMiddleware
         ]);
     }
 
-    private function resolveValidationEngine(IntegrationEvent $event): InventoryPostingRuleEngine|VendorInvoicePostingRuleEngine|null
+    private function resolveValidationEngine(IntegrationEvent $event): InventoryPostingRuleEngine|VendorInvoicePostingRuleEngine|ModulePresetJournalValidator|null
     {
+        if (PostingMode::fromEvent($event) === PostingMode::MODULE_PRESET) {
+            return app(ModulePresetJournalValidator::class);
+        }
+
         if ($event->source_module === 'inventory') {
             return app(InventoryPostingRuleEngine::class);
         }
@@ -160,8 +167,12 @@ class IntegrationEventController extends Controller implements HasMiddleware
         return null;
     }
 
-    private function resolvePostingService(IntegrationEvent $event): InventoryAutoJournalService|VendorInvoiceAutoJournalService|null
+    private function resolvePostingService(IntegrationEvent $event): InventoryAutoJournalService|VendorInvoiceAutoJournalService|ModulePresetAutoJournalService|null
     {
+        if (PostingMode::fromEvent($event) === PostingMode::MODULE_PRESET) {
+            return app(ModulePresetAutoJournalService::class);
+        }
+
         if ($event->source_module === 'inventory') {
             return app(InventoryAutoJournalService::class);
         }
