@@ -16,7 +16,7 @@ class InventoryPostingRuleSeeder extends Seeder
             foreach ($companies as $company) {
                 $this->deactivateLegacyReceiptRule($company);
 
-                $this->seedReceiptRule($company, [
+                $this->seedPostingRule($company, [
                     'rule_code' => 'INV_RECEIPT_PURCHASE',
                     'transaction_type' => 'inventory.receipt.purchase',
                     'rule_name' => 'Inventory Receipt Purchase Rule',
@@ -47,7 +47,7 @@ class InventoryPostingRuleSeeder extends Seeder
                     ],
                 ]);
 
-                $this->seedReceiptRule($company, [
+                $this->seedPostingRule($company, [
                     'rule_code' => 'INV_RECEIPT_PURCHASE_RETURN',
                     'transaction_type' => 'inventory.receipt.purchase_return',
                     'rule_name' => 'Inventory Receipt Purchase Return Rule',
@@ -77,6 +77,134 @@ class InventoryPostingRuleSeeder extends Seeder
                         ],
                     ],
                 ]);
+
+                $this->seedPostingRule($company, [
+                    'rule_code' => 'INV_ISSUE_SALES',
+                    'event_name' => 'inventory.issue.posted',
+                    'transaction_type' => 'inventory.issue.sales',
+                    'rule_name' => 'Inventory Issue Sales Rule',
+                    'description' => 'Debit COGS and credit inventory asset for sales inventory issues.',
+                    'lines' => [
+                        [
+                            'line_no' => 1,
+                            'line_side' => 'debit',
+                            'mapping_key' => 'inventory.issue.sales.debit.cogs',
+                            'description_template' => 'Inventory issue sales COGS',
+                        ],
+                        [
+                            'line_no' => 2,
+                            'line_side' => 'credit',
+                            'mapping_key' => 'inventory.issue.sales.credit.inventory',
+                            'description_template' => 'Inventory issue sales inventory reduction',
+                        ],
+                    ],
+                    'default_mappings' => [
+                        'inventory.issue.sales.debit.cogs' => [
+                            'account_code' => '5120',
+                            'description' => 'COGS account for sales inventory issues',
+                        ],
+                        'inventory.issue.sales.credit.inventory' => [
+                            'account_code' => '1150',
+                            'description' => 'Inventory account for sales inventory issues',
+                        ],
+                    ],
+                ]);
+
+                $this->seedPostingRule($company, [
+                    'rule_code' => 'INV_ISSUE_DAMAGED',
+                    'event_name' => 'inventory.issue.posted',
+                    'transaction_type' => 'inventory.issue.damaged',
+                    'rule_name' => 'Inventory Issue Damaged Rule',
+                    'description' => 'Debit inventory loss/write-off and credit inventory asset for damaged stock.',
+                    'lines' => [
+                        [
+                            'line_no' => 1,
+                            'line_side' => 'debit',
+                            'mapping_key' => 'inventory.issue.damaged.debit.loss',
+                            'description_template' => 'Inventory damaged stock write-off',
+                        ],
+                        [
+                            'line_no' => 2,
+                            'line_side' => 'credit',
+                            'mapping_key' => 'inventory.issue.damaged.credit.inventory',
+                            'description_template' => 'Inventory damaged stock reduction',
+                        ],
+                    ],
+                    'default_mappings' => [
+                        'inventory.issue.damaged.debit.loss' => [
+                            'account_code' => '8100',
+                            'description' => 'Loss/write-off account for damaged inventory',
+                        ],
+                        'inventory.issue.damaged.credit.inventory' => [
+                            'account_code' => '1150',
+                            'description' => 'Inventory account for damaged inventory issues',
+                        ],
+                    ],
+                ]);
+
+                $this->seedPostingRule($company, [
+                    'rule_code' => 'INV_ISSUE_SAMPLE',
+                    'event_name' => 'inventory.issue.posted',
+                    'transaction_type' => 'inventory.issue.sample',
+                    'rule_name' => 'Inventory Issue Sample Rule',
+                    'description' => 'Debit promotion/sample expense and credit inventory asset for sample stock.',
+                    'lines' => [
+                        [
+                            'line_no' => 1,
+                            'line_side' => 'debit',
+                            'mapping_key' => 'inventory.issue.sample.debit.promotion',
+                            'description_template' => 'Inventory sample promotion expense',
+                        ],
+                        [
+                            'line_no' => 2,
+                            'line_side' => 'credit',
+                            'mapping_key' => 'inventory.issue.sample.credit.inventory',
+                            'description_template' => 'Inventory sample stock reduction',
+                        ],
+                    ],
+                    'default_mappings' => [
+                        'inventory.issue.sample.debit.promotion' => [
+                            'account_code' => '7100',
+                            'description' => 'Promotion/sample expense account for sample inventory issues',
+                        ],
+                        'inventory.issue.sample.credit.inventory' => [
+                            'account_code' => '1150',
+                            'description' => 'Inventory account for sample inventory issues',
+                        ],
+                    ],
+                ]);
+
+                $this->seedPostingRule($company, [
+                    'rule_code' => 'INV_ISSUE_INTERNAL_USE',
+                    'event_name' => 'inventory.issue.posted',
+                    'transaction_type' => 'inventory.issue.internal_use',
+                    'rule_name' => 'Inventory Issue Internal Use Rule',
+                    'description' => 'Debit internal use expense and credit inventory asset for internal stock consumption.',
+                    'lines' => [
+                        [
+                            'line_no' => 1,
+                            'line_side' => 'debit',
+                            'mapping_key' => 'inventory.issue.internal_use.debit.expense',
+                            'description_template' => 'Inventory internal use expense',
+                        ],
+                        [
+                            'line_no' => 2,
+                            'line_side' => 'credit',
+                            'mapping_key' => 'inventory.issue.internal_use.credit.inventory',
+                            'description_template' => 'Inventory internal use stock reduction',
+                        ],
+                    ],
+                    'default_mappings' => [
+                        'inventory.issue.internal_use.debit.expense' => [
+                            'account_code' => '7100',
+                            'description' => 'Internal use expense account for inventory issues',
+                        ],
+                        'inventory.issue.internal_use.credit.inventory' => [
+                            'account_code' => '1150',
+                            'description' => 'Inventory account for internal use inventory issues',
+                        ],
+                    ],
+                ]);
             }
         });
     }
@@ -89,7 +217,7 @@ class InventoryPostingRuleSeeder extends Seeder
             ->update(['is_active' => false]);
     }
 
-    private function seedReceiptRule(Company $company, array $definition): void
+    private function seedPostingRule(Company $company, array $definition): void
     {
         $rule = PostingRule::query()->updateOrCreate(
             [
@@ -99,7 +227,7 @@ class InventoryPostingRuleSeeder extends Seeder
             ],
             [
                 'module_name' => 'inventory',
-                'event_name' => 'inventory.receipt.posted',
+                'event_name' => $definition['event_name'] ?? 'inventory.receipt.posted',
                 'transaction_type' => $definition['transaction_type'],
                 'rule_name' => $definition['rule_name'],
                 'effective_from' => '2026-01-01',
