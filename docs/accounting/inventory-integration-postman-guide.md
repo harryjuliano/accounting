@@ -9,16 +9,37 @@ Endpoint ini dipakai agar accounting hub dapat menerima payload event inventory 
 - **Header opsional**: `X-Integration-Token: <token>` (wajib jika `INTEGRATION_INVENTORY_TOKEN` diset di `.env`)
 - **Header wajib**: `Content-Type: application/json`, `Accept: application/json`
 
-## Transaction type receipt yang didukung seeder awal
+## Transaction type yang didukung seeder
 
-Untuk implementasi awal, Finance Hub tetap memakai event inventory yang sama, tetapi membedakan posting rule berdasarkan `payload.transaction_type`:
+Finance Hub memakai endpoint inventory yang sama, tetapi membedakan posting rule berdasarkan `payload.transaction_type`:
 
 | Kebutuhan | `event_name` | `payload.transaction_type` | Posting rule |
 |---|---|---|---|
 | Receipt dari pembelian | `inventory.receipt.posted` | `inventory.receipt.purchase` | `INV_RECEIPT_PURCHASE` |
 | Receipt dari retur pembelian | `inventory.receipt.posted` | `inventory.receipt.purchase_return` | `INV_RECEIPT_PURCHASE_RETURN` |
+| Inventory keluar - penjualan/COGS | `inventory.issue.posted` | `inventory.issue.sales` | `INV_ISSUE_SALES` |
+| Inventory keluar - damaged/write-off | `inventory.issue.posted` | `inventory.issue.damaged` | `INV_ISSUE_DAMAGED` |
+| Inventory keluar - sample/promotion | `inventory.issue.posted` | `inventory.issue.sample` | `INV_ISSUE_SAMPLE` |
+| Inventory keluar - internal use | `inventory.issue.posted` | `inventory.issue.internal_use` | `INV_ISSUE_INTERNAL_USE` |
 
 > Catatan: `payload.transaction_type` wajib dikirim agar rule yang benar terpilih. Rule legacy `INV_RECEIPT_BASIC` dinonaktifkan oleh seeder baru jika masih ada dari seed sebelumnya.
+
+## Import collection Postman untuk inventory out
+
+Collection Postman siap import tersedia di:
+
+```text
+docs/accounting/postman/inventory-out-events.postman_collection.json
+```
+
+Setelah import, isi collection variables berikut:
+
+| Variable | Contoh | Keterangan |
+|---|---|---|
+| `base_url` | `https://arthanusafinance.cloudcenter.work` | Base URL Accounting Hub |
+| `client_key` | `INVENTORY-ABCD1234EFGH` | Credential integration module `inventory` atau `all` |
+| `client_secret` | `<client-secret>` | Secret yang tampil saat credential dibuat |
+| `integration_token` | kosong / token `.env` | Aktifkan header `X-Integration-Token` hanya jika `INTEGRATION_INVENTORY_TOKEN` diset |
 
 ## Body JSON - contoh receipt pembelian
 
@@ -170,9 +191,189 @@ curl --location 'https://arthanusafinance.cloudcenter.work/api/integrations/inve
   }'
 ```
 
+## Body JSON - contoh inventory keluar penjualan / COGS
+
+```json
+{
+  "client_key": "INVENTORY-ABCD1234EFGH",
+  "client_secret": "<client-secret>",
+  "event_name": "inventory.issue.posted",
+  "event_datetime": "2026-03-28T11:00:00Z",
+  "idempotency_key": "INV-ISSUE-SALES-POSTMAN-1001",
+  "source_document_type": "sales_order_issue",
+  "source_document_id": "SO-ISS-1001",
+  "source_document_no": "SO-1001",
+  "schema_version": "v1",
+  "payload": {
+    "transaction_type": "inventory.issue.sales",
+    "posting_date": "2026-03-28",
+    "entry_date": "2026-03-28",
+    "currency_code": "IDR",
+    "exchange_rate": 1,
+    "reference_no": "SO-1001",
+    "description": "Inventory out for sales order SO-1001",
+    "total_amount": 750000,
+    "branch_code": "MAIN",
+    "warehouse_code": "WH-01",
+    "customer_code": "CUST-001",
+    "lines": [
+      {
+        "item_code": "SKU-SALES-001",
+        "item_name": "Produk Penjualan A",
+        "qty": 10,
+        "unit_cost": 75000,
+        "uom": "PCS"
+      }
+    ]
+  }
+}
+```
+
+Jurnal yang diharapkan setelah validate + post:
+
+```text
+Dr COGS / HPP
+    Cr Inventory / Persediaan
+```
+
+## Body JSON - contoh inventory keluar damaged / write-off
+
+```json
+{
+  "client_key": "INVENTORY-ABCD1234EFGH",
+  "client_secret": "<client-secret>",
+  "event_name": "inventory.issue.posted",
+  "event_datetime": "2026-03-28T11:10:00Z",
+  "idempotency_key": "INV-ISSUE-DAMAGED-POSTMAN-1001",
+  "source_document_type": "inventory_write_off",
+  "source_document_id": "DMG-1001",
+  "source_document_no": "DMG-1001",
+  "schema_version": "v1",
+  "payload": {
+    "transaction_type": "inventory.issue.damaged",
+    "posting_date": "2026-03-28",
+    "entry_date": "2026-03-28",
+    "currency_code": "IDR",
+    "exchange_rate": 1,
+    "reference_no": "DMG-1001",
+    "description": "Inventory damaged write-off DMG-1001",
+    "total_amount": 180000,
+    "branch_code": "MAIN",
+    "warehouse_code": "WH-01",
+    "damage_reason": "broken_in_warehouse",
+    "lines": [
+      {
+        "item_code": "SKU-DMG-001",
+        "item_name": "Produk Rusak A",
+        "qty": 3,
+        "unit_cost": 60000,
+        "uom": "PCS"
+      }
+    ]
+  }
+}
+```
+
+Jurnal yang diharapkan setelah validate + post:
+
+```text
+Dr Inventory Loss / Write-off
+    Cr Inventory / Persediaan
+```
+
+## Body JSON - contoh inventory keluar sample / promotion
+
+```json
+{
+  "client_key": "INVENTORY-ABCD1234EFGH",
+  "client_secret": "<client-secret>",
+  "event_name": "inventory.issue.posted",
+  "event_datetime": "2026-03-28T11:20:00Z",
+  "idempotency_key": "INV-ISSUE-SAMPLE-POSTMAN-1001",
+  "source_document_type": "sample_issue",
+  "source_document_id": "SMP-1001",
+  "source_document_no": "SMP-1001",
+  "schema_version": "v1",
+  "payload": {
+    "transaction_type": "inventory.issue.sample",
+    "posting_date": "2026-03-28",
+    "entry_date": "2026-03-28",
+    "currency_code": "IDR",
+    "exchange_rate": 1,
+    "reference_no": "SMP-1001",
+    "description": "Inventory sample issued to prospect",
+    "total_amount": 125000,
+    "branch_code": "MAIN",
+    "warehouse_code": "WH-01",
+    "recipient_name": "PT Prospect Baru",
+    "lines": [
+      {
+        "item_code": "SKU-SMP-001",
+        "item_name": "Sample Produk A",
+        "qty": 5,
+        "unit_cost": 25000,
+        "uom": "PCS"
+      }
+    ]
+  }
+}
+```
+
+Jurnal yang diharapkan setelah validate + post:
+
+```text
+Dr Promotion / Sample Expense
+    Cr Inventory / Persediaan
+```
+
+## Body JSON - contoh inventory keluar internal use
+
+```json
+{
+  "client_key": "INVENTORY-ABCD1234EFGH",
+  "client_secret": "<client-secret>",
+  "event_name": "inventory.issue.posted",
+  "event_datetime": "2026-03-28T11:30:00Z",
+  "idempotency_key": "INV-ISSUE-INTERNAL-POSTMAN-1001",
+  "source_document_type": "internal_use_issue",
+  "source_document_id": "INT-1001",
+  "source_document_no": "INT-1001",
+  "schema_version": "v1",
+  "payload": {
+    "transaction_type": "inventory.issue.internal_use",
+    "posting_date": "2026-03-28",
+    "entry_date": "2026-03-28",
+    "currency_code": "IDR",
+    "exchange_rate": 1,
+    "reference_no": "INT-1001",
+    "description": "Inventory issued for internal use",
+    "total_amount": 90000,
+    "branch_code": "MAIN",
+    "warehouse_code": "WH-01",
+    "department_code": "OPS",
+    "lines": [
+      {
+        "item_code": "SKU-INT-001",
+        "item_name": "Barang Operasional A",
+        "qty": 2,
+        "unit_cost": 45000,
+        "uom": "PCS"
+      }
+    ]
+  }
+}
+```
+
+Jurnal yang diharapkan setelah validate + post:
+
+```text
+Dr Internal Use Expense
+    Cr Inventory / Persediaan
+```
+
 ## Posting rule dan COA mapping default dari seeder
 
-Seeder `InventoryPostingRuleSeeder` membuat dua rule aktif:
+Seeder `InventoryPostingRuleSeeder` membuat rule aktif untuk receipt dan issue:
 
 ### `INV_RECEIPT_PURCHASE`
 
@@ -202,7 +403,16 @@ Default COA mapping dibuat jika akun default tersedia:
 | `inventory.receipt.purchase_return.debit.inventory` | `1150` Inventory |
 | `inventory.receipt.purchase_return.credit.clearing` | `2110` Accounts Payable / vendor clearing |
 
-Silakan review COA mapping default tersebut setelah seeding jika perusahaan memiliki akun GRNI atau clearing khusus.
+### Rule inventory keluar
+
+| Posting rule | Debit mapping key | Credit mapping key | Default debit COA | Default credit COA |
+|---|---|---|---|---|
+| `INV_ISSUE_SALES` | `inventory.issue.sales.debit.cogs` | `inventory.issue.sales.credit.inventory` | `5120` COGS | `1150` Inventory |
+| `INV_ISSUE_DAMAGED` | `inventory.issue.damaged.debit.loss` | `inventory.issue.damaged.credit.inventory` | `8100` Loss/write-off | `1150` Inventory |
+| `INV_ISSUE_SAMPLE` | `inventory.issue.sample.debit.promotion` | `inventory.issue.sample.credit.inventory` | `7100` Promotion/sample expense | `1150` Inventory |
+| `INV_ISSUE_INTERNAL_USE` | `inventory.issue.internal_use.debit.expense` | `inventory.issue.internal_use.credit.inventory` | `7100` Internal use expense | `1150` Inventory |
+
+Silakan review COA mapping default tersebut setelah seeding jika perusahaan memiliki akun GRNI, clearing, COGS, write-off, promotion, atau internal-use khusus.
 
 ## Provisioning credential client
 
@@ -244,7 +454,7 @@ Contoh response:
 - Idempotency dijaga oleh kombinasi `company_id (hasil resolusi dari client_key) + idempotency_key`.
 - `company_id` dan `branch_id` **tidak perlu dikirim** oleh client; Accounting Hub mengambil otomatis dari credential.
 - Event duplicate tidak dibuatkan row baru.
-- Tidak ada tax line di receipt fase awal; nominal posting memakai `payload_total`.
+- Tidak ada tax line di receipt/issue fase awal; nominal posting memakai `payload_total`.
 
 ## Menjalankan Phase 2 (Rule Validation)
 
@@ -274,9 +484,10 @@ php artisan integration:inventory:post --limit=100
 
 Hasil command:
 - event valid akan menjadi `processed` dan payload menyimpan `_journal_entry_id` + `_journal_no`;
+- inventory out (`inventory.issue.*`) juga membuat row pending di `integration_outboxes` dengan `destination_system=finance_hub` dan `event_name=finance_hub.inventory_out.posted`;
 - jika periode tidak `open` atau akun invalid, event akan menjadi `failed` dengan `error_message`.
 
-Catatan payload amount untuk rule receipt:
+Catatan payload amount untuk rule receipt dan issue:
 - sistem akan baca nilai total dari salah satu field berikut (urut fallback): `payload.amounts.total`, `payload.total_amount`, `payload.amount`;
 - jika semua field amount tidak ada, sistem akan hitung otomatis dari `sum(lines.qty * lines.unit_cost)`.
 
