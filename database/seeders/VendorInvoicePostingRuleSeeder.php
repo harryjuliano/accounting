@@ -35,7 +35,7 @@ class VendorInvoicePostingRuleSeeder extends Seeder
                 'effective_from' => '2026-01-01',
                 'priority' => 100,
                 'is_active' => true,
-                'description' => 'Debit invoice/DPP, input VAT, freight and credit withholding tax plus vendor payable.',
+                'description' => 'Debit invoice/DPP, input VAT, freight and credit purchase discount, withholding tax plus vendor payable.',
             ]
         );
 
@@ -70,6 +70,13 @@ class VendorInvoicePostingRuleSeeder extends Seeder
             ],
             [
                 'line_no' => 5,
+                'line_side' => 'credit',
+                'mapping_key' => 'vendor.invoice.credit.purchase_discount',
+                'formula_path' => 'amounts.purchase_discount',
+                'description_template' => 'Vendor invoice purchase discount',
+            ],
+            [
+                'line_no' => 6,
                 'line_side' => 'credit',
                 'mapping_key' => 'vendor.invoice.credit.ap',
                 'formula_path' => 'amounts.payable_total',
@@ -114,6 +121,10 @@ class VendorInvoicePostingRuleSeeder extends Seeder
             'vendor.invoice.credit.wht' => [
                 'account_code' => '2130',
                 'description' => 'Withholding tax payable account for vendor invoices',
+            ],
+            'vendor.invoice.credit.purchase_discount' => [
+                'account_code' => '5120',
+                'description' => 'Purchase discount account for vendor invoices',
             ],
             'vendor.invoice.credit.ap' => [
                 'account_code' => '2110',
