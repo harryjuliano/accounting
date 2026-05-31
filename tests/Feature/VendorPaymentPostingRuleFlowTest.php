@@ -206,3 +206,19 @@ it('validates vendor payment without payment WHT when WHT was handled at invoice
         ->and(data_get($event->payload_json, '_posting_preview.lines'))->toHaveCount(5)
         ->and(data_get($event->payload_json, '_posting_preview.lines.*.amount'))->toBe([6776000.0, 138080.0, 10000.0, 100000.0, 7024080.0]);
 });
+
+it('reports missing selected cash account separately from COA mappings', function () {
+    $ctx = createVendorPaymentPostingContext();
+    $event = createVendorPaymentEvent($ctx, payloadOverrides: [
+        'cash_account_id' => null,
+        'bank_account_id' => null,
+    ]);
+
+    $this->artisan('integration:vendor-payment:validate --limit=10')
+        ->assertSuccessful();
+
+    $event->refresh();
+
+    expect($event->processing_status)->toBe('failed')
+        ->and($event->error_message)->toBe('cash_bank_account_not_found');
+});

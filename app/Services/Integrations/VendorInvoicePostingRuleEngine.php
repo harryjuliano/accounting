@@ -120,7 +120,7 @@ class VendorInvoicePostingRuleEngine
             );
 
             if (! $accountId) {
-                return [[], 'account_mapping_not_found'];
+                return [[], $this->resolveMissingAccountError($line->account_source_type, $resolvedMappingKey)];
             }
 
             if ($line->line_side === 'debit') {
@@ -153,6 +153,15 @@ class VendorInvoicePostingRuleEngine
             'total_credit' => round($totalCredit, 2),
             'lines' => $lines,
         ], null];
+    }
+
+    private function resolveMissingAccountError(string $sourceType, ?string $mappingKey): string
+    {
+        if ($sourceType === 'dynamic' && $mappingKey === 'vendor.payment.credit.cash_bank') {
+            return 'cash_bank_account_not_found';
+        }
+
+        return 'account_mapping_not_found';
     }
 
     private function resolveAmount(array $payload, string $amountSource, ?array $formulaJson = null): float

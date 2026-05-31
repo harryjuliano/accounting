@@ -27,6 +27,9 @@ General Ledger / Balance Sheet / Trial Balance
 
 Line Cash/Bank pada posting rule tidak memakai COA fixed. Sistem resolve account secara dinamis dari Cash Account yang dipilih user.
 
+
+> Catatan setup: `vendor.payment.credit.cash_bank` tidak dibuat sebagai baris `coa_mappings`, karena line ini memiliki `account_source_type = dynamic`. Saat validasi, sistem mengambil `payload.cash_account_id` atau `payload.bank_account_id`, mencari record aktif di `bank_accounts`, lalu memakai `bank_accounts.gl_account_id` sebagai akun Cash/Bank. Jika nilai tersebut kosong, menunjuk bank account nonaktif/salah company, atau `gl_account_id`-nya tidak aktif di COA, validasi akan gagal dengan `cash_bank_account_not_found`.
+
 ## WHT sebagai user option
 
 WHT tetap didukung di dua titik:
