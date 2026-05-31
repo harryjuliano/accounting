@@ -5,7 +5,6 @@ namespace Database\Seeders;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Role;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 
 class UserTableSeeder extends Seeder
 {
@@ -15,16 +14,21 @@ class UserTableSeeder extends Seeder
     public function run(): void
     {
         // get admin role
-        $role = Role::where('name', 'super-admin')->first();
-
-        // create new admin
-        $user = User::create([
-            'name' => 'Rafi Taufiqurrahman',
-            'email' => 'raf@dev.com',
-            'password' => bcrypt('password'),
+        $role = Role::firstOrCreate([
+            'name' => 'super-admin',
+            'guard_name' => 'web',
         ]);
 
-        // assign a role to user
+        // create new admin when it does not exist yet
+        $user = User::firstOrCreate(
+            ['email' => 'raf@dev.com'],
+            [
+                'name' => 'Rafi Taufiqurrahman',
+                'password' => bcrypt('password'),
+            ]
+        );
+
+        // assign role to user
         $user->assignRole($role);
     }
 }
