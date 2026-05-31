@@ -29,7 +29,7 @@ class InventoryEventController extends Controller
             (string) $validated['client_secret'],
         );
 
-        abort_unless($credential, 401, 'Invalid client credential.');
+        abort_unless($credential, 401, 'Invalid client credential for inventory events. Use a client_key/client_secret generated with --module=inventory or --module=all.');
 
         $event = IntegrationEvent::query()->firstOrCreate(
             [

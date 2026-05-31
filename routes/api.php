@@ -9,5 +9,15 @@ Route::prefix('integrations/inventory')->group(function () {
 });
 
 Route::prefix('integrations/vendor-invoices')->group(function () {
+    Route::get('/events', fn () => response()->json([
+        'message' => 'Vendor invoice integration endpoint is available. Send vendor invoice events with the POST method.',
+        'method' => 'POST',
+        'path' => '/api/integrations/vendor-invoices/events',
+        'required_headers' => [
+            'Accept' => 'application/json',
+            'Content-Type' => 'application/json',
+        ],
+    ]))->name('api.integrations.vendor-invoices.events.show');
+
     Route::post('/events', [VendorInvoiceEventController::class, 'store'])->name('api.integrations.vendor-invoices.events.store');
 });

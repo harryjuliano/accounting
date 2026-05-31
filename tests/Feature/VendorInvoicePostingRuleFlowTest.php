@@ -101,13 +101,14 @@ function createVendorInvoiceEvent(array $ctx, string $status = 'received', array
                 'tax' => 704000,
                 'freight' => 100000,
                 'withholding_tax' => 128000,
-                'payable_total' => 7076000,
+                'purchase_discount' => 200000,
+                'payable_total' => 6876000,
             ],
         ], $payloadOverrides),
     ]);
 }
 
-it('validates vendor invoice event into five-line posting preview', function () {
+it('validates vendor invoice event into six-line posting preview', function () {
     $ctx = createVendorInvoicePostingContext();
     $event = createVendorInvoiceEvent($ctx);
 
@@ -120,10 +121,11 @@ it('validates vendor invoice event into five-line posting preview', function () 
         ->and(data_get($event->payload_json, '_posting_rule.rule_code'))->toBe('AP_VENDOR_INVOICE_STANDARD')
         ->and(data_get($event->payload_json, '_posting_preview.total_debit'))->toBe(7204000.0)
         ->and(data_get($event->payload_json, '_posting_preview.total_credit'))->toBe(7204000.0)
-        ->and(data_get($event->payload_json, '_posting_preview.lines'))->toHaveCount(5)
+        ->and(data_get($event->payload_json, '_posting_preview.lines'))->toHaveCount(6)
         ->and(data_get($event->payload_json, '_posting_preview.lines.0.amount'))->toBe(6400000.0)
         ->and(data_get($event->payload_json, '_posting_preview.lines.3.amount'))->toBe(128000.0)
-        ->and(data_get($event->payload_json, '_posting_preview.lines.4.amount'))->toBe(7076000.0);
+        ->and(data_get($event->payload_json, '_posting_preview.lines.4.amount'))->toBe(200000.0)
+        ->and(data_get($event->payload_json, '_posting_preview.lines.5.amount'))->toBe(6876000.0);
 });
 
 it('posts validated vendor invoice preview into auto journal lines', function () {
@@ -152,7 +154,7 @@ it('posts validated vendor invoice preview into auto journal lines', function ()
         ->and($journal->reference_no)->toBe('VI-0001')
         ->and((float) $journal->total_debit)->toBe(7204000.0)
         ->and((float) $journal->total_credit)->toBe(7204000.0)
-        ->and($journal->lines()->count())->toBe(5);
+        ->and($journal->lines()->count())->toBe(6);
 
     $lines = $journal->lines()->orderBy('line_no')->get();
 
@@ -160,7 +162,8 @@ it('posts validated vendor invoice preview into auto journal lines', function ()
         ->and((float) $lines[1]->debit)->toBe(704000.0)
         ->and((float) $lines[2]->debit)->toBe(100000.0)
         ->and((float) $lines[3]->credit)->toBe(128000.0)
-        ->and((float) $lines[4]->credit)->toBe(7076000.0);
+        ->and((float) $lines[4]->credit)->toBe(200000.0)
+        ->and((float) $lines[5]->credit)->toBe(6876000.0);
 });
 
 it('fails vendor invoice validation when payload amounts do not balance', function () {
