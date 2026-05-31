@@ -85,6 +85,25 @@ Jika `INTEGRATION_VENDOR_INVOICE_TOKEN` aktif, tambahkan header berikut pada Pos
 X-Integration-Token: <integration-token>
 ```
 
+## Troubleshooting: `Invalid accounts_payable client credential`
+
+Jika response API seperti ini:
+
+```json
+{
+  "message": "Invalid accounts_payable client credential. Use a client_key/client_secret generated with --module=accounts_payable for vendor invoice events."
+}
+```
+
+berarti credential yang dipakai bukan credential module **accounts_payable** atau secret tidak cocok. Contoh yang salah untuk endpoint Vendor Invoice adalah memakai `client_key` berawalan `INVENTORY-...`, karena credential tersebut hanya valid untuk endpoint inventory seperti `inventory.receipt.posted`.
+
+Solusinya buat credential khusus Accounts Payable:
+
+```bash
+php artisan integration:client:create <company_id> <branch_id> --module=accounts_payable --name="Accounts Payable"
+```
+
+Lalu gunakan output `client_key` dan `client_secret` tersebut di payload Vendor Invoice. Prefix key yang diharapkan biasanya seperti `ACCOUNTS_PAYABLE-...`.
 
 ## Troubleshooting: `The route api/integrations/vendor-invoices/events could not be found`
 

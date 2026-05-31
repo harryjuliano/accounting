@@ -115,5 +115,43 @@ it('rejects vendor invoice api payload when accounts payable client credentials 
     ];
 
     $this->postJson('/api/integrations/vendor-invoices/events', $payload)
-        ->assertUnauthorized();
+        ->assertUnauthorized()
+        ->assertJsonPath('message', 'Invalid accounts_payable client credential. Use a client_key/client_secret generated with --module=accounts_payable for vendor invoice events.');
+});
+
+it('rejects inventory client credentials on vendor invoice endpoint with actionable message', function () {
+    $ctx = createVendorInvoiceApiCompany();
+    $inventoryClientSecret = 'inventory-secret';
+
+    IntegrationClientCredential::create([
+        'client_key' => 'INVENTORY-7XWOBMBKVX9S',
+        'client_secret_hash' => hash('sha256', $inventoryClientSecret),
+        'source_module' => 'inventory',
+        'company_id' => $ctx['company']->id,
+        'branch_id' => $ctx['branch']->id,
+        'is_active' => true,
+    ]);
+
+    $payload = [
+        'client_key' => 'INVENTORY-7XWOBMBKVX9S',
+        'client_secret' => $inventoryClientSecret,
+        'event_name' => 'vendor.invoice.posted',
+        'event_datetime' => '2026-05-30T10:00:00Z',
+        'idempotency_key' => 'VI-POSTMAN-1003',
+        'payload' => [
+            'transaction_type' => 'vendor.invoice.standard',
+            'amounts' => [
+                'invoice' => 6400000,
+                'tax' => 704000,
+                'freight' => 100000,
+                'withholding_tax' => 128000,
+                'purchase_discount' => 200000,
+                'payable_total' => 6876000,
+            ],
+        ],
+    ];
+
+    $this->postJson('/api/integrations/vendor-invoices/events', $payload)
+        ->assertUnauthorized()
+        ->assertJsonPath('message', 'Invalid accounts_payable client credential. Use a client_key/client_secret generated with --module=accounts_payable for vendor invoice events.');
 });
