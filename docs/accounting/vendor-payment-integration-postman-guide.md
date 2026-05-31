@@ -11,24 +11,21 @@ Endpoint ini dipakai agar Accounting Hub dapat menerima event **Bank Payment to 
 
 ## Prinsip mapping Cash Account
 
-Implementasi awal memakai **Opsi A**: master cash/bank menggunakan tabel `bank_accounts`.
+Finance Hub dipakai sebagai **General Ledger dan Reporting Hub**. Transaksi kas/bank dan rekonsiliasi tetap berada di modul sumber, sehingga integrasi Vendor Payment dapat mengirim kode COA cash/bank secara langsung melalui `payload.gl_account_code`.
 
 ```text
-payload.cash_account_id / payload.bank_account_id
+payload.gl_account_code
         ↓
-bank_accounts.gl_account_id
-        ↓
-chart_of_accounts.id
+chart_of_accounts.code
         ↓
 journal_lines.account_id
         ↓
 General Ledger / Balance Sheet / Trial Balance
 ```
 
-Line Cash/Bank pada posting rule tidak memakai COA fixed. Sistem resolve account secara dinamis dari Cash Account yang dipilih user.
+Line Cash/Bank pada posting rule tidak memakai COA fixed. Sistem resolve account secara dinamis dari COA cash/bank yang dikirim modul sumber. Payload legacy `cash_account_id` / `bank_account_id` tetap didukung dan akan di-resolve lewat tabel `bank_accounts`, tetapi payload baru disarankan memakai `gl_account_code` agar Finance Hub tidak perlu menyimpan master rekening bank.
 
-
-> Catatan setup: `vendor.payment.credit.cash_bank` tidak dibuat sebagai baris `coa_mappings`, karena line ini memiliki `account_source_type = dynamic`. Saat validasi, sistem mengambil `payload.cash_account_id` atau `payload.bank_account_id`, mencari record aktif di `bank_accounts`, lalu memakai `bank_accounts.gl_account_id` sebagai akun Cash/Bank. Jika nilai tersebut kosong, menunjuk bank account nonaktif/salah company, atau `gl_account_id`-nya tidak aktif di COA, validasi akan gagal dengan `cash_bank_account_not_found`.
+> Catatan setup: `vendor.payment.credit.cash_bank` tidak dibuat sebagai baris `coa_mappings`, karena line ini memiliki `account_source_type = dynamic`. Saat validasi, sistem memprioritaskan `gl_account_code`, lalu fallback ke `cash_account_coa_id`, dan terakhir `cash_account_id` / `bank_account_id` legacy. Untuk `gl_account_code`, sistem mencari COA aktif bertipe asset pada company event dan memakai `chart_of_accounts.id` sebagai akun Cash/Bank. Jika referensi cash/bank kosong atau tidak valid, validasi akan gagal dengan `cash_bank_account_not_found`.
 
 ## WHT sebagai user option
 
@@ -59,7 +56,14 @@ Default operasional yang disarankan adalah **WHT saat payment**. Jika WHT sudah 
     "entry_date": "2026-05-31",
     "reference_no": "VP-0001",
     "description": "Vendor Payment VP-0001",
-    "cash_account_id": 1,
+    "source_cash_account": {
+      "id": 3,
+      "code": "B-1002",
+      "name": "Bank Mandiri",
+      "cash_type": "BANK",
+      "currency_code": "IDR"
+    },
+    "gl_account_code": "1120-020",
     "amounts": {
       "invoice_payment_total": 6904000,
       "withholding_tax_total": 128000,
@@ -89,7 +93,7 @@ Posting rule `AP_VENDOR_PAYMENT_BANK_TRANSFER` menghasilkan jurnal berikut untuk
 | 3 | Bank Charge | `vendor.payment.debit.bank_charge` | 10.000 | - |
 | 4 | Freight | `vendor.payment.debit.freight` | 100.000 | - |
 | 5 | WHT Payable | `vendor.payment.credit.wht` | - | 128.000 |
-| 6 | Cash/Bank Out | `bank_accounts.gl_account_id` dari `cash_account_id` | - | 7.024.080 |
+| 6 | Cash/Bank Out | COA dari `gl_account_code` | - | 7.024.080 |
 |  | **Total** |  | **7.152.080** | **7.152.080** |
 
 Rumus Cash/Bank Out:
