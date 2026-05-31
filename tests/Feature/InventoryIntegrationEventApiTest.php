@@ -118,6 +118,43 @@ it('returns duplicate response and does not create second row for same idempoten
     expect(IntegrationEvent::query()->where('idempotency_key', 'INV-COGS-2001')->count())->toBe(1);
 });
 
+
+it('accepts all-module client credentials on inventory endpoint', function () {
+    $company = createInventoryIntegrationCompany();
+    $branch = Branch::create([
+        'company_id' => $company->id,
+        'code' => 'JKT',
+        'name' => 'Jakarta',
+    ]);
+    $clientSecret = 'shared-all-secret';
+
+    IntegrationClientCredential::create([
+        'client_key' => 'ALL-CLIENT-INV-001',
+        'client_secret_hash' => hash('sha256', $clientSecret),
+        'source_module' => 'all',
+        'company_id' => $company->id,
+        'branch_id' => $branch->id,
+        'is_active' => true,
+    ]);
+
+    $payload = [
+        'client_key' => 'ALL-CLIENT-INV-001',
+        'client_secret' => $clientSecret,
+        'event_name' => 'inventory.receipt.posted',
+        'event_datetime' => '2026-03-28T10:00:00Z',
+        'idempotency_key' => 'INV-RECEIPT-ALL-1001',
+        'payload' => [
+            'branch_code' => 'JKT',
+            'warehouse_code' => 'WH-01',
+        ],
+    ];
+
+    $this->postJson('/api/integrations/inventory/events', $payload)
+        ->assertCreated()
+        ->assertJsonPath('data.company_id', $company->id)
+        ->assertJsonPath('data.branch_id', $branch->id);
+});
+
 it('rejects request when client credentials are invalid', function () {
     $company = createInventoryIntegrationCompany();
     $branch = Branch::create([

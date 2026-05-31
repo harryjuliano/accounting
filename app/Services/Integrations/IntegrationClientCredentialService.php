@@ -9,9 +9,9 @@ class IntegrationClientCredentialService
     public function resolve(string $sourceModule, string $clientKey, string $clientSecret): ?IntegrationClientCredential
     {
         $credential = IntegrationClientCredential::query()
-            ->where('source_module', $sourceModule)
             ->where('client_key', $clientKey)
             ->where('is_active', true)
+            ->whereIn('source_module', [$sourceModule, 'all'])
             ->first();
 
         if (! $credential) {

@@ -92,6 +92,55 @@ it('receives vendor invoice event payload from api for postman integration', fun
         ->and($event->payload_json['amounts']['purchase_discount'])->toBe(200000);
 });
 
+
+it('accepts all-module client credentials on vendor invoice endpoint', function () {
+    $ctx = createVendorInvoiceApiCompany();
+    $clientSecret = 'shared-all-secret';
+
+    IntegrationClientCredential::create([
+        'client_key' => 'ALL-CLIENT-001',
+        'client_secret_hash' => hash('sha256', $clientSecret),
+        'source_module' => 'all',
+        'company_id' => $ctx['company']->id,
+        'branch_id' => $ctx['branch']->id,
+        'is_active' => true,
+    ]);
+
+    $payload = [
+        'client_key' => 'ALL-CLIENT-001',
+        'client_secret' => $clientSecret,
+        'event_name' => 'vendor.invoice.posted',
+        'event_datetime' => '2026-05-30T10:00:00Z',
+        'idempotency_key' => 'VI-POSTMAN-ALL-1001',
+        'source_document_type' => 'vendor_invoice',
+        'source_document_id' => 'VI-ALL-1001',
+        'source_document_no' => 'VI-ALL-0001',
+        'payload' => [
+            'transaction_type' => 'vendor.invoice.standard',
+            'amounts' => [
+                'invoice' => 6400000,
+                'tax' => 704000,
+                'freight' => 100000,
+                'withholding_tax' => 128000,
+                'purchase_discount' => 200000,
+                'payable_total' => 6876000,
+            ],
+        ],
+    ];
+
+    $this->postJson('/api/integrations/vendor-invoices/events', $payload)
+        ->assertCreated()
+        ->assertJsonPath('data.company_id', $ctx['company']->id)
+        ->assertJsonPath('data.branch_id', $ctx['branch']->id);
+
+    $this->assertDatabaseHas('integration_events', [
+        'company_id' => $ctx['company']->id,
+        'source_module' => 'accounts_payable',
+        'idempotency_key' => 'VI-POSTMAN-ALL-1001',
+        'processing_status' => 'received',
+    ]);
+});
+
 it('rejects vendor invoice api payload when accounts payable client credentials are invalid', function () {
     $ctx = createVendorInvoiceApiCompany();
 
@@ -116,7 +165,7 @@ it('rejects vendor invoice api payload when accounts payable client credentials 
 
     $this->postJson('/api/integrations/vendor-invoices/events', $payload)
         ->assertUnauthorized()
-        ->assertJsonPath('message', 'Invalid accounts_payable client credential. Use a client_key/client_secret generated with --module=accounts_payable for vendor invoice events.');
+        ->assertJsonPath('message', 'Invalid client credential for vendor invoice events. Use a client_key/client_secret generated with --module=accounts_payable or --module=all.');
 });
 
 it('rejects inventory client credentials on vendor invoice endpoint with actionable message', function () {
@@ -153,5 +202,5 @@ it('rejects inventory client credentials on vendor invoice endpoint with actiona
 
     $this->postJson('/api/integrations/vendor-invoices/events', $payload)
         ->assertUnauthorized()
-        ->assertJsonPath('message', 'Invalid accounts_payable client credential. Use a client_key/client_secret generated with --module=accounts_payable for vendor invoice events.');
+        ->assertJsonPath('message', 'Invalid client credential for vendor invoice events. Use a client_key/client_secret generated with --module=accounts_payable or --module=all.');
 });

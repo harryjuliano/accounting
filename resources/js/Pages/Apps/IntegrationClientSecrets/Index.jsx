@@ -12,7 +12,7 @@ const initialState = (companies) => ({
     id: '',
     company_id: companies[0]?.id ?? '',
     branch_id: companies[0]?.branches?.[0]?.id ?? '',
-    source_module: 'inventory',
+    source_module: 'all',
     client_name: '',
     client_secret: '',
     isUpdate: false,
@@ -134,7 +134,7 @@ export default function Index() {
                         <Input
                             label="Source Module"
                             type="text"
-                            placeholder="Contoh: inventory"
+                            placeholder="Contoh: all, inventory, accounts_payable"
                             value={data.source_module}
                             onChange={(e) => setData('source_module', e.target.value.toLowerCase())}
                             errors={errors.source_module}

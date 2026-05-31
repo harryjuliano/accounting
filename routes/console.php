@@ -243,10 +243,10 @@ Artisan::command('integration:inventory:retry-failed {--limit=100} {--stage=all}
 })->purpose('Requeue failed inventory integration events for retry');
 
 
-Artisan::command('integration:client:create {company_id} {branch_id} {--module=inventory} {--name=}', function () {
+Artisan::command('integration:client:create {company_id} {branch_id} {--module=all} {--name=}', function () {
     $companyId = (int) $this->argument('company_id');
     $branchId = (int) $this->argument('branch_id');
-    $module = (string) $this->option('module');
+    $module = Str::lower((string) $this->option('module'));
 
     $branch = Branch::query()
         ->where('id', $branchId)
@@ -277,4 +277,4 @@ Artisan::command('integration:client:create {company_id} {branch_id} {--module=i
     $this->line('client_secret: ' . $clientSecret);
 
     return self::SUCCESS;
-})->purpose('Create client_key/client_secret for integration payload verification scope (module/company/branch)');
+})->purpose('Create client_key/client_secret for integration payload verification scope (use --module=all for all modules)');

@@ -85,25 +85,33 @@ Jika `INTEGRATION_VENDOR_INVOICE_TOKEN` aktif, tambahkan header berikut pada Pos
 X-Integration-Token: <integration-token>
 ```
 
-## Troubleshooting: `Invalid accounts_payable client credential`
+## Troubleshooting: `Invalid client credential`
 
 Jika response API seperti ini:
 
 ```json
 {
-  "message": "Invalid accounts_payable client credential. Use a client_key/client_secret generated with --module=accounts_payable for vendor invoice events."
+  "message": "Invalid client credential for vendor invoice events. Use a client_key/client_secret generated with --module=accounts_payable or --module=all."
 }
 ```
 
-berarti credential yang dipakai bukan credential module **accounts_payable** atau secret tidak cocok. Contoh yang salah untuk endpoint Vendor Invoice adalah memakai `client_key` berawalan `INVENTORY-...`, karena credential tersebut hanya valid untuk endpoint inventory seperti `inventory.receipt.posted`.
+berarti credential yang dipakai tidak cocok dengan endpoint Vendor Invoice, atau secret tidak cocok. Endpoint Vendor Invoice menerima credential dengan `source_module` **accounts_payable** atau credential shared dengan `source_module` **all**.
 
-Solusinya buat credential khusus Accounts Payable:
+Jika ingin satu credential dipakai untuk semua module, buat credential shared:
 
 ```bash
-php artisan integration:client:create <company_id> <branch_id> --module=accounts_payable --name="Accounts Payable"
+php artisan integration:client:create <company_id> <branch_id> --module=all --name="ERP Shared Integration"
 ```
 
-Lalu gunakan output `client_key` dan `client_secret` tersebut di payload Vendor Invoice. Prefix key yang diharapkan biasanya seperti `ACCOUNTS_PAYABLE-...`.
+Atau edit credential lama di menu Client Credential dan ubah **Source Module** menjadi `all`. `client_key` dan secret yang sama dapat dipakai lagi setelah source module berubah menjadi `all`.
+
+Risiko memakai satu credential untuk banyak module:
+
+- Jika satu `client_secret` bocor, semua endpoint integrasi yang menerima credential shared ikut terekspos.
+- Audit trail hanya bisa melacak credential yang sama untuk banyak module, sehingga sulit membedakan sumber teknis per module.
+- Rotasi secret untuk satu module akan berdampak ke semua integrasi yang memakai credential shared.
+
+Mitigasi yang disarankan: batasi akses credential di secret manager, gunakan HTTPS, rotasi secret berkala, nonaktifkan credential yang tidak dipakai, dan tetap gunakan `idempotency_key` unik per event.
 
 ## Troubleshooting: `The route api/integrations/vendor-invoices/events could not be found`
 
@@ -173,10 +181,10 @@ Contoh response event baru:
 
 ## Provisioning credential client
 
-Buat credential sekali per module + company + branch dengan command:
+Buat credential sekali untuk semua module + company + branch dengan command:
 
 ```bash
-php artisan integration:client:create <company_id> <branch_id> --module=accounts_payable --name="Accounts Payable"
+php artisan integration:client:create <company_id> <branch_id> --module=all --name="ERP Shared Integration"
 ```
 
 Output command akan menampilkan:
@@ -184,4 +192,4 @@ Output command akan menampilkan:
 - `client_key`
 - `client_secret` (ditampilkan sekali, simpan di secret manager)
 
-Accounting Hub menyimpan `client_secret` dalam bentuk hash SHA-256 (`client_secret_hash`) dan melakukan verifikasi saat request masuk.
+Accounting Hub menyimpan `client_secret` dalam bentuk hash SHA-256 (`client_secret_hash`) dan melakukan verifikasi saat request masuk. Gunakan `--module=accounts_payable` jika ingin credential khusus Vendor Invoice saja, atau `--module=all` jika satu credential boleh dipakai semua module.

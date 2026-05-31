@@ -206,17 +206,17 @@ Silakan review COA mapping default tersebut setelah seeding jika perusahaan memi
 
 ## Provisioning credential client
 
-Buat credential sekali per modul + company + branch dengan command:
+Buat credential sekali per modul + company + branch dengan command. Jika ingin satu credential dipakai semua module, gunakan `--module=all`:
 
 ```bash
-php artisan integration:client:create <company_id> <branch_id> --module=inventory --name="Inventory WMS"
+php artisan integration:client:create <company_id> <branch_id> --module=all --name="ERP Shared Integration"
 ```
 
 Output command akan menampilkan:
 - `client_key`
 - `client_secret` (ditampilkan sekali, simpan di secret manager)
 
-Accounting Hub menyimpan `client_secret` dalam bentuk hash SHA-256 (`client_secret_hash`) dan melakukan verifikasi saat request masuk.
+Accounting Hub menyimpan `client_secret` dalam bentuk hash SHA-256 (`client_secret_hash`) dan melakukan verifikasi saat request masuk. Credential `--module=all` dapat dipakai oleh endpoint inventory dan module integrasi lain; gunakan `--module=inventory` jika ingin membatasi credential hanya untuk inventory.
 
 ## Success response
 
