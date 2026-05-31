@@ -1,0 +1,196 @@
+{
+  "info": {
+    "_postman_id": "4ef0d3cc-8ee8-40f2-9a8f-5c3b60d40f0a",
+    "name": "Accounting Hub - Inventory Out Events",
+    "description": "Contoh request Postman untuk test flow Inventory keluar: Sales/COGS, Damaged, Sample, dan Internal Use. Setelah request masuk dengan status received, jalankan artisan validate lalu post agar jurnal dan outbox Finance Hub terbentuk.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://arthanusafinance.cloudcenter.work"
+    },
+    {
+      "key": "client_key",
+      "value": "INVENTORY-ABCD1234EFGH"
+    },
+    {
+      "key": "client_secret",
+      "value": "<client-secret>"
+    },
+    {
+      "key": "integration_token",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Inventory Out - Sales / COGS",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Integration-Token",
+            "value": "{{integration_token}}",
+            "disabled": true
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"client_key\": \"{{client_key}}\",\n  \"client_secret\": \"{{client_secret}}\",\n  \"event_name\": \"inventory.issue.posted\",\n  \"event_datetime\": \"2026-03-28T11:00:00Z\",\n  \"idempotency_key\": \"INV-ISSUE-SALES-POSTMAN-1001\",\n  \"source_document_type\": \"sales_order_issue\",\n  \"source_document_id\": \"SO-ISS-1001\",\n  \"source_document_no\": \"SO-1001\",\n  \"schema_version\": \"v1\",\n  \"payload\": {\n    \"transaction_type\": \"inventory.issue.sales\",\n    \"posting_date\": \"2026-03-28\",\n    \"entry_date\": \"2026-03-28\",\n    \"currency_code\": \"IDR\",\n    \"exchange_rate\": 1,\n    \"reference_no\": \"SO-1001\",\n    \"description\": \"Inventory out for sales order SO-1001\",\n    \"total_amount\": 750000,\n    \"branch_code\": \"MAIN\",\n    \"warehouse_code\": \"WH-01\",\n    \"customer_code\": \"CUST-001\",\n    \"lines\": [\n      {\n        \"item_code\": \"SKU-SALES-001\",\n        \"item_name\": \"Produk Penjualan A\",\n        \"qty\": 10,\n        \"unit_cost\": 75000,\n        \"uom\": \"PCS\"\n      }\n    ]\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/api/integrations/inventory/events",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "integrations",
+            "inventory",
+            "events"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Inventory Out - Damaged / Write Off",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Integration-Token",
+            "value": "{{integration_token}}",
+            "disabled": true
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"client_key\": \"{{client_key}}\",\n  \"client_secret\": \"{{client_secret}}\",\n  \"event_name\": \"inventory.issue.posted\",\n  \"event_datetime\": \"2026-03-28T11:10:00Z\",\n  \"idempotency_key\": \"INV-ISSUE-DAMAGED-POSTMAN-1001\",\n  \"source_document_type\": \"inventory_write_off\",\n  \"source_document_id\": \"DMG-1001\",\n  \"source_document_no\": \"DMG-1001\",\n  \"schema_version\": \"v1\",\n  \"payload\": {\n    \"transaction_type\": \"inventory.issue.damaged\",\n    \"posting_date\": \"2026-03-28\",\n    \"entry_date\": \"2026-03-28\",\n    \"currency_code\": \"IDR\",\n    \"exchange_rate\": 1,\n    \"reference_no\": \"DMG-1001\",\n    \"description\": \"Inventory damaged write-off DMG-1001\",\n    \"total_amount\": 180000,\n    \"branch_code\": \"MAIN\",\n    \"warehouse_code\": \"WH-01\",\n    \"damage_reason\": \"broken_in_warehouse\",\n    \"lines\": [\n      {\n        \"item_code\": \"SKU-DMG-001\",\n        \"item_name\": \"Produk Rusak A\",\n        \"qty\": 3,\n        \"unit_cost\": 60000,\n        \"uom\": \"PCS\"\n      }\n    ]\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/api/integrations/inventory/events",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "integrations",
+            "inventory",
+            "events"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Inventory Out - Sample / Promotion",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Integration-Token",
+            "value": "{{integration_token}}",
+            "disabled": true
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"client_key\": \"{{client_key}}\",\n  \"client_secret\": \"{{client_secret}}\",\n  \"event_name\": \"inventory.issue.posted\",\n  \"event_datetime\": \"2026-03-28T11:20:00Z\",\n  \"idempotency_key\": \"INV-ISSUE-SAMPLE-POSTMAN-1001\",\n  \"source_document_type\": \"sample_issue\",\n  \"source_document_id\": \"SMP-1001\",\n  \"source_document_no\": \"SMP-1001\",\n  \"schema_version\": \"v1\",\n  \"payload\": {\n    \"transaction_type\": \"inventory.issue.sample\",\n    \"posting_date\": \"2026-03-28\",\n    \"entry_date\": \"2026-03-28\",\n    \"currency_code\": \"IDR\",\n    \"exchange_rate\": 1,\n    \"reference_no\": \"SMP-1001\",\n    \"description\": \"Inventory sample issued to prospect\",\n    \"total_amount\": 125000,\n    \"branch_code\": \"MAIN\",\n    \"warehouse_code\": \"WH-01\",\n    \"recipient_name\": \"PT Prospect Baru\",\n    \"lines\": [\n      {\n        \"item_code\": \"SKU-SMP-001\",\n        \"item_name\": \"Sample Produk A\",\n        \"qty\": 5,\n        \"unit_cost\": 25000,\n        \"uom\": \"PCS\"\n      }\n    ]\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/api/integrations/inventory/events",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "integrations",
+            "inventory",
+            "events"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Inventory Out - Internal Use",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "X-Integration-Token",
+            "value": "{{integration_token}}",
+            "disabled": true
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"client_key\": \"{{client_key}}\",\n  \"client_secret\": \"{{client_secret}}\",\n  \"event_name\": \"inventory.issue.posted\",\n  \"event_datetime\": \"2026-03-28T11:30:00Z\",\n  \"idempotency_key\": \"INV-ISSUE-INTERNAL-POSTMAN-1001\",\n  \"source_document_type\": \"internal_use_issue\",\n  \"source_document_id\": \"INT-1001\",\n  \"source_document_no\": \"INT-1001\",\n  \"schema_version\": \"v1\",\n  \"payload\": {\n    \"transaction_type\": \"inventory.issue.internal_use\",\n    \"posting_date\": \"2026-03-28\",\n    \"entry_date\": \"2026-03-28\",\n    \"currency_code\": \"IDR\",\n    \"exchange_rate\": 1,\n    \"reference_no\": \"INT-1001\",\n    \"description\": \"Inventory issued for internal use\",\n    \"total_amount\": 90000,\n    \"branch_code\": \"MAIN\",\n    \"warehouse_code\": \"WH-01\",\n    \"department_code\": \"OPS\",\n    \"lines\": [\n      {\n        \"item_code\": \"SKU-INT-001\",\n        \"item_name\": \"Barang Operasional A\",\n        \"qty\": 2,\n        \"unit_cost\": 45000,\n        \"uom\": \"PCS\"\n      }\n    ]\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "{{base_url}}/api/integrations/inventory/events",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "integrations",
+            "inventory",
+            "events"
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -5,7 +5,7 @@ use App\Models\ChartOfAccount;
 use App\Models\Company;
 use Database\Seeders\InventoryPostingRuleSeeder;
 
-it('seeds purchase and purchase return inventory receipt posting rules', function () {
+it('seeds inventory receipt and issue posting rules', function () {
     $company = Company::create([
         'code' => 'CMP-SEED-RULE',
         'name' => 'PT Seed Rule',
@@ -60,6 +60,30 @@ it('seeds purchase and purchase return inventory receipt posting rules', functio
         'is_active' => true,
     ]);
 
+    $expenseGroup = AccountGroup::create([
+        'company_id' => $company->id,
+        'code' => 'EXP',
+        'name' => 'Expenses',
+        'type' => 'expense',
+    ]);
+
+    foreach ([
+        ['5120', 'Cost of Goods Sold'],
+        ['7100', 'Operating Expenses'],
+        ['8100', 'Other Income/Expenses'],
+    ] as [$code, $name]) {
+        ChartOfAccount::create([
+            'company_id' => $company->id,
+            'account_group_id' => $expenseGroup->id,
+            'code' => $code,
+            'name' => $name,
+            'account_type' => 'expense',
+            'normal_balance' => 'debit',
+            'financial_statement_group' => 'income_statement',
+            'is_active' => true,
+        ]);
+    }
+
     $this->seed(InventoryPostingRuleSeeder::class);
 
     $this->assertDatabaseHas('posting_rules', [
@@ -102,5 +126,40 @@ it('seeds purchase and purchase return inventory receipt posting rules', functio
         'company_id' => $company->id,
         'module_name' => 'inventory',
         'mapping_key' => 'inventory.receipt.purchase_return.credit.clearing',
+    ]);
+
+    foreach ([
+        'INV_ISSUE_SALES' => 'inventory.issue.sales',
+        'INV_ISSUE_DAMAGED' => 'inventory.issue.damaged',
+        'INV_ISSUE_SAMPLE' => 'inventory.issue.sample',
+        'INV_ISSUE_INTERNAL_USE' => 'inventory.issue.internal_use',
+    ] as $ruleCode => $transactionType) {
+        $this->assertDatabaseHas('posting_rules', [
+            'company_id' => $company->id,
+            'rule_code' => $ruleCode,
+            'event_name' => 'inventory.issue.posted',
+            'transaction_type' => $transactionType,
+            'is_active' => true,
+        ]);
+    }
+
+    $this->assertDatabaseHas('posting_rule_lines', [
+        'line_no' => 1,
+        'line_side' => 'debit',
+        'mapping_key' => 'inventory.issue.sales.debit.cogs',
+        'amount_source' => 'payload_total',
+    ]);
+
+    $this->assertDatabaseHas('posting_rule_lines', [
+        'line_no' => 2,
+        'line_side' => 'credit',
+        'mapping_key' => 'inventory.issue.internal_use.credit.inventory',
+        'amount_source' => 'payload_total',
+    ]);
+
+    $this->assertDatabaseHas('coa_mappings', [
+        'company_id' => $company->id,
+        'module_name' => 'inventory',
+        'mapping_key' => 'inventory.issue.sample.debit.promotion',
     ]);
 });

@@ -15,8 +15,10 @@ use Illuminate\Support\Facades\DB;
 
 class InventoryAutoJournalService
 {
-    public function __construct(private readonly IntegrationEventLifecycleService $lifecycle)
-    {
+    public function __construct(
+        private readonly IntegrationEventLifecycleService $lifecycle,
+        private readonly FinanceHubInventoryOutboxService $financeHubOutbox,
+    ) {
     }
 
     public function postValidatedEvent(IntegrationEvent $event): array
@@ -40,9 +42,17 @@ class InventoryAutoJournalService
             ->first();
 
         if ($existing) {
-            $this->lifecycle->log($event, 'warning', 'Duplicate auto posting detected. Existing journal reused.', [
+            $outbox = $this->financeHubOutbox->enqueueInventoryOutPosted($event, $existing, $payload);
+            $logContext = [
                 'journal_entry_id' => $existing->id,
-            ]);
+            ];
+
+            if ($outbox) {
+                $logContext['outbox_id'] = $outbox->id;
+                $logContext['outbox_event_name'] = $outbox->event_name;
+            }
+
+            $this->lifecycle->log($event, 'warning', 'Duplicate auto posting detected. Existing journal reused.', $logContext);
 
             return [
                 'status' => 'duplicate',
@@ -141,6 +151,8 @@ class InventoryAutoJournalService
             return $journalEntry;
         });
 
+        $outbox = $this->financeHubOutbox->enqueueInventoryOutPosted($event, $journalEntry, $payload);
+
         $event->update([
             'processing_status' => 'processed',
             'processed_at' => now(),
@@ -152,10 +164,17 @@ class InventoryAutoJournalService
         ]);
 
         $this->lifecycle->resolveOpenFailures($event);
-        $this->lifecycle->log($event, 'info', 'Auto posting completed.', [
+        $logContext = [
             'journal_entry_id' => $journalEntry->id,
             'journal_no' => $journalEntry->journal_no,
-        ]);
+        ];
+
+        if ($outbox) {
+            $logContext['outbox_id'] = $outbox->id;
+            $logContext['outbox_event_name'] = $outbox->event_name;
+        }
+
+        $this->lifecycle->log($event, 'info', 'Auto posting completed.', $logContext);
 
         return [
             'status' => 'processed',
