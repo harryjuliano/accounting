@@ -128,6 +128,29 @@ it('validates vendor invoice event into six-line posting preview', function () {
         ->and(data_get($event->payload_json, '_posting_preview.lines.5.amount'))->toBe(6876000.0);
 });
 
+it('validates vendor invoice event with zero optional amount lines', function () {
+    $ctx = createVendorInvoicePostingContext();
+    $event = createVendorInvoiceEvent($ctx, payloadOverrides: [
+        'amounts' => [
+            'freight' => 0,
+            'withholding_tax' => 0,
+            'purchase_discount' => 0,
+            'payable_total' => 7104000,
+        ],
+    ]);
+
+    $this->artisan('integration:vendor-invoice:validate --limit=10')
+        ->assertSuccessful();
+
+    $event->refresh();
+
+    expect($event->processing_status)->toBe('validated')
+        ->and(data_get($event->payload_json, '_posting_preview.total_debit'))->toBe(7104000.0)
+        ->and(data_get($event->payload_json, '_posting_preview.total_credit'))->toBe(7104000.0)
+        ->and(data_get($event->payload_json, '_posting_preview.lines'))->toHaveCount(3)
+        ->and(data_get($event->payload_json, '_posting_preview.lines.*.amount'))->toBe([6400000.0, 704000.0, 7104000.0]);
+});
+
 it('posts validated vendor invoice preview into auto journal lines', function () {
     $ctx = createVendorInvoicePostingContext();
     $event = createVendorInvoiceEvent($ctx);
