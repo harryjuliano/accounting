@@ -85,6 +85,25 @@ Jika `INTEGRATION_VENDOR_INVOICE_TOKEN` aktif, tambahkan header berikut pada Pos
 X-Integration-Token: <integration-token>
 ```
 
+
+## Troubleshooting: `The route api/integrations/vendor-invoices/events could not be found`
+
+Jika muncul pesan tersebut saat membuka URL di browser, biasanya request terkirim sebagai **GET**. Endpoint pemrosesan event Vendor Invoice harus dipanggil dengan **POST** dari Postman/cURL memakai body JSON seperti contoh di atas.
+
+Checklist untuk environment production:
+
+1. Pastikan method di Postman adalah **POST**, bukan GET.
+2. Pastikan URL lengkap memakai path `/api/integrations/vendor-invoices/events`.
+3. Pastikan header `Accept: application/json` dan `Content-Type: application/json` sudah dikirim.
+4. Jika route baru saja dideploy tetapi masih tidak ditemukan, clear cache Laravel di server:
+
+```bash
+php artisan optimize:clear
+php artisan route:clear
+```
+
+Route **GET** pada path yang sama hanya mengembalikan informasi singkat bahwa endpoint tersedia; data invoice tetap harus dikirim dengan **POST**.
+
 ## Perhitungan jurnal yang diharapkan
 
 Posting rule `AP_VENDOR_INVOICE_STANDARD` akan membuat 6 line jurnal dari contoh payload di atas:
