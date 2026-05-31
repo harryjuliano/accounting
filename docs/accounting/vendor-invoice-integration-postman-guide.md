@@ -131,9 +131,18 @@ php artisan route:clear
 
 Route **GET** pada path yang sama hanya mengembalikan informasi singkat bahwa endpoint tersedia; data invoice tetap harus dikirim dengan **POST**.
 
+## Catatan WHT
+
+WHT dapat diposting sebagai user option di dua titik:
+
+1. **Saat invoice** melalui `amounts.withholding_tax` pada event Vendor Invoice.
+2. **Saat payment** melalui `amounts.withholding_tax_total` pada event Vendor Payment.
+
+Default operasional yang disarankan adalah WHT saat payment. Jika ingin mengikuti default tersebut, kirim `amounts.withholding_tax = 0` pada invoice dan isi WHT saat event Vendor Payment.
+
 ## Perhitungan jurnal yang diharapkan
 
-Posting rule `AP_VENDOR_INVOICE_STANDARD` akan membuat 6 line jurnal dari contoh payload di atas:
+Posting rule `AP_VENDOR_INVOICE_STANDARD` akan membuat sampai 6 line jurnal dari contoh payload di atas. Line bernilai 0 akan dilewati:
 
 | Line | Transaksi | Amount source | Debit | Credit |
 |---:|---|---|---:|---:|

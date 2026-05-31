@@ -196,6 +196,96 @@ Artisan::command('integration:vendor-invoice:post {--limit=100}', function (Vend
 })->purpose('Create auto journals from validated vendor invoice integration events');
 
 
+Artisan::command('integration:vendor-payment:validate {--limit=100}', function (VendorInvoicePostingRuleEngine $engine, ModulePresetJournalValidator $presetValidator) {
+    $limit = (int) $this->option('limit');
+
+    $events = IntegrationEvent::query()
+        ->where('source_module', 'accounts_payable')
+        ->where('event_name', 'vendor.payment.posted')
+        ->whereIn('processing_status', ['received'])
+        ->orderBy('id')
+        ->limit($limit)
+        ->get();
+
+    if ($events->isEmpty()) {
+        $this->info('No vendor payment integration events with status received.');
+
+        return self::SUCCESS;
+    }
+
+    $success = 0;
+    $failed = 0;
+
+    foreach ($events as $event) {
+        $validator = PostingMode::fromEvent($event) === PostingMode::MODULE_PRESET ? $presetValidator : $engine;
+        $result = $validator->validateAndMark($event);
+
+        if ($result['status'] === 'validated') {
+            $success++;
+            $this->line("[OK] event_id={$event->id} status=validated");
+
+            continue;
+        }
+
+        $failed++;
+        $this->warn("[FAIL] event_id={$event->id} error={$result['error']}");
+    }
+
+    $this->info("Done. validated={$success}, failed={$failed}");
+
+    return self::SUCCESS;
+})->purpose('Validate received vendor payment integration events using posting rules');
+
+
+Artisan::command('integration:vendor-payment:post {--limit=100}', function (VendorInvoiceAutoJournalService $service, ModulePresetAutoJournalService $presetService) {
+    $limit = (int) $this->option('limit');
+
+    $events = IntegrationEvent::query()
+        ->where('source_module', 'accounts_payable')
+        ->where('event_name', 'vendor.payment.posted')
+        ->where('processing_status', 'validated')
+        ->orderBy('id')
+        ->limit($limit)
+        ->get();
+
+    if ($events->isEmpty()) {
+        $this->info('No validated vendor payment integration events ready for posting.');
+
+        return self::SUCCESS;
+    }
+
+    $processed = 0;
+    $failed = 0;
+    $duplicate = 0;
+
+    foreach ($events as $event) {
+        $postingService = PostingMode::fromEvent($event) === PostingMode::MODULE_PRESET ? $presetService : $service;
+        $result = $postingService->postValidatedEvent($event);
+
+        if ($result['status'] === 'processed') {
+            $processed++;
+            $this->line("[POSTED] event_id={$event->id} journal_id={$result['journal_entry_id']}");
+
+            continue;
+        }
+
+        if ($result['status'] === 'duplicate') {
+            $duplicate++;
+            $this->line("[DUPLICATE] event_id={$event->id} journal_id={$result['journal_entry_id']}");
+
+            continue;
+        }
+
+        $failed++;
+        $this->warn("[FAIL] event_id={$event->id} error={$result['error']}");
+    }
+
+    $this->info("Done. processed={$processed}, duplicate={$duplicate}, failed={$failed}");
+
+    return self::SUCCESS;
+})->purpose('Create auto journals from validated vendor payment integration events');
+
+
 Artisan::command('integration:module-preset:validate {--limit=100} {--module=}', function (ModulePresetJournalValidator $validator) {
     $limit = (int) $this->option('limit');
     $module = (string) $this->option('module');

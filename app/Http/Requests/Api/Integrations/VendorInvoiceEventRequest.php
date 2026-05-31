@@ -11,6 +11,21 @@ class VendorInvoiceEventRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        $payload = $this->input('payload', []);
+
+        if (is_array($payload)) {
+            $amounts = $payload['amounts'] ?? [];
+
+            if (is_array($amounts)) {
+                $amounts['withholding_tax'] = $amounts['withholding_tax'] ?? 0;
+                $payload['amounts'] = $amounts;
+                $this->merge(['payload' => $payload]);
+            }
+        }
+    }
+
     public function rules(): array
     {
         return [
@@ -30,7 +45,7 @@ class VendorInvoiceEventRequest extends FormRequest
             'payload.amounts.invoice' => ['required', 'numeric', 'min:0'],
             'payload.amounts.tax' => ['required', 'numeric', 'min:0'],
             'payload.amounts.freight' => ['required', 'numeric', 'min:0'],
-            'payload.amounts.withholding_tax' => ['required', 'numeric', 'min:0'],
+            'payload.amounts.withholding_tax' => ['nullable', 'numeric', 'min:0'],
             'payload.amounts.purchase_discount' => ['required', 'numeric', 'min:0'],
             'payload.amounts.payable_total' => ['required', 'numeric', 'min:0'],
             'schema_version' => ['nullable', 'string', 'max:50'],
