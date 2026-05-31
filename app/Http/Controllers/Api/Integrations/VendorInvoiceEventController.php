@@ -29,7 +29,11 @@ class VendorInvoiceEventController extends Controller
             (string) $validated['client_secret'],
         );
 
-        abort_unless($credential, 401, 'Invalid client credential.');
+        abort_unless(
+            $credential,
+            401,
+            'Invalid accounts_payable client credential. Use a client_key/client_secret generated with --module=accounts_payable for vendor invoice events.'
+        );
 
         $event = IntegrationEvent::query()->firstOrCreate(
             [
