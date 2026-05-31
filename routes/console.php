@@ -5,6 +5,9 @@ use App\Models\IntegrationClientCredential;
 use App\Models\IntegrationEvent;
 use App\Services\Integrations\InventoryAutoJournalService;
 use App\Services\Integrations\InventoryPostingRuleEngine;
+use App\Services\Integrations\ModulePresetAutoJournalService;
+use App\Services\Integrations\ModulePresetJournalValidator;
+use App\Services\Integrations\PostingMode;
 use App\Services\Integrations\VendorInvoiceAutoJournalService;
 use App\Services\Integrations\VendorInvoicePostingRuleEngine;
 use Illuminate\Foundation\Inspiring;
@@ -15,7 +18,7 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote')->hourly();
 
-Artisan::command('integration:inventory:validate {--limit=100}', function (InventoryPostingRuleEngine $engine) {
+Artisan::command('integration:inventory:validate {--limit=100}', function (InventoryPostingRuleEngine $engine, ModulePresetJournalValidator $presetValidator) {
     $limit = (int) $this->option('limit');
 
     $events = IntegrationEvent::query()
@@ -35,7 +38,8 @@ Artisan::command('integration:inventory:validate {--limit=100}', function (Inven
     $failed = 0;
 
     foreach ($events as $event) {
-        $result = $engine->validateAndMark($event);
+        $validator = PostingMode::fromEvent($event) === PostingMode::MODULE_PRESET ? $presetValidator : $engine;
+        $result = $validator->validateAndMark($event);
 
         if ($result['status'] === 'validated') {
             $success++;
@@ -54,7 +58,7 @@ Artisan::command('integration:inventory:validate {--limit=100}', function (Inven
 })->purpose('Validate received inventory integration events using posting rules');
 
 
-Artisan::command('integration:inventory:post {--limit=100}', function (InventoryAutoJournalService $service) {
+Artisan::command('integration:inventory:post {--limit=100}', function (InventoryAutoJournalService $service, ModulePresetAutoJournalService $presetService) {
     $limit = (int) $this->option('limit');
 
     $events = IntegrationEvent::query()
@@ -75,7 +79,8 @@ Artisan::command('integration:inventory:post {--limit=100}', function (Inventory
     $duplicate = 0;
 
     foreach ($events as $event) {
-        $result = $service->postValidatedEvent($event);
+        $postingService = PostingMode::fromEvent($event) === PostingMode::MODULE_PRESET ? $presetService : $service;
+        $result = $postingService->postValidatedEvent($event);
 
         if ($result['status'] === 'processed') {
             $processed++;
@@ -101,7 +106,7 @@ Artisan::command('integration:inventory:post {--limit=100}', function (Inventory
 })->purpose('Create auto journals from validated inventory integration events');
 
 
-Artisan::command('integration:vendor-invoice:validate {--limit=100}', function (VendorInvoicePostingRuleEngine $engine) {
+Artisan::command('integration:vendor-invoice:validate {--limit=100}', function (VendorInvoicePostingRuleEngine $engine, ModulePresetJournalValidator $presetValidator) {
     $limit = (int) $this->option('limit');
 
     $events = IntegrationEvent::query()
@@ -122,7 +127,8 @@ Artisan::command('integration:vendor-invoice:validate {--limit=100}', function (
     $failed = 0;
 
     foreach ($events as $event) {
-        $result = $engine->validateAndMark($event);
+        $validator = PostingMode::fromEvent($event) === PostingMode::MODULE_PRESET ? $presetValidator : $engine;
+        $result = $validator->validateAndMark($event);
 
         if ($result['status'] === 'validated') {
             $success++;
@@ -141,7 +147,7 @@ Artisan::command('integration:vendor-invoice:validate {--limit=100}', function (
 })->purpose('Validate received vendor invoice integration events using posting rules');
 
 
-Artisan::command('integration:vendor-invoice:post {--limit=100}', function (VendorInvoiceAutoJournalService $service) {
+Artisan::command('integration:vendor-invoice:post {--limit=100}', function (VendorInvoiceAutoJournalService $service, ModulePresetAutoJournalService $presetService) {
     $limit = (int) $this->option('limit');
 
     $events = IntegrationEvent::query()
@@ -154,6 +160,97 @@ Artisan::command('integration:vendor-invoice:post {--limit=100}', function (Vend
 
     if ($events->isEmpty()) {
         $this->info('No validated vendor invoice integration events ready for posting.');
+
+        return self::SUCCESS;
+    }
+
+    $processed = 0;
+    $failed = 0;
+    $duplicate = 0;
+
+    foreach ($events as $event) {
+        $postingService = PostingMode::fromEvent($event) === PostingMode::MODULE_PRESET ? $presetService : $service;
+        $result = $postingService->postValidatedEvent($event);
+
+        if ($result['status'] === 'processed') {
+            $processed++;
+            $this->line("[POSTED] event_id={$event->id} journal_id={$result['journal_entry_id']}");
+
+            continue;
+        }
+
+        if ($result['status'] === 'duplicate') {
+            $duplicate++;
+            $this->line("[DUPLICATE] event_id={$event->id} journal_id={$result['journal_entry_id']}");
+
+            continue;
+        }
+
+        $failed++;
+        $this->warn("[FAIL] event_id={$event->id} error={$result['error']}");
+    }
+
+    $this->info("Done. processed={$processed}, duplicate={$duplicate}, failed={$failed}");
+
+    return self::SUCCESS;
+})->purpose('Create auto journals from validated vendor invoice integration events');
+
+
+Artisan::command('integration:module-preset:validate {--limit=100} {--module=}', function (ModulePresetJournalValidator $validator) {
+    $limit = (int) $this->option('limit');
+    $module = (string) $this->option('module');
+
+    $events = IntegrationEvent::query()
+        ->whereIn('processing_status', ['received'])
+        ->when($module !== '', fn ($query) => $query->where('source_module', $module))
+        ->where('payload_json->posting_mode', PostingMode::MODULE_PRESET)
+        ->orderBy('id')
+        ->limit($limit)
+        ->get();
+
+    if ($events->isEmpty()) {
+        $this->info('No module preset integration events with status received.');
+
+        return self::SUCCESS;
+    }
+
+    $success = 0;
+    $failed = 0;
+
+    foreach ($events as $event) {
+        $result = $validator->validateAndMark($event);
+
+        if ($result['status'] === 'validated') {
+            $success++;
+            $this->line("[OK] event_id={$event->id} status=validated");
+
+            continue;
+        }
+
+        $failed++;
+        $this->warn("[FAIL] event_id={$event->id} error={$result['error']}");
+    }
+
+    $this->info("Done. validated={$success}, failed={$failed}");
+
+    return self::SUCCESS;
+})->purpose('Validate received module preset journal integration events');
+
+
+Artisan::command('integration:module-preset:post {--limit=100} {--module=}', function (ModulePresetAutoJournalService $service) {
+    $limit = (int) $this->option('limit');
+    $module = (string) $this->option('module');
+
+    $events = IntegrationEvent::query()
+        ->where('processing_status', 'validated')
+        ->when($module !== '', fn ($query) => $query->where('source_module', $module))
+        ->where('payload_json->posting_mode', PostingMode::MODULE_PRESET)
+        ->orderBy('id')
+        ->limit($limit)
+        ->get();
+
+    if ($events->isEmpty()) {
+        $this->info('No validated module preset integration events ready for posting.');
 
         return self::SUCCESS;
     }
@@ -186,7 +283,7 @@ Artisan::command('integration:vendor-invoice:post {--limit=100}', function (Vend
     $this->info("Done. processed={$processed}, duplicate={$duplicate}, failed={$failed}");
 
     return self::SUCCESS;
-})->purpose('Create auto journals from validated vendor invoice integration events');
+})->purpose('Create auto journals from validated module preset journal integration events');
 
 
 Artisan::command('integration:inventory:retry-failed {--limit=100} {--stage=all}', function () {
