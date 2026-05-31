@@ -144,6 +144,21 @@ it('validates vendor payment with selected cash account and WHT at payment', fun
         ->and(data_get($event->payload_json, '_posting_preview.lines.5.account_id'))->toBe($ctx['accounts']['1120-010']->id);
 });
 
+it('validates vendor payment when cash account id is a chart of account id', function () {
+    $ctx = createVendorPaymentPostingContext();
+    $event = createVendorPaymentEvent($ctx, payloadOverrides: [
+        'cash_account_id' => $ctx['accounts']['1120-010']->id,
+    ]);
+
+    $this->artisan('integration:vendor-payment:validate --limit=10')
+        ->assertSuccessful();
+
+    $event->refresh();
+
+    expect($event->processing_status)->toBe('validated')
+        ->and(data_get($event->payload_json, '_posting_preview.lines.5.account_id'))->toBe($ctx['accounts']['1120-010']->id);
+});
+
 it('posts validated vendor payment preview into auto journal lines', function () {
     $ctx = createVendorPaymentPostingContext();
     $event = createVendorPaymentEvent($ctx);

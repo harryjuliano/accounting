@@ -14,11 +14,15 @@ Endpoint ini dipakai agar Accounting Hub dapat menerima event **Bank Payment to 
 Implementasi awal memakai **Opsi A**: master cash/bank menggunakan tabel `bank_accounts`.
 
 ```text
-payload.cash_account_id / payload.bank_account_id
+payload.bank_account_id
         ↓
 bank_accounts.gl_account_id
         ↓
 chart_of_accounts.id
+
+atau payload.cash_account_id
+        ↓
+chart_of_accounts.id (fallback langsung)
         ↓
 journal_lines.account_id
         ↓
@@ -28,7 +32,7 @@ General Ledger / Balance Sheet / Trial Balance
 Line Cash/Bank pada posting rule tidak memakai COA fixed. Sistem resolve account secara dinamis dari Cash Account yang dipilih user.
 
 
-> Catatan setup: `vendor.payment.credit.cash_bank` tidak dibuat sebagai baris `coa_mappings`, karena line ini memiliki `account_source_type = dynamic`. Saat validasi, sistem mengambil `payload.cash_account_id` atau `payload.bank_account_id`, mencari record aktif di `bank_accounts`, lalu memakai `bank_accounts.gl_account_id` sebagai akun Cash/Bank. Jika nilai tersebut kosong, menunjuk bank account nonaktif/salah company, atau `gl_account_id`-nya tidak aktif di COA, validasi akan gagal dengan `cash_bank_account_not_found`.
+> Catatan setup: `vendor.payment.credit.cash_bank` tidak dibuat sebagai baris `coa_mappings`, karena line ini memiliki `account_source_type = dynamic`. Saat validasi, sistem memprioritaskan `payload.bank_account_id` sebagai id record aktif di `bank_accounts`, lalu memakai `bank_accounts.gl_account_id` sebagai akun Cash/Bank. Jika hanya `payload.cash_account_id` yang dikirim, sistem tetap kompatibel dengan format lama (id `bank_accounts`) dan juga menerima fallback langsung ke id aktif di `chart_of_accounts`. Jika nilai tersebut kosong, menunjuk bank/COA nonaktif/salah company, atau `gl_account_id`-nya tidak aktif di COA, validasi akan gagal dengan `cash_bank_account_not_found`.
 
 ## WHT sebagai user option
 
@@ -89,7 +93,7 @@ Posting rule `AP_VENDOR_PAYMENT_BANK_TRANSFER` menghasilkan jurnal berikut untuk
 | 3 | Bank Charge | `vendor.payment.debit.bank_charge` | 10.000 | - |
 | 4 | Freight | `vendor.payment.debit.freight` | 100.000 | - |
 | 5 | WHT Payable | `vendor.payment.credit.wht` | - | 128.000 |
-| 6 | Cash/Bank Out | `bank_accounts.gl_account_id` dari `cash_account_id` | - | 7.024.080 |
+| 6 | Cash/Bank Out | `bank_accounts.gl_account_id` dari `bank_account_id`, atau COA aktif dari `cash_account_id` | - | 7.024.080 |
 |  | **Total** |  | **7.152.080** | **7.152.080** |
 
 Rumus Cash/Bank Out:

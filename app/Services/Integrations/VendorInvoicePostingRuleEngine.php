@@ -299,15 +299,29 @@ class VendorInvoicePostingRuleEngine
 
     private function resolveSelectedCashAccount(IntegrationEvent $event, array $payload): ?int
     {
-        $cashAccountId = data_get($payload, 'cash_account_id', data_get($payload, 'bank_account_id'));
+        $bankAccountId = data_get($payload, 'bank_account_id');
+
+        if (is_numeric($bankAccountId) && (int) $bankAccountId > 0) {
+            return $this->resolveBankAccountGlAccountId($event, (int) $bankAccountId);
+        }
+
+        $cashAccountId = data_get($payload, 'cash_account_id');
 
         if (! is_numeric($cashAccountId) || (int) $cashAccountId <= 0) {
             return null;
         }
 
+        $cashAccountId = (int) $cashAccountId;
+
+        return $this->resolveBankAccountGlAccountId($event, $cashAccountId)
+            ?? $this->resolveCashChartOfAccountId($event, $cashAccountId);
+    }
+
+    private function resolveBankAccountGlAccountId(IntegrationEvent $event, int $bankAccountId): ?int
+    {
         $bankAccount = BankAccount::query()
             ->where('company_id', $event->company_id)
-            ->whereKey((int) $cashAccountId)
+            ->whereKey($bankAccountId)
             ->where('is_active', true)
             ->first();
 
@@ -315,13 +329,18 @@ class VendorInvoicePostingRuleEngine
             return null;
         }
 
+        return $this->resolveCashChartOfAccountId($event, (int) $bankAccount->gl_account_id);
+    }
+
+    private function resolveCashChartOfAccountId(IntegrationEvent $event, int $accountId): ?int
+    {
         $accountExists = ChartOfAccount::query()
             ->where('company_id', $event->company_id)
-            ->whereKey($bankAccount->gl_account_id)
+            ->whereKey($accountId)
             ->where('is_active', true)
             ->exists();
 
-        return $accountExists ? (int) $bankAccount->gl_account_id : null;
+        return $accountExists ? $accountId : null;
     }
 
     private function resolveDynamicMappingKey(?string $mappingKey, array $payload): ?string
