@@ -86,6 +86,8 @@ class ChartOfAccountSeeder extends Seeder
             ['code' => '3110', 'name' => 'Equity', 'alias_name' => 'Modal', 'level' => 3, 'parent_code' => '3100', 'account_group' => 'equity', 'account_type' => 'equity', 'financial_statement_group' => 'balance_sheet'],
             ['code' => '4110', 'name' => 'Service Revenue', 'alias_name' => 'Pendapatan Jasa', 'level' => 3, 'parent_code' => '4100', 'account_group' => 'revenue', 'account_type' => 'revenue', 'financial_statement_group' => 'income_statement'],
             ['code' => '4120', 'name' => 'Trading Revenue', 'alias_name' => 'Penjualan Barang', 'level' => 3, 'parent_code' => '4100', 'account_group' => 'revenue', 'account_type' => 'revenue', 'financial_statement_group' => 'income_statement'],
+            ['code' => '4130', 'name' => 'Sales Discount', 'alias_name' => 'Diskon Penjualan', 'level' => 3, 'parent_code' => '4100', 'account_group' => 'revenue', 'account_type' => 'revenue', 'normal_balance' => 'debit', 'financial_statement_group' => 'income_statement'],
+            ['code' => '4140', 'name' => 'Freight Income', 'alias_name' => 'Pendapatan Ongkos Kirim', 'level' => 3, 'parent_code' => '4100', 'account_group' => 'revenue', 'account_type' => 'revenue', 'financial_statement_group' => 'income_statement'],
             ['code' => '5110', 'name' => 'Cost Of Services', 'alias_name' => 'Service Costs', 'level' => 3, 'parent_code' => '5100', 'account_group' => 'expense', 'account_type' => 'expense', 'financial_statement_group' => 'income_statement'],
             ['code' => '5120', 'name' => 'Cost of Good Sold', 'alias_name' => 'Cost of Good Sold', 'level' => 3, 'parent_code' => '5100', 'account_group' => 'expense', 'account_type' => 'expense', 'financial_statement_group' => 'income_statement'],
             ['code' => '5130', 'name' => 'Manufacturing Costs', 'alias_name' => 'Manufacturing Costs', 'level' => 3, 'parent_code' => '5100', 'account_group' => 'expense', 'account_type' => 'expense', 'financial_statement_group' => 'income_statement'],
@@ -105,7 +107,7 @@ class ChartOfAccountSeeder extends Seeder
 
         foreach ($accounts as $account) {
             $parentId = $account['parent_code'] ? ($coaByCode[$account['parent_code']]->id ?? null) : null;
-            $normalBalance = in_array($account['account_type'], ['assets', 'expense'], true) ? 'debit' : 'credit';
+            $normalBalance = $account['normal_balance'] ?? (in_array($account['account_type'], ['assets', 'expense'], true) ? 'debit' : 'credit');
 
             $coa = ChartOfAccount::updateOrCreate(
                 ['company_id' => $company->id, 'code' => $account['code']],

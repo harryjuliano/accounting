@@ -14,6 +14,7 @@ import {
     IconHierarchy3,
     IconPercentage,
     IconPlugConnected,
+    IconSettings,
     IconShieldCheck,
     IconUserCog,
     IconUsers,
@@ -125,6 +126,19 @@ export default function Menu() {
                     href: '/apps/reports/general-ledger',
                     active: url.startsWith('/apps/reports/general-ledger'),
                     icon: <IconBooks size={20} strokeWidth={1.5} />,
+                    permissions: accountingAccess,
+                },
+            ],
+        },
+        {
+            title: 'SETUP',
+            permissions: accountingAccess,
+            details: [
+                {
+                    title: 'Preset Jurnal',
+                    href: '/apps/setup/preset-journals',
+                    active: url.startsWith('/apps/setup/preset-journals'),
+                    icon: <IconSettings size={20} strokeWidth={1.5} />,
                     permissions: accountingAccess,
                 },
             ],

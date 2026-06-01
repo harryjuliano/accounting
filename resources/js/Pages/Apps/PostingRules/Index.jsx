@@ -29,7 +29,7 @@ const defaultMapping = () => ({
 const buildInitialData = (companies) => ({
     id: '',
     company_id: companies[0]?.id ?? '',
-    module_name: 'inventory',
+    module_name: 'sales',
     event_name: '',
     transaction_type: '',
     rule_code: '',
@@ -47,7 +47,7 @@ const buildInitialData = (companies) => ({
 });
 
 export default function Index() {
-    const { rules, companies, chartOfAccounts, mappingByCompanyModule, errors } = usePage().props;
+    const { rules, companies, chartOfAccounts, mappingByCompanyModule, presetTemplates = {}, errors } = usePage().props;
     const { data, setData, post, put, processing } = useForm(buildInitialData(companies));
 
     const availableAccounts = useMemo(
@@ -58,6 +58,32 @@ export default function Index() {
     const resetForm = () => setData(buildInitialData(companies));
 
     const openCreate = () => setData({ ...buildInitialData(companies), isOpen: true });
+
+    const applyTemplate = (templateKey) => {
+        const template = presetTemplates?.[templateKey]?.data;
+
+        if (!template) {
+            return;
+        }
+
+        setData({
+            ...data,
+            ...template,
+            lines: template.lines.map((line) => ({
+                ...defaultLine(line.line_no),
+                account_source_type: 'mapping',
+                fixed_account_id: '',
+                dimension_rule_json: {},
+                ...line,
+                formula_json: line.formula_json ?? {},
+                formula_json_text: line.formula_json ? JSON.stringify(line.formula_json) : '',
+            })),
+            coa_mappings: template.coa_mappings.map((mapping) => ({
+                ...defaultMapping(),
+                ...mapping,
+            })),
+        });
+    };
 
     const openEdit = (rule) => {
         const key = `${rule.company_id}|${rule.module_name}`;
@@ -93,6 +119,7 @@ export default function Index() {
                 mapping_key: line.mapping_key ?? '',
                 amount_source: line.amount_source,
                 formula_json: line.formula_json ?? {},
+                formula_json_text: line.formula_json ? JSON.stringify(line.formula_json) : '',
                 dimension_rule_json: line.dimension_rule_json ?? {},
                 description_template: line.description_template ?? '',
             })),
@@ -110,16 +137,30 @@ export default function Index() {
         };
 
         if (data.isUpdate) {
-            put(route('apps.integration-posting-rules.update', data.id), options);
+            put(route('apps.preset-journals.update', data.id), options);
             return;
         }
 
-        post(route('apps.integration-posting-rules.store'), options);
+        post(route('apps.preset-journals.store'), options);
     };
 
     const updateLine = (index, field, value) => {
         const lines = [...data.lines];
         lines[index] = { ...lines[index], [field]: value };
+        setData('lines', lines);
+    };
+
+    const updateFormulaJsonText = (index, value) => {
+        const lines = [...data.lines];
+        let parsed = lines[index].formula_json ?? {};
+
+        try {
+            parsed = value ? JSON.parse(value) : {};
+        } catch (error) {
+            parsed = lines[index].formula_json ?? {};
+        }
+
+        lines[index] = { ...lines[index], formula_json_text: value, formula_json: parsed };
         setData('lines', lines);
     };
 
@@ -131,14 +172,30 @@ export default function Index() {
 
     return (
         <>
-            <Head title="Posting Rules" />
+            <Head title="Preset Jurnal" />
 
             <div className="mb-4 flex justify-end">
-                <Button type="button" variant="gray" icon={<IconPlus size={18} strokeWidth={1.5} />} label="Tambah Posting Rule" onClick={openCreate} />
+                <Button type="button" variant="gray" icon={<IconPlus size={18} strokeWidth={1.5} />} label="Tambah Preset Jurnal" onClick={openCreate} />
             </div>
 
-            <Modal show={data.isOpen} onClose={resetForm} title={data.isUpdate ? 'Edit Posting Rule Package' : 'Tambah Posting Rule Package'} maxWidth="6xl">
+            <Modal show={data.isOpen} onClose={resetForm} title={data.isUpdate ? 'Edit Preset Jurnal' : 'Tambah Preset Jurnal'} maxWidth="6xl">
                 <form onSubmit={submit} className="space-y-4">
+                    {!data.isUpdate && Object.keys(presetTemplates).length > 0 && (
+                        <div className="rounded-md border border-blue-100 bg-blue-50 p-3 dark:border-blue-900 dark:bg-blue-950/30">
+                            <label className="text-sm font-semibold text-blue-700 dark:text-blue-300">Template Preset</label>
+                            <select
+                                className="mt-2 w-full rounded-md border border-blue-200 bg-white px-3 py-2 text-sm dark:border-blue-900 dark:bg-gray-900"
+                                defaultValue=""
+                                onChange={(e) => applyTemplate(e.target.value)}
+                            >
+                                <option value="">Pilih template preset jurnal</option>
+                                {Object.entries(presetTemplates).map(([key, template]) => (
+                                    <option key={key} value={key}>{template.label}</option>
+                                ))}
+                            </select>
+                            <p className="mt-2 text-xs text-blue-700 dark:text-blue-300">Gunakan template Sales Invoice Posted untuk mapping AR, Diskon, Revenue, PPN setelah diskon, Ongkir, COGS, dan Inventory.</p>
+                        </div>
+                    )}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="flex flex-col gap-2">
                             <label className="text-sm text-gray-600">Company</label>
@@ -185,11 +242,11 @@ export default function Index() {
 
                     <div className="rounded-md border border-gray-200 dark:border-gray-800 p-3 space-y-3">
                         <div className="flex items-center justify-between">
-                            <h4 className="font-semibold">Posting Rule Lines</h4>
+                            <h4 className="font-semibold">Baris Preset Jurnal</h4>
                             <Button type="button" variant="gray" icon={<IconPlus size={14} />} label="Tambah Line" onClick={() => setData('lines', [...data.lines, defaultLine(data.lines.length + 1)])} />
                         </div>
                         {data.lines.map((line, index) => (
-                            <div key={index} className="grid grid-cols-1 md:grid-cols-[5ch_minmax(7rem,0.75fr)_minmax(25ch,1.4fr)_minmax(10rem,1fr)_5ch] gap-2 items-end rounded border border-gray-100 dark:border-gray-900 p-2">
+                            <div key={index} className="grid grid-cols-1 md:grid-cols-[5ch_minmax(7rem,0.75fr)_minmax(23ch,1.2fr)_minmax(10rem,1fr)_minmax(18ch,1.2fr)_5ch] gap-2 items-end rounded border border-gray-100 dark:border-gray-900 p-2">
                                 <Input label="Line No" type="number" className="px-1 text-center" value={line.line_no} onChange={(e) => updateLine(index, 'line_no', Number(e.target.value))} />
                                 <div>
                                     <label className="text-xs text-gray-500">Side</label>
@@ -208,6 +265,7 @@ export default function Index() {
                                         <option value="formula">formula</option>
                                     </select>
                                 </div>
+                                <Input label="Formula JSON" type="text" value={line.formula_json_text ?? (line.formula_json ? JSON.stringify(line.formula_json) : '')} onChange={(e) => updateFormulaJsonText(index, e.target.value)} />
                                 <Button type="button" variant="rose" className="w-[5ch] justify-center px-0" icon={<IconTrash size={14} />} onClick={() => setData('lines', data.lines.filter((_, idx) => idx !== index))} />
                             </div>
                         ))}
@@ -247,12 +305,12 @@ export default function Index() {
                             <input type="checkbox" checked={data.is_active} onChange={(e) => setData('is_active', e.target.checked)} />
                             Active
                         </label>
-                        <Button type="submit" variant="gray" label={processing ? 'Menyimpan...' : 'Simpan Paket'} disabled={processing} />
+                        <Button type="submit" variant="gray" label={processing ? 'Menyimpan...' : 'Simpan Preset'} disabled={processing} />
                     </div>
                 </form>
             </Modal>
 
-            <Table.Card title="Posting Rules Onboarding">
+            <Table.Card title="Setup Preset Jurnal">
                 <Table>
                     <Table.Thead>
                         <tr>
@@ -280,13 +338,13 @@ export default function Index() {
                                 <Table.Td>
                                     <div className="flex gap-2">
                                         <Button type="modal" variant="orange" icon={<IconPencilCog size={16} strokeWidth={1.5} />} onClick={() => openEdit(rule)} />
-                                        <Button type="delete" variant="rose" icon={<IconTrash size={16} strokeWidth={1.5} />} url={route('apps.integration-posting-rules.destroy', rule.id)} />
+                                        <Button type="delete" variant="rose" icon={<IconTrash size={16} strokeWidth={1.5} />} url={route('apps.preset-journals.destroy', rule.id)} />
                                     </div>
                                 </Table.Td>
                             </tr>
                         ))}
                         {!rules.data.length && (
-                            <Table.Empty colSpan={7} message={<div className="flex items-center justify-center gap-2"><IconDatabaseOff size={18} />Belum ada posting rule.</div>} />
+                            <Table.Empty colSpan={7} message={<div className="flex items-center justify-center gap-2"><IconDatabaseOff size={18} />Belum ada preset jurnal.</div>} />
                         )}
                     </Table.Tbody>
                 </Table>
