@@ -2,6 +2,7 @@
 
 namespace App\Services\Integrations;
 
+use App\Models\BankAccount;
 use App\Models\ChartOfAccount;
 use App\Models\IntegrationEvent;
 use App\Models\PostingRule;
@@ -18,14 +19,14 @@ class SalesInvoicePostingRuleEngine
     {
         $eventDate = Carbon::parse($event->event_datetime)->toDateString();
         $payload = is_array($event->payload_json) ? $event->payload_json : [];
-        $transactionType = (string) ($payload['transaction_type'] ?? 'sales.invoice.standard');
+        $transactionType = (string) ($payload['transaction_type'] ?? $this->defaultTransactionType($event));
 
         $this->lifecycle->log($event, 'info', 'Sales invoice validation started.', [
             'event_name' => $event->event_name,
             'transaction_type' => $transactionType,
         ]);
 
-        if ($event->source_module !== 'sales' || $event->event_name !== 'sales.invoice.posted') {
+        if (! $this->isSupportedSalesEvent($event)) {
             return $this->markFailed($event, 'unsupported_sales_event');
         }
 
@@ -85,6 +86,19 @@ class SalesInvoicePostingRuleEngine
         ];
     }
 
+    private function isSupportedSalesEvent(IntegrationEvent $event): bool
+    {
+        return $event->source_module === 'sales'
+            && in_array($event->event_name, ['sales.invoice.posted', 'customer.invoice.collection.posted'], true);
+    }
+
+    private function defaultTransactionType(IntegrationEvent $event): string
+    {
+        return $event->event_name === 'customer.invoice.collection.posted'
+            ? 'customer.invoice.collection'
+            : 'sales.invoice.standard';
+    }
+
     private function buildPreview(IntegrationEvent $event, PostingRule $rule, array $payload): array
     {
         $lines = [];
@@ -117,7 +131,7 @@ class SalesInvoicePostingRuleEngine
             );
 
             if (! $accountId) {
-                return [[], 'account_mapping_not_found'];
+                return [[], $this->resolveMissingAccountError($line->account_source_type, $resolvedMappingKey)];
             }
 
             if ($line->line_side === 'debit') {
@@ -174,6 +188,12 @@ class SalesInvoicePostingRuleEngine
             'sales_invoice_tax_after_discount' => $this->salesTaxAfterDiscount($payload),
             'sales_invoice_receivable_total' => $this->salesReceivableTotal($payload),
             'sales_invoice_cogs_total' => $this->salesCogsTotal($payload),
+            'customer_collection_invoice_total' => $this->customerCollectionInvoiceTotal($payload),
+            'customer_collection_other_charge_total' => $this->customerCollectionOtherChargeTotal($payload),
+            'customer_collection_wht_total' => $this->customerCollectionWhtTotal($payload),
+            'customer_collection_other_deduction_total' => $this->customerCollectionOtherDeductionTotal($payload),
+            'customer_collection_bank_charge_total' => $this->customerCollectionBankChargeTotal($payload),
+            'customer_collection_cash_in' => $this->customerCollectionCashIn($payload),
             default => 0,
         };
     }
@@ -262,6 +282,100 @@ class SalesInvoicePostingRuleEngine
             ->sum(fn ($line) => (float) ($line['cost_amount'] ?? ((float) ($line['qty'] ?? 0) * (float) ($line['unit_cost'] ?? $line['cost_price'] ?? 0))));
     }
 
+
+    private function customerCollectionInvoiceTotal(array $payload): float
+    {
+        foreach (['amounts.invoice_total', 'amounts.invoice_amount', 'amounts.collection_invoice_total', 'amounts.total_invoice', 'amounts.total'] as $path) {
+            $amount = data_get($payload, $path);
+
+            if ($amount !== null) {
+                return (float) $amount;
+            }
+        }
+
+        return (float) collect($payload['invoice_lines'] ?? [])
+            ->sum(fn ($line) => (float) ($line['invoice_amount'] ?? $line['collection_amount'] ?? $line['payment_amount'] ?? 0));
+    }
+
+    private function customerCollectionOtherChargeTotal(array $payload): float
+    {
+        foreach (['amounts.other_charge', 'amounts.other_charges', 'amounts.admin_charge', 'amounts.late_fee'] as $path) {
+            $amount = data_get($payload, $path);
+
+            if ($amount !== null) {
+                return (float) $amount;
+            }
+        }
+
+        return (float) collect($payload['other_charges'] ?? [])
+            ->sum(fn ($line) => (float) ($line['amount'] ?? 0));
+    }
+
+    private function customerCollectionWhtTotal(array $payload): float
+    {
+        foreach (['amounts.withholding_tax_total', 'amounts.wht_total', 'amounts.withholding_tax', 'amounts.wht'] as $path) {
+            $amount = data_get($payload, $path);
+
+            if ($amount !== null) {
+                return (float) $amount;
+            }
+        }
+
+        return (float) collect($payload['invoice_lines'] ?? [])
+            ->sum(fn ($line) => (float) ($line['withholding_tax'] ?? $line['wht'] ?? 0));
+    }
+
+    private function customerCollectionOtherDeductionTotal(array $payload): float
+    {
+        foreach (['amounts.other_deduction', 'amounts.other_deductions', 'amounts.deduction', 'amounts.deductions', 'amounts.discount', 'amounts.discount_total'] as $path) {
+            $amount = data_get($payload, $path);
+
+            if ($amount !== null) {
+                return (float) $amount;
+            }
+        }
+
+        return (float) collect($payload['deductions'] ?? [])
+            ->sum(fn ($line) => (float) ($line['amount'] ?? 0));
+    }
+
+    private function customerCollectionBankChargeTotal(array $payload): float
+    {
+        foreach (['amounts.bank_charge', 'amounts.bank_charges', 'amounts.bank_fee'] as $path) {
+            $amount = data_get($payload, $path);
+
+            if ($amount !== null) {
+                return (float) $amount;
+            }
+        }
+
+        return 0;
+    }
+
+    private function customerCollectionCashIn(array $payload): float
+    {
+        $explicitCashIn = data_get($payload, 'amounts.net_cash_in', data_get($payload, 'amounts.cash_in'));
+
+        if ($explicitCashIn !== null) {
+            return (float) $explicitCashIn;
+        }
+
+        return $this->customerCollectionInvoiceTotal($payload)
+            + $this->customerCollectionOtherChargeTotal($payload)
+            - $this->customerCollectionWhtTotal($payload)
+            - $this->customerCollectionOtherDeductionTotal($payload)
+            - $this->customerCollectionBankChargeTotal($payload);
+    }
+
+    private function resolveMissingAccountError(string $sourceType, ?string $mappingKey): string
+    {
+        if ($sourceType === 'dynamic' && $mappingKey === 'sales.collection.debit.cash_bank') {
+            return 'cash_bank_account_not_found';
+        }
+
+        return 'account_mapping_not_found';
+    }
+
     private function resolveAccountId(IntegrationEvent $event, string $sourceType, ?int $fixedAccountId, ?string $mappingKey, array $payload): ?int
     {
         if ($sourceType === 'fixed') {
@@ -274,6 +388,10 @@ class SalesInvoicePostingRuleEngine
                 ->where('module_name', 'sales')
                 ->where('mapping_key', $mappingKey)
                 ->value('account_id') ?? 0) ?: null;
+        }
+
+        if ($sourceType === 'dynamic' && $mappingKey === 'sales.collection.debit.cash_bank') {
+            return $this->resolveSelectedCashAccount($event, $payload);
         }
 
         if ($sourceType === 'payload') {
@@ -291,6 +409,66 @@ class SalesInvoicePostingRuleEngine
         }
 
         return null;
+    }
+
+
+
+    private function resolveSelectedCashAccount(IntegrationEvent $event, array $payload): ?int
+    {
+        $glAccountCode = data_get($payload, 'gl_account_code');
+
+        if (filled($glAccountCode)) {
+            return $this->resolveCashGlAccountByCode($event, (string) $glAccountCode);
+        }
+
+        $cashAccountCoaId = data_get($payload, 'cash_account_coa_id');
+
+        if (is_numeric($cashAccountCoaId) && (int) $cashAccountCoaId > 0) {
+            return $this->resolveCashGlAccountById($event, (int) $cashAccountCoaId);
+        }
+
+        $cashAccountId = data_get($payload, 'cash_account_id', data_get($payload, 'bank_account_id'));
+
+        if (is_numeric($cashAccountId) && (int) $cashAccountId > 0) {
+            return $this->resolveBankAccountGlAccountId($event, (int) $cashAccountId);
+        }
+
+        return null;
+    }
+
+    private function resolveBankAccountGlAccountId(IntegrationEvent $event, int $cashAccountId): ?int
+    {
+        $bankAccount = BankAccount::query()
+            ->where('company_id', $event->company_id)
+            ->whereKey($cashAccountId)
+            ->where('is_active', true)
+            ->first();
+
+        if (! $bankAccount) {
+            return null;
+        }
+
+        return $this->resolveCashGlAccountById($event, (int) $bankAccount->gl_account_id);
+    }
+
+    private function resolveCashGlAccountById(IntegrationEvent $event, int $accountId): ?int
+    {
+        return (int) (ChartOfAccount::query()
+            ->where('company_id', $event->company_id)
+            ->whereKey($accountId)
+            ->where('is_active', true)
+            ->whereIn('account_type', ['asset', 'assets'])
+            ->value('id') ?? 0) ?: null;
+    }
+
+    private function resolveCashGlAccountByCode(IntegrationEvent $event, string $accountCode): ?int
+    {
+        return (int) (ChartOfAccount::query()
+            ->where('company_id', $event->company_id)
+            ->where('code', $accountCode)
+            ->where('is_active', true)
+            ->whereIn('account_type', ['asset', 'assets'])
+            ->value('id') ?? 0) ?: null;
     }
 
     private function resolveDynamicMappingKey(?string $mappingKey, array $payload): ?string

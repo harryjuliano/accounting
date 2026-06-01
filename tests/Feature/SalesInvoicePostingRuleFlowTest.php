@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\AccountingPeriod;
+use App\Models\BankAccount;
 use App\Models\Branch;
 use App\Models\ChartOfAccount;
 use App\Models\CoaMapping;
@@ -60,18 +61,33 @@ function createSalesInvoicePostingContext(): array
     ]);
 
     $accounts = collect([
+        ['code' => '1120-010', 'name' => 'Bank BCA', 'account_type' => 'asset', 'normal_balance' => 'debit', 'financial_statement_group' => 'balance_sheet'],
+        ['code' => '1120-020', 'name' => 'Bank Mandiri', 'account_type' => 'assets', 'normal_balance' => 'debit', 'financial_statement_group' => 'balance_sheet'],
         ['code' => '1130', 'name' => 'Accounts Receivable', 'account_type' => 'asset', 'normal_balance' => 'debit', 'financial_statement_group' => 'balance_sheet'],
+        ['code' => '1160', 'name' => 'Prepaid Tax', 'account_type' => 'asset', 'normal_balance' => 'debit', 'financial_statement_group' => 'balance_sheet'],
         ['code' => '4120', 'name' => 'Trading Revenue', 'account_type' => 'revenue', 'normal_balance' => 'credit', 'financial_statement_group' => 'income_statement'],
         ['code' => '4130', 'name' => 'Sales Discount', 'account_type' => 'revenue', 'normal_balance' => 'debit', 'financial_statement_group' => 'income_statement'],
         ['code' => '4140', 'name' => 'Freight Income', 'account_type' => 'revenue', 'normal_balance' => 'credit', 'financial_statement_group' => 'income_statement'],
         ['code' => '2130', 'name' => 'Taxes Payable', 'account_type' => 'liability', 'normal_balance' => 'credit', 'financial_statement_group' => 'balance_sheet'],
         ['code' => '5120', 'name' => 'Cost of Goods Sold', 'account_type' => 'expense', 'normal_balance' => 'debit', 'financial_statement_group' => 'income_statement'],
         ['code' => '1150', 'name' => 'Inventory', 'account_type' => 'asset', 'normal_balance' => 'debit', 'financial_statement_group' => 'balance_sheet'],
+        ['code' => '7160', 'name' => 'Bank Charges', 'account_type' => 'expense', 'normal_balance' => 'debit', 'financial_statement_group' => 'income_statement'],
     ])->mapWithKeys(fn (array $account) => [
         $account['code'] => ChartOfAccount::create(array_merge($account, [
             'company_id' => $company->id,
             'is_active' => true,
         ])),
+    ]);
+
+    $bankAccount = BankAccount::create([
+        'company_id' => $company->id,
+        'branch_id' => $branch->id,
+        'bank_name' => 'BCA',
+        'account_name' => 'PT Sales Invoice Operasional',
+        'account_number' => '1234567890',
+        'currency_code' => 'IDR',
+        'gl_account_id' => $accounts['1120-010']->id,
+        'is_active' => true,
     ]);
 
     app(SalesInvoicePostingRuleSeeder::class)->run();
@@ -88,7 +104,7 @@ function createSalesInvoicePostingContext(): array
         ->where('mapping_key', 'sales.invoice.credit.freight_income')
         ->update(['account_id' => $accounts['4140']->id]);
 
-    return compact('company', 'branch', 'accounts');
+    return compact('company', 'branch', 'accounts', 'bankAccount');
 }
 
 
@@ -299,4 +315,149 @@ it('stores sales invoice preset setup from the preset jurnal menu route', functi
     expect($rule->module_name)->toBe('sales');
     expect($rule->lines()->count())->toBe(2);
     expect($rule->lines()->first()->formula_json)->toBe(['type' => 'sales_invoice_receivable_total']);
+});
+
+
+it('validates and posts customer invoice collection with selectable cash bank account', function () {
+    $ctx = createSalesInvoicePostingContext();
+
+    $event = IntegrationEvent::create([
+        'company_id' => $ctx['company']->id,
+        'source_module' => 'sales',
+        'event_name' => 'customer.invoice.collection.posted',
+        'source_document_type' => 'customer_invoice_collection',
+        'source_document_id' => 'COL-202606-000001',
+        'source_document_no' => 'COL-202606-000001',
+        'idempotency_key' => 'customer-invoice-collection:COL-202606-000001:posted:v1',
+        'event_datetime' => '2026-06-02 10:00:00',
+        'processing_status' => 'received',
+        'payload_json' => [
+            'transaction_type' => 'customer.invoice.collection',
+            'posting_date' => '2026-06-02',
+            'reference_no' => 'COL-202606-000001',
+            'description' => 'Customer invoice collection COL-202606-000001',
+            'currency_code' => 'IDR',
+            'cash_account_id' => $ctx['bankAccount']->id,
+            '_meta' => [
+                'branch_id' => $ctx['branch']->id,
+            ],
+            'amounts' => [
+                'invoice_total' => 1000000,
+                'other_charge' => 50000,
+                'withholding_tax_total' => 20000,
+                'other_deduction' => 30000,
+                'bank_charge' => 5000,
+            ],
+        ],
+    ]);
+
+    $this->artisan('integration:customer-invoice-collection:validate --limit=10')
+        ->assertSuccessful();
+
+    $event->refresh();
+
+    expect($event->processing_status)->toBe('validated')
+        ->and(data_get($event->payload_json, '_posting_rule.rule_code'))->toBe('CUSTOMER_INVOICE_COLLECTION_POSTED')
+        ->and(data_get($event->payload_json, '_posting_preview.total_debit'))->toBe(1050000.0)
+        ->and(data_get($event->payload_json, '_posting_preview.total_credit'))->toBe(1050000.0)
+        ->and(data_get($event->payload_json, '_posting_preview.lines'))->toHaveCount(6)
+        ->and(data_get($event->payload_json, '_posting_preview.lines.0.amount'))->toBe(995000.0)
+        ->and(data_get($event->payload_json, '_posting_preview.lines.0.account_id'))->toBe($ctx['accounts']['1120-010']->id);
+
+    $this->artisan('integration:customer-invoice-collection:post --limit=10')
+        ->assertSuccessful();
+
+    $event->refresh();
+
+    expect($event->processing_status)->toBe('processed');
+
+    $journal = JournalEntry::query()->where('integration_key', 'sales:event:' . $event->id)->firstOrFail();
+    $lines = $journal->lines()->orderBy('line_no')->get();
+
+    expect($journal->source_module)->toBe('sales')
+        ->and($journal->source_event)->toBe('customer.invoice.collection.posted')
+        ->and($journal->reference_no)->toBe('COL-202606-000001')
+        ->and((float) $journal->total_debit)->toBe(1050000.0)
+        ->and((float) $journal->total_credit)->toBe(1050000.0)
+        ->and($lines)->toHaveCount(6)
+        ->and((float) $lines[0]->debit)->toBe(995000.0)
+        ->and((float) $lines[1]->debit)->toBe(20000.0)
+        ->and((float) $lines[2]->debit)->toBe(30000.0)
+        ->and((float) $lines[3]->debit)->toBe(5000.0)
+        ->and((float) $lines[4]->credit)->toBe(1000000.0)
+        ->and((float) $lines[5]->credit)->toBe(50000.0)
+        ->and($lines[0]->account_id)->toBe($ctx['accounts']['1120-010']->id);
+});
+
+it('validates customer invoice collection using GL account code without bank account master', function () {
+    $ctx = createSalesInvoicePostingContext();
+    BankAccount::query()->delete();
+
+    $event = IntegrationEvent::create([
+        'company_id' => $ctx['company']->id,
+        'source_module' => 'sales',
+        'event_name' => 'customer.invoice.collection.posted',
+        'source_document_type' => 'customer_invoice_collection',
+        'source_document_id' => 'COL-GL-1001',
+        'source_document_no' => 'COL-GL-1001',
+        'idempotency_key' => 'customer-invoice-collection:COL-GL-1001:posted:v1',
+        'event_datetime' => '2026-06-02 10:00:00',
+        'processing_status' => 'received',
+        'payload_json' => [
+            'transaction_type' => 'customer.invoice.collection',
+            'posting_date' => '2026-06-02',
+            'reference_no' => 'COL-GL-1001',
+            'currency_code' => 'IDR',
+            'gl_account_code' => '1120-020',
+            'amounts' => [
+                'invoice_total' => 500000,
+                'other_charge' => 0,
+                'withholding_tax_total' => 0,
+                'other_deduction' => 0,
+                'bank_charge' => 0,
+            ],
+        ],
+    ]);
+
+    $this->artisan('integration:customer-invoice-collection:validate --limit=10')
+        ->assertSuccessful();
+
+    $event->refresh();
+
+    expect($event->processing_status)->toBe('validated')
+        ->and(data_get($event->payload_json, '_posting_preview.total_debit'))->toBe(500000.0)
+        ->and(data_get($event->payload_json, '_posting_preview.total_credit'))->toBe(500000.0)
+        ->and(data_get($event->payload_json, '_posting_preview.lines'))->toHaveCount(2)
+        ->and(data_get($event->payload_json, '_posting_preview.lines.0.account_id'))->toBe($ctx['accounts']['1120-020']->id);
+});
+
+it('reports missing cash bank account for customer invoice collection', function () {
+    $ctx = createSalesInvoicePostingContext();
+
+    $event = IntegrationEvent::create([
+        'company_id' => $ctx['company']->id,
+        'source_module' => 'sales',
+        'event_name' => 'customer.invoice.collection.posted',
+        'source_document_type' => 'customer_invoice_collection',
+        'source_document_id' => 'COL-MISSING-CASH',
+        'source_document_no' => 'COL-MISSING-CASH',
+        'idempotency_key' => 'customer-invoice-collection:COL-MISSING-CASH:posted:v1',
+        'event_datetime' => '2026-06-02 10:00:00',
+        'processing_status' => 'received',
+        'payload_json' => [
+            'transaction_type' => 'customer.invoice.collection',
+            'posting_date' => '2026-06-02',
+            'amounts' => [
+                'invoice_total' => 100000,
+            ],
+        ],
+    ]);
+
+    $this->artisan('integration:customer-invoice-collection:validate --limit=10')
+        ->assertSuccessful();
+
+    $event->refresh();
+
+    expect($event->processing_status)->toBe('failed')
+        ->and($event->error_message)->toBe('cash_bank_account_not_found');
 });
