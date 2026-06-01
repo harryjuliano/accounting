@@ -90,6 +90,10 @@ Route::group(['prefix' => 'apps', 'as' => 'apps.' , 'middleware' => ['auth']], f
     Route::put('/integration/client-secrets/{integrationClientSecret}', [IntegrationClientSecretController::class, 'update'])->name('integration-client-secrets.update');
     Route::delete('/integration/client-secrets/{integrationClientSecret}', [IntegrationClientSecretController::class, 'destroy'])->name('integration-client-secrets.destroy');
     Route::patch('/integration/client-secrets/{integrationClientSecret}/toggle-status', [IntegrationClientSecretController::class, 'toggleStatus'])->name('integration-client-secrets.toggle-status');
+    Route::resource('/setup/preset-journals', PostingRuleSetupController::class)
+        ->names('preset-journals')
+        ->except(['create', 'edit', 'show'])
+        ->parameters(['preset-journals' => 'integrationPostingRule']);
     Route::resource('/integration/posting-rules', PostingRuleSetupController::class)
         ->names('integration-posting-rules')
         ->except(['create', 'edit', 'show'])

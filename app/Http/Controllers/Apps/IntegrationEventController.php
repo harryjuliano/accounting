@@ -9,6 +9,7 @@ use App\Services\Integrations\InventoryAutoJournalService;
 use App\Services\Integrations\InventoryPostingRuleEngine;
 use App\Services\Integrations\ModulePresetAutoJournalService;
 use App\Services\Integrations\ModulePresetJournalValidator;
+use App\Services\Integrations\SalesInvoicePostingRuleEngine;
 use App\Services\Integrations\PostingMode;
 use App\Services\Integrations\VendorInvoiceAutoJournalService;
 use App\Services\Integrations\VendorInvoicePostingRuleEngine;
@@ -150,7 +151,7 @@ class IntegrationEventController extends Controller implements HasMiddleware
         ]);
     }
 
-    private function resolveValidationEngine(IntegrationEvent $event): InventoryPostingRuleEngine|VendorInvoicePostingRuleEngine|ModulePresetJournalValidator|null
+    private function resolveValidationEngine(IntegrationEvent $event): InventoryPostingRuleEngine|VendorInvoicePostingRuleEngine|SalesInvoicePostingRuleEngine|ModulePresetJournalValidator|null
     {
         if (PostingMode::fromEvent($event) === PostingMode::MODULE_PRESET) {
             return app(ModulePresetJournalValidator::class);
@@ -158,6 +159,10 @@ class IntegrationEventController extends Controller implements HasMiddleware
 
         if ($event->source_module === 'inventory') {
             return app(InventoryPostingRuleEngine::class);
+        }
+
+        if ($event->source_module === 'sales' && $event->event_name === 'sales.invoice.posted') {
+            return app(SalesInvoicePostingRuleEngine::class);
         }
 
         if ($event->source_module === 'accounts_payable' && in_array($event->event_name, ['vendor.invoice.posted', 'vendor.payment.posted'], true)) {
@@ -175,6 +180,10 @@ class IntegrationEventController extends Controller implements HasMiddleware
 
         if ($event->source_module === 'inventory') {
             return app(InventoryAutoJournalService::class);
+        }
+
+        if ($event->source_module === 'sales' && $event->event_name === 'sales.invoice.posted') {
+            return app(ModulePresetAutoJournalService::class);
         }
 
         if ($event->source_module === 'accounts_payable' && in_array($event->event_name, ['vendor.invoice.posted', 'vendor.payment.posted'], true)) {

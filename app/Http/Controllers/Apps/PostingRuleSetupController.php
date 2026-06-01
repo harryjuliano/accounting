@@ -49,6 +49,7 @@ class PostingRuleSetupController extends Controller
                 ->orderBy('code')
                 ->get(),
             'mappingByCompanyModule' => $mappings,
+            'presetTemplates' => $this->presetTemplates(),
         ]);
     }
 
@@ -79,7 +80,7 @@ class PostingRuleSetupController extends Controller
             }
         });
 
-        return redirect()->route('apps.integration-posting-rules.index')->with('success', 'Posting rule berhasil dibuat.');
+        return redirect()->route('apps.preset-journals.index')->with('success', 'Preset jurnal berhasil dibuat.');
     }
 
     public function update(Request $request, PostingRule $integrationPostingRule): RedirectResponse
@@ -113,7 +114,7 @@ class PostingRuleSetupController extends Controller
             }
         });
 
-        return redirect()->route('apps.integration-posting-rules.index')->with('success', 'Posting rule berhasil diperbarui.');
+        return redirect()->route('apps.preset-journals.index')->with('success', 'Preset jurnal berhasil diperbarui.');
     }
 
     public function destroy(PostingRule $integrationPostingRule): RedirectResponse
@@ -121,13 +122,13 @@ class PostingRuleSetupController extends Controller
         $this->enforceCompanyAccess((int) $integrationPostingRule->company_id);
         $integrationPostingRule->delete();
 
-        return redirect()->route('apps.integration-posting-rules.index')->with('success', 'Posting rule berhasil dihapus.');
+        return redirect()->route('apps.preset-journals.index')->with('success', 'Preset jurnal berhasil dihapus.');
     }
 
     private function validatePayload(Request $request, ?PostingRule $postingRule = null): array
     {
         $companyId = (int) $request->input('company_id');
-        return $request->validate([
+        $validated = $request->validate([
             'company_id' => ['required', 'integer', Rule::exists('companies', 'id')],
             'module_name' => ['required', 'string', 'max:100'],
             'event_name' => ['required', 'string', 'max:100'],
@@ -158,6 +159,7 @@ class PostingRuleSetupController extends Controller
             ],
             'lines.*.mapping_key' => ['nullable', 'string', 'max:150'],
             'lines.*.amount_source' => ['required', Rule::in(['payload_total', 'payload_tax', 'payload_net', 'formula'])],
+            'lines.*.formula_json_text' => ['nullable', 'json'],
             'lines.*.formula_json' => ['nullable', 'array'],
             'lines.*.dimension_rule_json' => ['nullable', 'array'],
             'lines.*.description_template' => ['nullable', 'string', 'max:191'],
@@ -170,8 +172,56 @@ class PostingRuleSetupController extends Controller
             ],
             'coa_mappings.*.description' => ['nullable', 'string', 'max:191'],
         ], [
+            'lines.*.formula_json_text.json' => 'Formula JSON harus valid.',
             'lines.min' => 'Posting rule minimal memiliki 2 baris (debit dan credit).',
             'coa_mappings.min' => 'Minimal satu CoA mapping diperlukan.',
         ]);
+
+        foreach ($validated['lines'] as &$line) {
+            if (array_key_exists('formula_json_text', $line)) {
+                $line['formula_json'] = filled($line['formula_json_text'])
+                    ? json_decode($line['formula_json_text'], true)
+                    : ($line['formula_json'] ?? null);
+                unset($line['formula_json_text']);
+            }
+        }
+        unset($line);
+
+        return $validated;
+    }
+
+    private function presetTemplates(): array
+    {
+        return [
+            'sales_invoice_posted' => [
+                'label' => 'Sales Invoice Posted - Combined Sales + COGS',
+                'data' => [
+                    'module_name' => 'sales',
+                    'event_name' => 'sales.invoice.posted',
+                    'transaction_type' => 'sales.invoice.standard',
+                    'rule_code' => 'SALES_INVOICE_POSTED_COMBINED',
+                    'rule_name' => 'Sales Invoice Posted Combined Journal',
+                    'description' => 'Combined journal untuk AR, diskon, revenue, PPN keluaran setelah diskon, ongkir, COGS, dan inventory.',
+                    'lines' => [
+                        ['line_no' => 1, 'line_side' => 'debit', 'mapping_key' => 'sales.invoice.debit.ar', 'amount_source' => 'formula', 'formula_json' => ['type' => 'sales_invoice_receivable_total'], 'description_template' => 'Sales invoice accounts receivable'],
+                        ['line_no' => 2, 'line_side' => 'debit', 'mapping_key' => 'sales.invoice.debit.discount', 'amount_source' => 'formula', 'formula_json' => ['type' => 'path', 'path' => 'amounts.discount'], 'description_template' => 'Sales invoice discount'],
+                        ['line_no' => 3, 'line_side' => 'credit', 'mapping_key' => 'sales.invoice.credit.revenue', 'amount_source' => 'formula', 'formula_json' => ['type' => 'path', 'path' => 'amounts.subtotal'], 'description_template' => 'Sales invoice revenue'],
+                        ['line_no' => 4, 'line_side' => 'credit', 'mapping_key' => 'sales.invoice.credit.vat_output', 'amount_source' => 'formula', 'formula_json' => ['type' => 'sales_invoice_tax_after_discount'], 'description_template' => 'Sales invoice VAT output after discount'],
+                        ['line_no' => 5, 'line_side' => 'credit', 'mapping_key' => 'sales.invoice.credit.freight_income', 'amount_source' => 'formula', 'formula_json' => ['type' => 'path', 'path' => 'amounts.shipping_fee'], 'description_template' => 'Sales invoice shipping income'],
+                        ['line_no' => 6, 'line_side' => 'debit', 'mapping_key' => 'sales.invoice.debit.cogs', 'amount_source' => 'formula', 'formula_json' => ['type' => 'sales_invoice_cogs_total'], 'description_template' => 'Sales invoice COGS from dispatch cost'],
+                        ['line_no' => 7, 'line_side' => 'credit', 'mapping_key' => 'sales.invoice.credit.inventory', 'amount_source' => 'formula', 'formula_json' => ['type' => 'sales_invoice_cogs_total'], 'description_template' => 'Sales invoice inventory reduction from dispatch cost'],
+                    ],
+                    'coa_mappings' => [
+                        ['mapping_key' => 'sales.invoice.debit.ar', 'description' => 'Accounts receivable'],
+                        ['mapping_key' => 'sales.invoice.debit.discount', 'description' => 'Sales discount / contra revenue'],
+                        ['mapping_key' => 'sales.invoice.credit.revenue', 'description' => 'Sales revenue'],
+                        ['mapping_key' => 'sales.invoice.credit.vat_output', 'description' => 'VAT output payable'],
+                        ['mapping_key' => 'sales.invoice.credit.freight_income', 'description' => 'Shipping income'],
+                        ['mapping_key' => 'sales.invoice.debit.cogs', 'description' => 'Cost of goods sold'],
+                        ['mapping_key' => 'sales.invoice.credit.inventory', 'description' => 'Inventory reduction'],
+                    ],
+                ],
+            ],
+        ];
     }
 }

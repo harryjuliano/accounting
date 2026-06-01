@@ -2,6 +2,15 @@
 
 return [
 
+    'sales' => [
+        'sales.invoice.posted' => [
+            'label' => 'Sales Invoice Posted',
+            'transaction_type' => 'sales.invoice.standard',
+            'template' => 'sales_invoice_posted',
+            'description' => 'Posted sales invoice creates combined sales and COGS journal',
+        ],
+    ],
+
     'inventory' => [
 
         /*
