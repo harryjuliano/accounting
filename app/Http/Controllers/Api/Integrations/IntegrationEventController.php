@@ -23,6 +23,7 @@ class IntegrationEventController extends Controller
         $this->ensureValidIntegrationToken($request->header('X-Integration-Token'));
 
         $validated = $request->validated();
+        $payload = $request->input('payload', []);
         $sourceModule = Str::lower((string) $validated['source_module']);
 
         $credential = $this->credentialService->resolve(
@@ -49,7 +50,7 @@ class IntegrationEventController extends Controller
                 'source_document_id' => $validated['source_document_id'] ?? null,
                 'source_document_no' => $validated['source_document_no'] ?? null,
                 'payload_json' => array_merge(
-                    $validated['payload'],
+                    is_array($payload) ? $payload : [],
                     [
                         '_meta' => [
                             'schema_version' => $validated['schema_version'] ?? 'v1',
