@@ -222,6 +222,32 @@ class PostingRuleSetupController extends Controller
                     ],
                 ],
             ],
+            'customer_invoice_collection_posted' => [
+                'label' => 'Customer Invoice Collection Posted',
+                'data' => [
+                    'module_name' => 'sales',
+                    'event_name' => 'customer.invoice.collection.posted',
+                    'transaction_type' => 'customer.invoice.collection',
+                    'rule_code' => 'CUSTOMER_INVOICE_COLLECTION_POSTED',
+                    'rule_name' => 'Customer Invoice Collection Posting Rule',
+                    'description' => 'Jurnal collection customer invoice: Cash/Bank terpilih + WHT + potongan lain + bank charge = nilai invoice + other charge.',
+                    'lines' => [
+                        ['line_no' => 1, 'line_side' => 'debit', 'account_source_type' => 'dynamic', 'mapping_key' => 'sales.collection.debit.cash_bank', 'amount_source' => 'formula', 'formula_json' => ['type' => 'customer_collection_cash_in'], 'description_template' => 'Customer invoice collection net cash in'],
+                        ['line_no' => 2, 'line_side' => 'debit', 'mapping_key' => 'sales.collection.debit.wht', 'amount_source' => 'formula', 'formula_json' => ['type' => 'customer_collection_wht_total'], 'description_template' => 'Customer invoice collection withholding tax'],
+                        ['line_no' => 3, 'line_side' => 'debit', 'mapping_key' => 'sales.collection.debit.other_deduction', 'amount_source' => 'formula', 'formula_json' => ['type' => 'customer_collection_other_deduction_total'], 'description_template' => 'Customer invoice collection other deduction'],
+                        ['line_no' => 4, 'line_side' => 'debit', 'mapping_key' => 'sales.collection.debit.bank_charge', 'amount_source' => 'formula', 'formula_json' => ['type' => 'customer_collection_bank_charge_total'], 'description_template' => 'Customer invoice collection bank charge'],
+                        ['line_no' => 5, 'line_side' => 'credit', 'mapping_key' => 'sales.collection.credit.ar', 'amount_source' => 'formula', 'formula_json' => ['type' => 'customer_collection_invoice_total'], 'description_template' => 'Customer invoice accounts receivable settlement'],
+                        ['line_no' => 6, 'line_side' => 'credit', 'mapping_key' => 'sales.collection.credit.other_charge', 'amount_source' => 'formula', 'formula_json' => ['type' => 'customer_collection_other_charge_total'], 'description_template' => 'Customer invoice collection other charge'],
+                    ],
+                    'coa_mappings' => [
+                        ['mapping_key' => 'sales.collection.debit.wht', 'description' => 'Withholding tax receivable / prepaid tax'],
+                        ['mapping_key' => 'sales.collection.debit.other_deduction', 'description' => 'Other deduction expense'],
+                        ['mapping_key' => 'sales.collection.debit.bank_charge', 'description' => 'Bank charge expense'],
+                        ['mapping_key' => 'sales.collection.credit.ar', 'description' => 'Accounts receivable settlement'],
+                        ['mapping_key' => 'sales.collection.credit.other_charge', 'description' => 'Other charge income'],
+                    ],
+                ],
+            ],
         ];
     }
 }
