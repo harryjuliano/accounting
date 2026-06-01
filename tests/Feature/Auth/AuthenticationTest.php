@@ -2,6 +2,12 @@
 
 use App\Models\User;
 
+test('root path redirects to login screen', function () {
+    $response = $this->get('/');
+
+    $response->assertRedirect('/login');
+});
+
 test('login screen can be rendered', function () {
     $response = $this->get('/login');
 
