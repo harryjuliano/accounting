@@ -2,6 +2,73 @@
 
 return [
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | SALES INVOICE POSTED (COMBINED SALES + COGS)
+    |--------------------------------------------------------------------------
+    */
+    'sales_invoice_posted' => [
+        'lines' => [
+            [
+                'line_no' => 1,
+                'side' => 'debit',
+                'mapping_key' => 'sales.invoice.debit.ar',
+                'amount_source' => 'formula',
+                'formula_json' => ['type' => 'sales_invoice_receivable_total'],
+                'description' => 'Accounts receivable for posted sales invoice',
+            ],
+            [
+                'line_no' => 2,
+                'side' => 'debit',
+                'mapping_key' => 'sales.invoice.debit.discount',
+                'amount_source' => 'formula',
+                'formula_json' => ['type' => 'path', 'path' => 'amounts.discount'],
+                'description' => 'Sales discount for posted sales invoice',
+            ],
+            [
+                'line_no' => 3,
+                'side' => 'credit',
+                'mapping_key' => 'sales.invoice.credit.revenue',
+                'amount_source' => 'formula',
+                'formula_json' => ['type' => 'path', 'path' => 'amounts.subtotal'],
+                'description' => 'Sales revenue for posted sales invoice',
+            ],
+            [
+                'line_no' => 4,
+                'side' => 'credit',
+                'mapping_key' => 'sales.invoice.credit.vat_output',
+                'amount_source' => 'formula',
+                'formula_json' => ['type' => 'sales_invoice_tax_after_discount'],
+                'description' => 'VAT output after discount',
+            ],
+            [
+                'line_no' => 5,
+                'side' => 'credit',
+                'mapping_key' => 'sales.invoice.credit.freight_income',
+                'amount_source' => 'formula',
+                'formula_json' => ['type' => 'path', 'path' => 'amounts.shipping_fee'],
+                'description' => 'Sales shipping income',
+            ],
+            [
+                'line_no' => 6,
+                'side' => 'debit',
+                'mapping_key' => 'sales.invoice.debit.cogs',
+                'amount_source' => 'formula',
+                'formula_json' => ['type' => 'sales_invoice_cogs_total'],
+                'description' => 'COGS from dispatch cost',
+            ],
+            [
+                'line_no' => 7,
+                'side' => 'credit',
+                'mapping_key' => 'sales.invoice.credit.inventory',
+                'amount_source' => 'formula',
+                'formula_json' => ['type' => 'sales_invoice_cogs_total'],
+                'description' => 'Inventory reduction from dispatch cost',
+            ],
+        ],
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | INVENTORY RECEIPT
