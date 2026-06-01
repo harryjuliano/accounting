@@ -195,6 +195,94 @@ Artisan::command('integration:sales-invoice:post {--limit=100}', function (Modul
     return self::SUCCESS;
 })->purpose('Create auto journals from validated sales invoice integration events');
 
+
+Artisan::command('integration:customer-invoice-collection:validate {--limit=100}', function (SalesInvoicePostingRuleEngine $engine, ModulePresetJournalValidator $presetValidator) {
+    $limit = (int) $this->option('limit');
+
+    $events = IntegrationEvent::query()
+        ->where('source_module', 'sales')
+        ->where('event_name', 'customer.invoice.collection.posted')
+        ->whereIn('processing_status', ['received'])
+        ->orderBy('id')
+        ->limit($limit)
+        ->get();
+
+    if ($events->isEmpty()) {
+        $this->info('No customer invoice collection integration events with status received.');
+
+        return self::SUCCESS;
+    }
+
+    $success = 0;
+    $failed = 0;
+
+    foreach ($events as $event) {
+        $validator = PostingMode::fromEvent($event) === PostingMode::MODULE_PRESET ? $presetValidator : $engine;
+        $result = $validator->validateAndMark($event);
+
+        if ($result['status'] === 'validated') {
+            $success++;
+            $this->line("[OK] event_id={$event->id} status=validated");
+
+            continue;
+        }
+
+        $failed++;
+        $this->warn("[FAIL] event_id={$event->id} error={$result['error']}");
+    }
+
+    $this->info("Done. validated={$success}, failed={$failed}");
+
+    return self::SUCCESS;
+})->purpose('Validate received customer invoice collection integration events using posting rules');
+
+Artisan::command('integration:customer-invoice-collection:post {--limit=100}', function (ModulePresetAutoJournalService $service) {
+    $limit = (int) $this->option('limit');
+
+    $events = IntegrationEvent::query()
+        ->where('source_module', 'sales')
+        ->where('event_name', 'customer.invoice.collection.posted')
+        ->where('processing_status', 'validated')
+        ->orderBy('id')
+        ->limit($limit)
+        ->get();
+
+    if ($events->isEmpty()) {
+        $this->info('No validated customer invoice collection integration events ready for posting.');
+
+        return self::SUCCESS;
+    }
+
+    $processed = 0;
+    $failed = 0;
+    $duplicate = 0;
+
+    foreach ($events as $event) {
+        $result = $service->postValidatedEvent($event);
+
+        if ($result['status'] === 'processed') {
+            $processed++;
+            $this->line("[POSTED] event_id={$event->id} journal_id={$result['journal_entry_id']}");
+
+            continue;
+        }
+
+        if ($result['status'] === 'duplicate') {
+            $duplicate++;
+            $this->line("[DUPLICATE] event_id={$event->id} journal_id={$result['journal_entry_id']}");
+
+            continue;
+        }
+
+        $failed++;
+        $this->warn("[FAIL] event_id={$event->id} error={$result['error']}");
+    }
+
+    $this->info("Done. processed={$processed}, duplicate={$duplicate}, failed={$failed}");
+
+    return self::SUCCESS;
+})->purpose('Create auto journals from validated customer invoice collection integration events');
+
 Artisan::command('integration:vendor-invoice:validate {--limit=100}', function (VendorInvoicePostingRuleEngine $engine, ModulePresetJournalValidator $presetValidator) {
     $limit = (int) $this->option('limit');
 
