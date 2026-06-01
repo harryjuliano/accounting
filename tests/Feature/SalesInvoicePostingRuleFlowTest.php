@@ -7,6 +7,7 @@ use App\Models\CoaMapping;
 use App\Models\Company;
 use App\Models\Currency;
 use App\Models\FiscalYear;
+use App\Models\IntegrationClientCredential;
 use App\Models\IntegrationEvent;
 use App\Models\JournalEntry;
 use App\Models\PostingRule;
@@ -89,6 +90,102 @@ function createSalesInvoicePostingContext(): array
 
     return compact('company', 'branch', 'accounts');
 }
+
+
+it('receives sales invoice rule payloads through the generic API without stripping business fields', function () {
+    $ctx = createSalesInvoicePostingContext();
+    $clientSecret = 'sales-secret-12345';
+
+    $credential = IntegrationClientCredential::create([
+        'client_key' => 'ALL-SALES-KEY',
+        'client_secret_hash' => hash('sha256', $clientSecret),
+        'source_module' => 'all',
+        'company_id' => $ctx['company']->id,
+        'branch_id' => $ctx['branch']->id,
+        'client_name' => 'Sales Generic API Client',
+        'is_active' => true,
+    ]);
+
+    $this->postJson(route('api.integrations.events.store'), [
+        'client_key' => $credential->client_key,
+        'client_secret' => $clientSecret,
+        'source_module' => 'sales',
+        'event_name' => 'sales.invoice.posted',
+        'event_datetime' => '2026-06-01T10:00:00+07:00',
+        'idempotency_key' => 'sales-invoice:INV-202606-000001:posted:v1',
+        'source_document_type' => 'sales_invoice',
+        'source_document_id' => 'INV-202606-000001',
+        'source_document_no' => 'INV-202606-000001',
+        'schema_version' => 'v1',
+        'payload' => [
+            'posting_mode' => 'rule',
+            'transaction_type' => 'sales.invoice.standard',
+            'posting_date' => '2026-06-01',
+            'reference_no' => 'INV-202606-000001',
+            'description' => 'Sales invoice INV-202606-000001 - Apotek Sehat Sentosa',
+            'currency_code' => 'IDR',
+            'exchange_rate' => 1,
+            'customer' => [
+                'customer_code' => 'CUS-0001',
+                'customer_name' => 'Apotek Sehat Sentosa',
+            ],
+            'tax' => [
+                'code' => 'PPN11',
+                'rate' => 0.11,
+                'calculation_base' => 'after_discount',
+            ],
+            'amounts' => [
+                'subtotal' => 1437500,
+                'discount' => 100000,
+                'shipping_fee' => 200000,
+                'cogs' => 1437500,
+            ],
+            'sales_invoice' => [
+                'invoice_no' => 'INV-202606-000001',
+                'invoice_date' => '2026-06-01',
+                'due_date' => '2026-06-01',
+                'dispatch_no' => 'IUS-20260531-0001',
+                'sales_order_no' => 'SO-202605-00001',
+            ],
+            'dispatch_cost' => [
+                'cost_source' => 'dispatch',
+                'dispatch_no' => 'IUS-20260531-0001',
+                'total_cogs' => 1437500,
+            ],
+            'lines_detail' => [
+                [
+                    'dispatch_no' => 'IUS-20260531-0001',
+                    'item_code' => 'OBT-0001',
+                    'item_name' => 'Paracetamol 500mg',
+                    'batch_no' => 'AAAAA',
+                    'qty' => 50,
+                    'uom' => 'BOX',
+                    'selling_price' => 28750,
+                    'sales_amount' => 1437500,
+                    'cost_amount' => 1437500,
+                ],
+            ],
+        ],
+    ])->assertCreated()
+        ->assertJsonPath('data.source_module', 'sales')
+        ->assertJsonPath('data.processing_status', 'received');
+
+    $event = IntegrationEvent::query()->firstOrFail();
+
+    expect(data_get($event->payload_json, 'posting_mode'))->toBe('rule')
+        ->and(data_get($event->payload_json, 'transaction_type'))->toBe('sales.invoice.standard')
+        ->and(data_get($event->payload_json, 'amounts.subtotal'))->toBe(1437500)
+        ->and(data_get($event->payload_json, 'lines_detail.0.sales_amount'))->toBe(1437500)
+        ->and(data_get($event->payload_json, '_meta.branch_id'))->toBe($ctx['branch']->id);
+
+    $this->artisan('integration:sales-invoice:validate --limit=10')->assertSuccessful();
+
+    $event->refresh();
+    expect($event->processing_status)->toBe('validated')
+        ->and($event->error_message)->toBeNull()
+        ->and(data_get($event->payload_json, '_posting_preview.total_debit'))->toBe(3222125.0)
+        ->and(data_get($event->payload_json, '_posting_preview.total_credit'))->toBe(3222125.0);
+});
 
 it('validates and posts sales invoice combined journal with VAT after discount and dispatch COGS', function () {
     $ctx = createSalesInvoicePostingContext();
