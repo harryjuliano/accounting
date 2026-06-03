@@ -558,8 +558,8 @@ class ManualJournalController extends Controller
         $headers = $this->manualJournalTemplateHeaders();
         $this->resolveLoggedInCompanyId($request);
         $sampleRows = [
-            ['JRN-0001', '2026-03-01', '2026-03-01', 'REF-001', 'Penjualan tunai', 'IDR', '1', 'draft', 'JKT', 'sales', 'Modul Penjualan', 'sales_invoice_posted', 'customer', 'CUST-001', 'Customer A', 'SLS-001', 'Budi Sales', '1101', 'Kas', 'BRG-001', 'Barang Contoh', '10', 'PCS', '1000000', '0'],
-            ['JRN-0001', '2026-03-01', '2026-03-01', 'REF-001', 'Penjualan tunai', 'IDR', '1', 'draft', 'JKT', 'sales', 'Modul Penjualan', 'sales_invoice_posted', 'customer', 'CUST-001', 'Customer A', 'SLS-001', 'Budi Sales', '4101', 'Pendapatan penjualan', 'BRG-001', 'Barang Contoh', '10', 'PCS', '0', '1000000'],
+            ['JRN-0001', '2026-03-01', '2026-03-01', 'REF-001', 'Penjualan tunai', 'IDR', '1', 'draft', 'JKT', 'sales', 'Modul Penjualan', 'sales_invoice_posted', 'customer', 'CUST-001', 'Customer A', 'SLS-001', 'Budi Sales', '1101', 'Kas', 'BRG-001', 'Barang Contoh', '10', 'PCS', '', '', '1000000', '0'],
+            ['JRN-0001', '2026-03-01', '2026-03-01', 'REF-001', 'Penjualan tunai', 'IDR', '1', 'draft', 'JKT', 'sales', 'Modul Penjualan', 'sales_invoice_posted', 'customer', 'CUST-001', 'Customer A', 'SLS-001', 'Budi Sales', '4101', 'Pendapatan penjualan', 'BRG-001', 'Barang Contoh', '10', 'PCS', '', '', '0', '1000000'],
         ];
 
         $stream = fopen('php://temp', 'wb+');
@@ -606,29 +606,6 @@ class ManualJournalController extends Controller
             'item_name',
             'quantity',
             'quantity_uom',
-            'debit',
-            'credit',
-        ];
-    }
-
-    private function requiredManualJournalHeaders(): array
-    {
-        return [
-            'journal_no',
-            'entry_date',
-            'posting_date',
-            'reference_no',
-            'description',
-            'currency_code',
-            'exchange_rate',
-            'status',
-            'branch_code',
-            'account_code',
-            'line_description',
-            'item_code',
-            'item_name',
-            'quantity',
-            'quantity_uom',
             'cost_center_code',
             'cost_center_name',
             'debit',
@@ -657,14 +634,17 @@ class ManualJournalController extends Controller
 
     private function buildImportDimensionDetails(array $row): ?array
     {
-        if ($row['cost_center_code'] === '' && $row['cost_center_name'] === '') {
+        $costCenterCode = $row['cost_center_code'] ?? '';
+        $costCenterName = $row['cost_center_name'] ?? '';
+
+        if ($costCenterCode === '' && $costCenterName === '') {
             return null;
         }
 
         return [
             'cost_center' => [
-                'code' => $row['cost_center_code'] ?: null,
-                'name' => $row['cost_center_name'] ?: null,
+                'code' => $costCenterCode ?: null,
+                'name' => $costCenterName ?: null,
             ],
         ];
     }
@@ -729,6 +709,8 @@ class ManualJournalController extends Controller
             'item_name' => trim((string) ($row['item_name'] ?? '')),
             'quantity' => $this->normalizeCsvNumber($row['quantity'] ?? '0'),
             'quantity_uom' => trim((string) ($row['quantity_uom'] ?? '')),
+            'cost_center_code' => trim((string) ($row['cost_center_code'] ?? '')),
+            'cost_center_name' => trim((string) ($row['cost_center_name'] ?? '')),
             'debit' => $this->normalizeCsvNumber($row['debit'] ?? '0'),
             'credit' => $this->normalizeCsvNumber($row['credit'] ?? '0'),
         ];
