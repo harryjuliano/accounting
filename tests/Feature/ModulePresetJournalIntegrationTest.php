@@ -76,6 +76,17 @@ function createModulePresetJournalContext(): array
         'is_active' => true,
     ]);
 
+    $headerAccount = ChartOfAccount::create([
+        'company_id' => $company->id,
+        'code' => '1100.000',
+        'name' => 'Cash Header',
+        'account_type' => 'asset',
+        'normal_balance' => 'debit',
+        'financial_statement_group' => 'balance_sheet',
+        'is_active' => true,
+        'allow_manual_posting' => false,
+    ]);
+
     $clientSecret = 'cash-secret-12345';
     $credential = IntegrationClientCredential::create([
         'client_key' => 'CASH-BANK-KEY',
@@ -87,7 +98,7 @@ function createModulePresetJournalContext(): array
         'is_active' => true,
     ]);
 
-    return compact('company', 'branch', 'expenseAccount', 'bankAccount', 'credential', 'clientSecret');
+    return compact('company', 'branch', 'expenseAccount', 'bankAccount', 'headerAccount', 'credential', 'clientSecret');
 }
 
 it('receives generic module preset journal events and stores them in the integration inbox', function () {
@@ -292,4 +303,44 @@ it('rejects unbalanced module preset journal payloads during validation', functi
         'failure_stage' => 'validation',
         'error_code' => 'unbalanced_journal',
     ]);
+});
+
+
+it('rejects module preset journal lines posted to non-postable COA header accounts', function () {
+    $ctx = createModulePresetJournalContext();
+
+    IntegrationEvent::create([
+        'company_id' => $ctx['company']->id,
+        'source_module' => 'cash_bank',
+        'event_name' => 'cash.receipt.posted',
+        'idempotency_key' => 'cash-receipt:CR-HEADER-001',
+        'event_datetime' => '2026-05-31 13:00:00',
+        'processing_status' => 'received',
+        'payload_json' => [
+            'posting_mode' => 'module_preset',
+            'journal' => [
+                'lines' => [
+                    [
+                        'line_no' => 1,
+                        'line_side' => 'debit',
+                        'account_code' => '1100.000',
+                        'amount' => 200000,
+                    ],
+                    [
+                        'line_no' => 2,
+                        'line_side' => 'credit',
+                        'account_code' => '6101.001',
+                        'amount' => 200000,
+                    ],
+                ],
+            ],
+        ],
+    ]);
+
+    $this->artisan('integration:module-preset:validate --module=cash_bank --limit=10')->assertSuccessful();
+
+    $event = \App\Models\IntegrationEvent::query()->where('idempotency_key', 'cash-receipt:CR-HEADER-001')->firstOrFail();
+
+    expect($event->processing_status)->toBe('failed')
+        ->and($event->error_message)->toBe('invalid_account_reference');
 });

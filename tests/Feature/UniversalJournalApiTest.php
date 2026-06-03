@@ -77,6 +77,18 @@ function createUniversalJournalApiContext(): array
         'is_active' => true,
     ]);
 
+    $headerAccount = ChartOfAccount::create([
+        'company_id' => $company->id,
+        'code' => '1100',
+        'name' => 'Current Assets Header',
+        'level' => 2,
+        'account_type' => 'asset',
+        'normal_balance' => 'debit',
+        'financial_statement_group' => 'balance_sheet',
+        'is_active' => true,
+        'allow_manual_posting' => false,
+    ]);
+
     $clientSecret = 'universal-secret-123';
     $credential = IntegrationClientCredential::create([
         'client_key' => 'UNIVERSAL-SALES-KEY',
@@ -88,7 +100,7 @@ function createUniversalJournalApiContext(): array
         'is_active' => true,
     ]);
 
-    return compact('company', 'user', 'branch', 'cashAccount', 'revenueAccount', 'credential', 'clientSecret');
+    return compact('company', 'user', 'branch', 'cashAccount', 'revenueAccount', 'headerAccount', 'credential', 'clientSecret');
 }
 
 it('posts a universal journal directly from module payload', function () {
@@ -232,4 +244,27 @@ it('rejects unbalanced universal journal payloads', function () {
         ],
     ])->assertUnprocessable()
         ->assertJsonValidationErrors('lines');
+});
+
+
+it('rejects universal journal lines posted to non-postable COA header accounts', function () {
+    $ctx = createUniversalJournalApiContext();
+
+    $this->postJson(route('api.integrations.universal-journals.store'), [
+        'client_key' => $ctx['credential']->client_key,
+        'client_secret' => $ctx['clientSecret'],
+        'integration_key' => 'sales_invoice:SI-2026-0004:posted',
+        'source_module' => 'sales',
+        'entry_date' => '2026-02-04',
+        'posting_date' => '2026-02-04',
+        'description' => 'Header account should fail',
+        'currency_code' => 'IDR',
+        'lines' => [
+            ['line_no' => 1, 'account_code' => '1100', 'debit' => 500000, 'credit' => 0],
+            ['line_no' => 2, 'account_code' => '4101', 'debit' => 0, 'credit' => 500000],
+        ],
+    ])->assertUnprocessable()
+        ->assertJsonValidationErrors('lines.0.account_code');
+
+    expect(JournalEntry::query()->where('integration_key', 'sales_invoice:SI-2026-0004:posted')->exists())->toBeFalse();
 });

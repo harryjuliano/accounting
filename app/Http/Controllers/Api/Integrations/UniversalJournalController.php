@@ -267,7 +267,13 @@ class UniversalJournalController extends Controller
 
         if (! $account) {
             throw ValidationException::withMessages([
-                "lines.{$index}.account_code" => 'Akun pada baris jurnal tidak ditemukan.',
+                "lines.{$index}.account_code" => 'Akun pada baris jurnal tidak ditemukan atau tidak aktif.',
+            ]);
+        }
+
+        if (! $account->allow_manual_posting) {
+            throw ValidationException::withMessages([
+                "lines.{$index}.account_code" => "Akun {$account->code} - {$account->name} tidak boleh menerima posting karena Manual Posting = Tidak.",
             ]);
         }
 

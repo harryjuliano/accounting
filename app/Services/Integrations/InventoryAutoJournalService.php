@@ -195,6 +195,7 @@ class InventoryAutoJournalService
                 ->where('company_id', $companyId)
                 ->where('id', $accountId)
                 ->where('is_active', true)
+                ->where('allow_manual_posting', true)
                 ->exists();
 
             if (! $accountExists) {

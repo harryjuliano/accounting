@@ -93,7 +93,17 @@ class ManualJournalRequest extends FormRequest
                 $totalCredit += $credit;
 
                 $account = $accounts->get((int) ($line['account_id'] ?? 0));
-                if (! $account || ! $account->requires_dimension) {
+                if (! $account) {
+                    continue;
+                }
+
+                if (! $account->is_active || ! $account->allow_manual_posting) {
+                    $validator->errors()->add("lines.$index.account_id", "Akun {$account->code} - {$account->name} tidak aktif atau Manual Posting = Tidak.");
+
+                    continue;
+                }
+
+                if (! $account->requires_dimension) {
                     continue;
                 }
 

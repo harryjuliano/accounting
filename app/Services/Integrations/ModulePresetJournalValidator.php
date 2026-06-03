@@ -153,7 +153,7 @@ class ModulePresetJournalValidator
 
         $account = $query->first();
 
-        if (! $account) {
+        if (! $account || ! $account->allow_manual_posting) {
             return null;
         }
 
