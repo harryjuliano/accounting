@@ -31,6 +31,10 @@ class ManualJournalController extends Controller
             'line_no' => $lineNo,
             'account_id' => $line['account_id'],
             'description' => $line['description'] ?? null,
+            'item_code' => $line['item_code'] ?? null,
+            'item_name' => $line['item_name'] ?? null,
+            'quantity' => isset($line['quantity']) && $line['quantity'] !== '' ? (float) $line['quantity'] : null,
+            'quantity_uom' => $line['quantity_uom'] ?? null,
             'debit' => $debit,
             'credit' => $credit,
             'original_currency_code' => $currencyCode,
@@ -254,11 +258,17 @@ class ManualJournalController extends Controller
                 'journal_no' => $validated['journal_no'],
                 'journal_type' => 'manual',
                 'source_module' => 'manual_journal_form',
+                'source_module_name' => $validated['source_module_name'] ?? 'Manual Journal',
                 'source_event' => 'form_input',
                 'source_document_type' => 'manual_journal',
                 'entry_date' => $validated['entry_date'],
                 'posting_date' => $validated['posting_date'],
                 'reference_no' => $validated['reference_no'] ?? null,
+                'counterparty_type' => $validated['counterparty_type'] ?? null,
+                'counterparty_code' => $validated['counterparty_code'] ?? null,
+                'counterparty_name' => $validated['counterparty_name'] ?? null,
+                'salesperson_code' => $validated['salesperson_code'] ?? null,
+                'salesperson_name' => $validated['salesperson_name'] ?? null,
                 'description' => $validated['description'],
                 'currency_code' => $validated['currency_code'],
                 'exchange_rate' => $validated['exchange_rate'],
@@ -307,9 +317,15 @@ class ManualJournalController extends Controller
                 'branch_id' => $validated['branch_id'] ?? null,
                 'accounting_period_id' => $accountingPeriod->id,
                 'journal_no' => $validated['journal_no'],
+                'source_module_name' => $validated['source_module_name'] ?? $manual_journal->source_module_name,
                 'entry_date' => $validated['entry_date'],
                 'posting_date' => $validated['posting_date'],
                 'reference_no' => $validated['reference_no'] ?? null,
+                'counterparty_type' => $validated['counterparty_type'] ?? null,
+                'counterparty_code' => $validated['counterparty_code'] ?? null,
+                'counterparty_name' => $validated['counterparty_name'] ?? null,
+                'salesperson_code' => $validated['salesperson_code'] ?? null,
+                'salesperson_name' => $validated['salesperson_name'] ?? null,
                 'description' => $validated['description'],
                 'currency_code' => $validated['currency_code'],
                 'exchange_rate' => $validated['exchange_rate'],
@@ -382,9 +398,17 @@ class ManualJournalController extends Controller
                         || $row['currency_code'] !== $firstRow['currency_code']
                         || $row['exchange_rate'] !== $firstRow['exchange_rate']
                         || $row['status'] !== $firstRow['status']
+                        || $row['source_module'] !== $firstRow['source_module']
+                        || $row['source_module_name'] !== $firstRow['source_module_name']
+                        || $row['source_event'] !== $firstRow['source_event']
+                        || $row['counterparty_type'] !== $firstRow['counterparty_type']
+                        || $row['counterparty_code'] !== $firstRow['counterparty_code']
+                        || $row['counterparty_name'] !== $firstRow['counterparty_name']
+                        || $row['salesperson_code'] !== $firstRow['salesperson_code']
+                        || $row['salesperson_name'] !== $firstRow['salesperson_name']
                     ) {
                         throw ValidationException::withMessages([
-                            'file' => "Data header jurnal {$journalNo} harus konsisten pada setiap baris (tanggal, currency, rate, status).",
+                            'file' => "Data header jurnal {$journalNo} harus konsisten pada setiap baris (tanggal, currency, rate, status, source module, counterparty, salesman).",
                         ]);
                     }
                 }
@@ -427,7 +451,7 @@ class ManualJournalController extends Controller
                 $accounts = ChartOfAccount::query()
                     ->where('company_id', $companyId)
                     ->whereIn('code', $accountCodes)
-                    ->get(['id', 'code'])
+                    ->get(['id', 'code', 'name', 'is_active', 'allow_manual_posting'])
                     ->keyBy('code');
 
                 $lines = $journalRows->map(function (array $row, int $index) use ($accounts, $journalNo) {
@@ -439,10 +463,20 @@ class ManualJournalController extends Controller
                         ]);
                     }
 
+                    if (! $account->is_active || ! $account->allow_manual_posting) {
+                        throw ValidationException::withMessages([
+                            'file' => "Account code {$row['account_code']} pada jurnal {$journalNo} tidak aktif atau Manual Posting = Tidak.",
+                        ]);
+                    }
+
                     return [
                         'line_no' => $index + 1,
                         'account_id' => (int) $account->id,
                         'description' => $row['line_description'] ?: null,
+                        'item_code' => $row['item_code'] ?: null,
+                        'item_name' => $row['item_name'] ?: null,
+                        'quantity' => $row['quantity'] > 0 ? $row['quantity'] : null,
+                        'quantity_uom' => $row['quantity_uom'] ?: null,
                         'debit' => $row['debit'],
                         'credit' => $row['credit'],
                     ];
@@ -469,12 +503,18 @@ class ManualJournalController extends Controller
                     'accounting_period_id' => $accountingPeriod->id,
                     'journal_no' => $journalNo,
                     'journal_type' => 'manual',
-                    'source_module' => 'manual_journal_import',
-                    'source_event' => 'csv_import',
+                    'source_module' => $firstRow['source_module'] ?: 'manual_journal_import',
+                    'source_module_name' => $firstRow['source_module_name'] ?: 'Manual Journal Import',
+                    'source_event' => $firstRow['source_event'] ?: 'csv_import',
                     'source_document_type' => 'manual_journal_template',
                     'entry_date' => $firstRow['entry_date'],
                     'posting_date' => $firstRow['posting_date'],
                     'reference_no' => $firstRow['reference_no'] ?: null,
+                    'counterparty_type' => $firstRow['counterparty_type'] ?: null,
+                    'counterparty_code' => $firstRow['counterparty_code'] ?: null,
+                    'counterparty_name' => $firstRow['counterparty_name'] ?: null,
+                    'salesperson_code' => $firstRow['salesperson_code'] ?: null,
+                    'salesperson_name' => $firstRow['salesperson_name'] ?: null,
                     'description' => $firstRow['description'],
                     'currency_code' => $firstRow['currency_code'],
                     'exchange_rate' => $firstRow['exchange_rate'],
@@ -517,8 +557,8 @@ class ManualJournalController extends Controller
         $headers = $this->manualJournalTemplateHeaders();
         $this->resolveLoggedInCompanyId($request);
         $sampleRows = [
-            ['JRN-0001', '2026-03-01', '2026-03-01', 'REF-001', 'Penjualan tunai', 'IDR', '1', 'draft', 'JKT', '1101', 'Kas', '1000000', '0'],
-            ['JRN-0001', '2026-03-01', '2026-03-01', 'REF-001', 'Penjualan tunai', 'IDR', '1', 'draft', 'JKT', '4101', 'Pendapatan penjualan', '0', '1000000'],
+            ['JRN-0001', '2026-03-01', '2026-03-01', 'REF-001', 'Penjualan tunai', 'IDR', '1', 'draft', 'JKT', 'sales', 'Modul Penjualan', 'sales_invoice_posted', 'customer', 'CUST-001', 'Customer A', 'SLS-001', 'Budi Sales', '1101', 'Kas', 'BRG-001', 'Barang Contoh', '10', 'PCS', '1000000', '0'],
+            ['JRN-0001', '2026-03-01', '2026-03-01', 'REF-001', 'Penjualan tunai', 'IDR', '1', 'draft', 'JKT', 'sales', 'Modul Penjualan', 'sales_invoice_posted', 'customer', 'CUST-001', 'Customer A', 'SLS-001', 'Budi Sales', '4101', 'Pendapatan penjualan', 'BRG-001', 'Barang Contoh', '10', 'PCS', '0', '1000000'],
         ];
 
         $stream = fopen('php://temp', 'wb+');
@@ -551,6 +591,37 @@ class ManualJournalController extends Controller
             'exchange_rate',
             'status',
             'branch_code',
+            'source_module',
+            'source_module_name',
+            'source_event',
+            'counterparty_type',
+            'counterparty_code',
+            'counterparty_name',
+            'salesperson_code',
+            'salesperson_name',
+            'account_code',
+            'line_description',
+            'item_code',
+            'item_name',
+            'quantity',
+            'quantity_uom',
+            'debit',
+            'credit',
+        ];
+    }
+
+    private function requiredManualJournalHeaders(): array
+    {
+        return [
+            'journal_no',
+            'entry_date',
+            'posting_date',
+            'reference_no',
+            'description',
+            'currency_code',
+            'exchange_rate',
+            'status',
+            'branch_code',
             'account_code',
             'line_description',
             'debit',
@@ -561,11 +632,11 @@ class ManualJournalController extends Controller
     private function parseManualJournalCsv(UploadedFile $file): array
     {
         $handle = fopen($file->getRealPath(), 'rb');
-        $expectedHeaders = $this->manualJournalTemplateHeaders();
-        $delimiter = $this->detectCsvDelimiter($handle, $expectedHeaders);
+        $requiredHeaders = $this->requiredManualJournalHeaders();
+        $delimiter = $this->detectCsvDelimiter($handle, $requiredHeaders);
         $headers = $this->normalizeCsvHeaders(fgetcsv($handle, 0, $delimiter) ?: []);
 
-        if ($headers !== $expectedHeaders) {
+        if (array_diff($requiredHeaders, $headers) !== []) {
             fclose($handle);
 
             throw ValidationException::withMessages([
@@ -583,7 +654,7 @@ class ManualJournalController extends Controller
                 continue;
             }
 
-            $row = array_combine($expectedHeaders, array_pad($line, count($expectedHeaders), ''));
+            $row = array_combine($headers, array_pad($line, count($headers), ''));
             $rows[] = $this->normalizeManualJournalRow($row, $rowNumber);
         }
 
@@ -604,8 +675,20 @@ class ManualJournalController extends Controller
             'exchange_rate' => $this->normalizeCsvNumber($row['exchange_rate'] ?? '0'),
             'status' => strtolower(trim((string) ($row['status'] ?? 'draft'))),
             'branch_code' => trim((string) ($row['branch_code'] ?? '')),
+            'source_module' => trim((string) ($row['source_module'] ?? '')),
+            'source_module_name' => trim((string) ($row['source_module_name'] ?? '')),
+            'source_event' => trim((string) ($row['source_event'] ?? '')),
+            'counterparty_type' => trim((string) ($row['counterparty_type'] ?? '')),
+            'counterparty_code' => trim((string) ($row['counterparty_code'] ?? '')),
+            'counterparty_name' => trim((string) ($row['counterparty_name'] ?? '')),
+            'salesperson_code' => trim((string) ($row['salesperson_code'] ?? '')),
+            'salesperson_name' => trim((string) ($row['salesperson_name'] ?? '')),
             'account_code' => trim((string) ($row['account_code'] ?? '')),
             'line_description' => trim((string) ($row['line_description'] ?? '')),
+            'item_code' => trim((string) ($row['item_code'] ?? '')),
+            'item_name' => trim((string) ($row['item_name'] ?? '')),
+            'quantity' => $this->normalizeCsvNumber($row['quantity'] ?? '0'),
+            'quantity_uom' => trim((string) ($row['quantity_uom'] ?? '')),
             'debit' => $this->normalizeCsvNumber($row['debit'] ?? '0'),
             'credit' => $this->normalizeCsvNumber($row['credit'] ?? '0'),
         ];
@@ -743,7 +826,7 @@ class ManualJournalController extends Controller
 
         foreach ($delimiters as $delimiter) {
             $candidateHeaders = $this->normalizeCsvHeaders(str_getcsv($firstLine, $delimiter));
-            if ($candidateHeaders === $expectedHeaders) {
+            if (array_diff($expectedHeaders, $candidateHeaders) === []) {
                 rewind($handle);
 
                 return $delimiter;

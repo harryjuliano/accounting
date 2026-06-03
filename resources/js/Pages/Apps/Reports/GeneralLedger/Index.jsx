@@ -10,6 +10,15 @@ const formatAmount = (value) => new Intl.NumberFormat('id-ID', {
     maximumFractionDigits: 2,
 }).format(Number(value || 0));
 
+const formatQuantity = (value) => {
+    if (value === null || value === undefined || value === '') return '-';
+
+    return new Intl.NumberFormat('id-ID', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 4,
+    }).format(Number(value || 0));
+};
+
 const formatDate = (value) => {
     if (!value) return '-';
     const d = new Date(`${value}T12:00:00Z`);
@@ -184,14 +193,14 @@ export default function Index() {
                         <div>
                             <label className='mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300'>Global Search</label>
                             <form onSubmit={submitSearch} className='relative'>
-                                <input type='text' className='w-full rounded border-gray-300 bg-white py-2 pl-8 pr-2 text-sm text-gray-700 placeholder:text-gray-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500' placeholder='Cari jurnal/ref/COA/deskripsi...' value={listFilters.search} onChange={(e) => updateFilter('search', e.target.value)} />
+                                <input type='text' className='w-full rounded border-gray-300 bg-white py-2 pl-8 pr-2 text-sm text-gray-700 placeholder:text-gray-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500' placeholder='Cari dokumen/source/lawan/COA/barang...' value={listFilters.search} onChange={(e) => updateFilter('search', e.target.value)} />
                                 <IconSearch size={14} className='absolute left-2 top-2.5 text-gray-400 dark:text-gray-500' />
                             </form>
                         </div>
                     </div>
                 </div>
 
-                <div className='mt-4 overflow-hidden rounded-lg border bg-white dark:border-gray-900 dark:bg-gray-950'>
+                <div className='mt-4 overflow-x-auto rounded-lg border bg-white dark:border-gray-900 dark:bg-gray-950'>
                     <Table>
                         <Table.Thead>
                             <tr>
@@ -212,23 +221,32 @@ export default function Index() {
                     </Table>
                 </div>
 
-                <div className='mt-4 overflow-hidden rounded-lg border bg-white dark:border-gray-900 dark:bg-gray-950'>
+                <div className='mt-4 overflow-x-auto rounded-lg border bg-white dark:border-gray-900 dark:bg-gray-950'>
                     <Table>
                         <Table.Thead>
                             <tr>
                                 <Table.Th><SortHeader field='no' label='No' /></Table.Th>
-                                <Table.Th><SortHeader field='date' label='Date' /></Table.Th>
-                                <Table.Th><SortHeader field='company' label='Company' /></Table.Th>
-                                <Table.Th><SortHeader field='branch' label='Branch' /></Table.Th>
-                                <Table.Th><SortHeader field='journal_no' label='No Jurnal' /></Table.Th>
+                                <Table.Th><SortHeader field='date' label='Tanggal' /></Table.Th>
+                                <Table.Th><SortHeader field='document_no' label='No Dokumen' /></Table.Th>
+                                <Table.Th><SortHeader field='salesperson_code' label='Kode Salesman' /></Table.Th>
+                                <Table.Th><SortHeader field='salesperson_name' label='Nama Salesman' /></Table.Th>
+                                <Table.Th><SortHeader field='counterparty_type' label='Tipe Lawan' /></Table.Th>
+                                <Table.Th><SortHeader field='counterparty_code' label='Kode Lawan' /></Table.Th>
+                                <Table.Th><SortHeader field='counterparty_name' label='Nama Lawan' /></Table.Th>
                                 <Table.Th><SortHeader field='reference' label='Referensi' /></Table.Th>
-                                <Table.Th><SortHeader field='header_description' label='Deskripsi Header' /></Table.Th>
-                                <Table.Th><SortHeader field='currency' label='Currency' /></Table.Th>
-                                <Table.Th className='text-right'><SortHeader field='original_amount' label='Original Amount' className='w-full justify-end' /></Table.Th>
+                                <Table.Th><SortHeader field='source_module' label='Kode Transaksi' /></Table.Th>
+                                <Table.Th><SortHeader field='source_module_name' label='Nama Transaksi' /></Table.Th>
+                                <Table.Th><SortHeader field='coa_code' label='Kode COA' /></Table.Th>
+                                <Table.Th><SortHeader field='coa_name' label='Nama COA' /></Table.Th>
                                 <Table.Th className='text-right'><SortHeader field='debit' label='Debet' className='w-full justify-end' /></Table.Th>
                                 <Table.Th className='text-right'><SortHeader field='credit' label='Kredit' className='w-full justify-end' /></Table.Th>
-                                <Table.Th><SortHeader field='detail_description' label='Deskripsi Detail' /></Table.Th>
-                                <Table.Th>COA</Table.Th>
+                                <Table.Th><SortHeader field='detail_description' label='Keterangan' /></Table.Th>
+                                <Table.Th><SortHeader field='cost_center_code' label='Kode Cost Center' /></Table.Th>
+                                <Table.Th><SortHeader field='cost_center_name' label='Nama Cost Center' /></Table.Th>
+                                <Table.Th><SortHeader field='item_code' label='Kode Barang' /></Table.Th>
+                                <Table.Th><SortHeader field='item_name' label='Nama Barang' /></Table.Th>
+                                <Table.Th className='text-right'><SortHeader field='quantity' label='Qty' className='w-full justify-end' /></Table.Th>
+                                <Table.Th><SortHeader field='quantity_uom' label='UOM' /></Table.Th>
                             </tr>
                         </Table.Thead>
                         <Table.Tbody>
@@ -239,27 +257,36 @@ export default function Index() {
                                     <tr key={`${line.journal_no}-${line.no}`}>
                                     <Table.Td>{line.no}</Table.Td>
                                     <Table.Td>{formatDate(line.date)}</Table.Td>
-                                    <Table.Td>{line.company || '-'}</Table.Td>
-                                    <Table.Td>{line.branch || '-'}</Table.Td>
                                     <Table.Td>
                                         {editUrl ? (
                                             <a href={editUrl} className='text-blue-600 hover:underline dark:text-blue-400'>
-                                                {line.journal_no || '-'}
+                                                {line.document_no || '-'}
                                             </a>
-                                        ) : (line.journal_no || '-')}
+                                        ) : (line.document_no || '-')}
                                     </Table.Td>
+                                    <Table.Td>{line.salesperson_code || '-'}</Table.Td>
+                                    <Table.Td>{line.salesperson_name || '-'}</Table.Td>
+                                    <Table.Td>{line.counterparty_type || '-'}</Table.Td>
+                                    <Table.Td>{line.counterparty_code || '-'}</Table.Td>
+                                    <Table.Td>{line.counterparty_name || '-'}</Table.Td>
                                     <Table.Td>{line.reference || '-'}</Table.Td>
-                                    <Table.Td className='max-w-56 truncate'>{line.header_description || '-'}</Table.Td>
-                                    <Table.Td>{line.currency || '-'}</Table.Td>
-                                    <Table.Td className='text-right'>{formatAmount(line.original_amount)}</Table.Td>
+                                    <Table.Td>{line.source_module || '-'}</Table.Td>
+                                    <Table.Td>{line.source_module_name || '-'}</Table.Td>
+                                    <Table.Td>{line.coa_code || '-'}</Table.Td>
+                                    <Table.Td>{line.coa_name || '-'}</Table.Td>
                                     <Table.Td className='text-right'>{formatAmount(line.debit)}</Table.Td>
                                     <Table.Td className='text-right'>{formatAmount(line.credit)}</Table.Td>
-                                    <Table.Td className='max-w-56 truncate'>{line.detail_description || '-'}</Table.Td>
-                                    <Table.Td>{line.coa || '-'}</Table.Td>
+                                    <Table.Td className='max-w-56 truncate'>{line.description || '-'}</Table.Td>
+                                    <Table.Td>{line.cost_center_code || '-'}</Table.Td>
+                                    <Table.Td>{line.cost_center_name || '-'}</Table.Td>
+                                    <Table.Td>{line.item_code || '-'}</Table.Td>
+                                    <Table.Td>{line.item_name || '-'}</Table.Td>
+                                    <Table.Td className='text-right'>{formatQuantity(line.quantity)}</Table.Td>
+                                    <Table.Td>{line.quantity_uom || '-'}</Table.Td>
                                 </tr>
                                 );
                             }) : (
-                                <Table.Empty colSpan={13} message={
+                                <Table.Empty colSpan={22} message={
                                     <div className='flex flex-col items-center gap-1 text-sm text-gray-500 dark:text-gray-300'>
                                         <IconDatabaseOff size={24} />
                                         <span>Data General Ledger tidak ditemukan.</span>

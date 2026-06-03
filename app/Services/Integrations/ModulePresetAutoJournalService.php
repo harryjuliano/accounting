@@ -111,6 +111,7 @@ class ModulePresetAutoJournalService
                 'journal_no' => $this->generateJournalNumber($event),
                 'journal_type' => 'auto',
                 'source_module' => $event->source_module,
+                'source_module_name' => $payload['source_module_name'] ?? null,
                 'source_event' => $event->event_name,
                 'source_document_type' => $event->source_document_type,
                 'source_document_id' => $event->source_document_id,
@@ -119,6 +120,11 @@ class ModulePresetAutoJournalService
                 'entry_date' => $entryDate,
                 'posting_date' => $postingDate,
                 'reference_no' => $referenceNo,
+                'counterparty_type' => $payload['counterparty_type'] ?? null,
+                'counterparty_code' => $payload['counterparty_code'] ?? null,
+                'counterparty_name' => $payload['counterparty_name'] ?? null,
+                'salesperson_code' => $payload['salesperson_code'] ?? null,
+                'salesperson_name' => $payload['salesperson_name'] ?? null,
                 'description' => (string) ($payload['description'] ?? ('Auto journal from ' . $event->source_module . ' event #' . $event->id)),
                 'currency_code' => $currencyCode,
                 'exchange_rate' => $exchangeRate,
@@ -139,6 +145,10 @@ class ModulePresetAutoJournalService
                     'line_no' => (int) ($line['line_no'] ?? 0),
                     'account_id' => (int) $line['account_id'],
                     'description' => $line['description_template'] ?? null,
+                    'item_code' => $line['item_code'] ?? null,
+                    'item_name' => $line['item_name'] ?? null,
+                    'quantity' => $line['quantity'] ?? null,
+                    'quantity_uom' => $line['quantity_uom'] ?? null,
                     'debit' => $isDebit ? $amount : 0,
                     'credit' => $isDebit ? 0 : $amount,
                     'original_currency_code' => $currencyCode,
@@ -187,6 +197,7 @@ class ModulePresetAutoJournalService
                 ->where('company_id', $companyId)
                 ->where('id', $accountId)
                 ->where('is_active', true)
+                ->where('allow_manual_posting', true)
                 ->exists();
 
             if (! $accountExists) {

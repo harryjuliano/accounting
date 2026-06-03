@@ -116,6 +116,10 @@ class ModulePresetJournalValidator
                 'account_code' => $account->code,
                 'amount' => $amount,
                 'description_template' => $line['description'] ?? $line['description_template'] ?? null,
+                'item_code' => $line['item_code'] ?? null,
+                'item_name' => $line['item_name'] ?? null,
+                'quantity' => isset($line['quantity']) && $line['quantity'] !== '' ? (float) $line['quantity'] : null,
+                'quantity_uom' => $line['quantity_uom'] ?? null,
                 'dimension_details' => $line['dimensions'] ?? $line['dimension_details'] ?? null,
             ];
         }
@@ -149,7 +153,7 @@ class ModulePresetJournalValidator
 
         $account = $query->first();
 
-        if (! $account) {
+        if (! $account || ! $account->allow_manual_posting) {
             return null;
         }
 
