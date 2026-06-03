@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\Integrations\IntegrationEventController;
+use App\Http\Controllers\Api\Integrations\UniversalJournalController;
 use App\Http\Controllers\Api\Integrations\InventoryEventController;
 use App\Http\Controllers\Api\Integrations\VendorInvoiceEventController;
 use App\Http\Controllers\Api\Integrations\VendorPaymentEventController;
@@ -8,6 +9,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::prefix('integrations')->group(function () {
     Route::post('/events', [IntegrationEventController::class, 'store'])->name('api.integrations.events.store');
+    Route::post('/universal-journals', [UniversalJournalController::class, 'store'])->name('api.integrations.universal-journals.store');
 });
 
 Route::prefix('integrations/inventory')->group(function () {

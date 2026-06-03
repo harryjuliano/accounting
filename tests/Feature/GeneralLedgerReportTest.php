@@ -102,6 +102,15 @@ it('uses posted entries by default and summarizes all rows across pages', functi
             'accounting_period_id' => $periodJan->id,
             'journal_no' => sprintf('JV-2026-%03d', $index),
             'journal_type' => 'manual',
+            'source_module' => 'sales',
+            'source_module_name' => 'Modul Penjualan',
+            'source_event' => 'sales_invoice_posted',
+            'source_document_no' => sprintf('SI-2026-%03d', $index),
+            'counterparty_type' => 'customer',
+            'counterparty_code' => 'CUST-001',
+            'counterparty_name' => 'Customer A',
+            'salesperson_code' => 'SLS-001',
+            'salesperson_name' => 'Budi Sales',
             'entry_date' => '2026-01-10',
             'posting_date' => '2026-01-10',
             'description' => sprintf('Posted mutation %d', $index),
@@ -117,6 +126,16 @@ it('uses posted entries by default and summarizes all rows across pages', functi
             'journal_entry_id' => $entry->id,
             'line_no' => 1,
             'account_id' => $coaLevel4->id,
+            'item_code' => 'BRG-001',
+            'item_name' => 'Barang Contoh',
+            'quantity' => 10,
+            'quantity_uom' => 'PCS',
+            'dimension_details_json' => [
+                'cost_center' => [
+                    'code' => 'CJR-ARTHA',
+                    'name' => 'CJR Artha',
+                ],
+            ],
             'base_currency_debit' => 10,
             'base_currency_credit' => 0,
             'debit' => 10,
@@ -173,6 +192,21 @@ it('uses posted entries by default and summarizes all rows across pages', functi
     expect($response->json('props.summary.total_debit'))->toBe(250.0)
         ->and($response->json('props.summary.total_credit'))->toBe(0.0)
         ->and($response->json('props.ledgerLines.data'))->toHaveCount(20)
+        ->and($response->json('props.ledgerLines.data.0.document_no'))->toBe('SI-2026-001')
+        ->and($response->json('props.ledgerLines.data.0.source_module'))->toBe('sales')
+        ->and($response->json('props.ledgerLines.data.0.source_module_name'))->toBe('Modul Penjualan')
+        ->and($response->json('props.ledgerLines.data.0.counterparty_code'))->toBe('CUST-001')
+        ->and($response->json('props.ledgerLines.data.0.counterparty_name'))->toBe('Customer A')
+        ->and($response->json('props.ledgerLines.data.0.salesperson_code'))->toBe('SLS-001')
+        ->and($response->json('props.ledgerLines.data.0.salesperson_name'))->toBe('Budi Sales')
+        ->and($response->json('props.ledgerLines.data.0.coa_code'))->toBe('111001')
+        ->and($response->json('props.ledgerLines.data.0.coa_name'))->toBe('Cash on Hand')
+        ->and($response->json('props.ledgerLines.data.0.cost_center_code'))->toBe('CJR-ARTHA')
+        ->and($response->json('props.ledgerLines.data.0.cost_center_name'))->toBe('CJR Artha')
+        ->and($response->json('props.ledgerLines.data.0.item_code'))->toBe('BRG-001')
+        ->and($response->json('props.ledgerLines.data.0.item_name'))->toBe('Barang Contoh')
+        ->and($response->json('props.ledgerLines.data.0.quantity'))->toBe(10.0)
+        ->and($response->json('props.ledgerLines.data.0.quantity_uom'))->toBe('PCS')
         ->and($response->json('props.filters.status'))->toBe('posted');
 });
 

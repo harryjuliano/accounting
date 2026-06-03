@@ -80,13 +80,29 @@ class GeneralLedgerReportController extends Controller
             'company' => 'companies.name',
             'branch' => 'branches.code',
             'journal_no' => 'journal_entries.journal_no',
+            'document_no' => 'journal_entries.source_document_no',
             'reference' => 'journal_entries.reference_no',
+            'source_module' => 'journal_entries.source_module',
+            'source_module_name' => 'journal_entries.source_module_name',
+            'salesperson_code' => 'journal_entries.salesperson_code',
+            'salesperson_name' => 'journal_entries.salesperson_name',
+            'counterparty_type' => 'journal_entries.counterparty_type',
+            'counterparty_code' => 'journal_entries.counterparty_code',
+            'counterparty_name' => 'journal_entries.counterparty_name',
             'header_description' => 'journal_entries.description',
             'currency' => 'journal_lines.original_currency_code',
             'original_amount' => 'journal_lines.original_currency_amount',
             'debit' => 'journal_lines.base_currency_debit',
             'credit' => 'journal_lines.base_currency_credit',
             'detail_description' => 'journal_lines.description',
+            'coa_code' => 'accounts.code',
+            'coa_name' => 'accounts.name',
+            'item_code' => 'journal_lines.item_code',
+            'item_name' => 'journal_lines.item_name',
+            'quantity' => 'journal_lines.quantity',
+            'quantity_uom' => 'journal_lines.quantity_uom',
+            'cost_center_code' => 'cost_centers.code',
+            'cost_center_name' => 'cost_centers.name',
         ];
 
         $resolvedSortColumn = $sortColumns[$sortBy] ?? $sortColumns['date'];
@@ -139,15 +155,28 @@ class GeneralLedgerReportController extends Controller
             ->selectRaw('journal_entries.journal_type as journal_type')
             ->selectRaw('journal_entries.posting_date as posting_date')
             ->selectRaw('journal_entries.journal_no as journal_no')
+            ->selectRaw('journal_entries.source_document_no as source_document_no')
             ->selectRaw('journal_entries.reference_no as reference_no')
+            ->selectRaw('journal_entries.source_module as source_module')
+            ->selectRaw('journal_entries.source_module_name as source_module_name')
+            ->selectRaw('journal_entries.counterparty_type as counterparty_type')
+            ->selectRaw('journal_entries.counterparty_code as counterparty_code')
+            ->selectRaw('journal_entries.counterparty_name as counterparty_name')
+            ->selectRaw('journal_entries.salesperson_code as salesperson_code')
+            ->selectRaw('journal_entries.salesperson_name as salesperson_name')
             ->selectRaw('journal_entries.description as header_description')
             ->selectRaw('companies.name as company_name')
             ->selectRaw('branches.code as branch_code')
             ->selectRaw('branches.name as branch_name')
+            ->selectRaw('accounts.code as account_code')
+            ->selectRaw('accounts.name as account_name')
+            ->selectRaw('cost_centers.code as cost_center_code')
+            ->selectRaw('cost_centers.name as cost_center_name')
             ->join('journal_entries', 'journal_entries.id', '=', 'journal_lines.journal_entry_id')
             ->leftJoin('companies', 'companies.id', '=', 'journal_entries.company_id')
             ->leftJoin('branches', 'branches.id', '=', 'journal_entries.branch_id')
-            ->with('account:id,company_id,code,name')
+            ->leftJoin('chart_of_accounts as accounts', 'accounts.id', '=', 'journal_lines.account_id')
+            ->leftJoin('dimension_values as cost_centers', 'cost_centers.id', '=', 'journal_lines.dimension_cost_center_id')
             ->whereDate('journal_entries.posting_date', '>=', $dateFrom->toDateString())
             ->whereDate('journal_entries.posting_date', '<=', $dateTo->toDateString())
             ->whereNotIn('journal_entries.journal_type', ['opening', 'closing'])
@@ -156,16 +185,28 @@ class GeneralLedgerReportController extends Controller
                 $query->where(function (Builder $searchQuery) use ($search) {
                     $searchQuery
                         ->where('journal_entries.journal_no', 'like', '%' . $search . '%')
+                        ->orWhere('journal_entries.source_document_no', 'like', '%' . $search . '%')
                         ->orWhere('journal_entries.reference_no', 'like', '%' . $search . '%')
+                        ->orWhere('journal_entries.source_module', 'like', '%' . $search . '%')
+                        ->orWhere('journal_entries.source_module_name', 'like', '%' . $search . '%')
+                        ->orWhere('journal_entries.counterparty_type', 'like', '%' . $search . '%')
+                        ->orWhere('journal_entries.counterparty_code', 'like', '%' . $search . '%')
+                        ->orWhere('journal_entries.counterparty_name', 'like', '%' . $search . '%')
+                        ->orWhere('journal_entries.salesperson_code', 'like', '%' . $search . '%')
+                        ->orWhere('journal_entries.salesperson_name', 'like', '%' . $search . '%')
                         ->orWhere('journal_entries.description', 'like', '%' . $search . '%')
                         ->orWhere('journal_lines.description', 'like', '%' . $search . '%')
+                        ->orWhere('journal_lines.item_code', 'like', '%' . $search . '%')
+                        ->orWhere('journal_lines.item_name', 'like', '%' . $search . '%')
+                        ->orWhere('journal_lines.quantity_uom', 'like', '%' . $search . '%')
                         ->orWhere('journal_lines.original_currency_code', 'like', '%' . $search . '%')
                         ->orWhere('companies.name', 'like', '%' . $search . '%')
                         ->orWhere('branches.code', 'like', '%' . $search . '%')
                         ->orWhere('branches.name', 'like', '%' . $search . '%')
-                        ->orWhereHas('account', fn (Builder $accountQuery) => $accountQuery
-                            ->where('code', 'like', '%' . $search . '%')
-                            ->orWhere('name', 'like', '%' . $search . '%'));
+                        ->orWhere('accounts.code', 'like', '%' . $search . '%')
+                        ->orWhere('accounts.name', 'like', '%' . $search . '%')
+                        ->orWhere('cost_centers.code', 'like', '%' . $search . '%')
+                        ->orWhere('cost_centers.name', 'like', '%' . $search . '%');
                 });
             });
 
@@ -196,6 +237,20 @@ class GeneralLedgerReportController extends Controller
                 $debit = (float) $line->base_currency_debit;
                 $credit = (float) $line->base_currency_credit;
 
+                $dimensionCostCenter = data_get($line->dimension_details_json ?? [], 'cost_center');
+                $costCenterCode = $line->cost_center_code;
+                $costCenterName = $line->cost_center_name;
+
+                if (! $costCenterCode && is_array($dimensionCostCenter)) {
+                    $costCenterCode = $dimensionCostCenter['code'] ?? null;
+                    $costCenterName = $costCenterName ?: ($dimensionCostCenter['name'] ?? null);
+                } elseif (! $costCenterCode && is_string($dimensionCostCenter)) {
+                    $costCenterCode = $dimensionCostCenter;
+                }
+
+                $accountCode = $line->account_code;
+                $accountName = $line->account_name;
+
                 return [
                     'no' => (($ledgerLines->currentPage() - 1) * $ledgerLines->perPage()) + $index + 1,
                     'date' => $line->posting_date ? Carbon::parse((string) $line->posting_date)->toDateString() : null,
@@ -204,14 +259,31 @@ class GeneralLedgerReportController extends Controller
                     'company' => $line->company_name,
                     'branch' => trim(($line->branch_code ? $line->branch_code . ' - ' : '') . ($line->branch_name ?? '-')),
                     'journal_no' => $line->journal_no,
+                    'document_no' => $line->source_document_no ?: $line->journal_no,
                     'reference' => $line->reference_no,
+                    'source_module' => $line->source_module,
+                    'source_module_name' => $line->source_module_name,
+                    'counterparty_type' => $line->counterparty_type,
+                    'counterparty_code' => $line->counterparty_code,
+                    'counterparty_name' => $line->counterparty_name,
+                    'salesperson_code' => $line->salesperson_code,
+                    'salesperson_name' => $line->salesperson_name,
                     'header_description' => $line->header_description,
                     'currency' => $line->original_currency_code,
                     'original_amount' => (float) $line->original_currency_amount,
                     'debit' => $debit,
                     'credit' => $credit,
                     'detail_description' => $line->description,
-                    'coa' => trim(($line->account?->code ? $line->account->code . ' - ' : '') . ($line->account?->name ?? '-')),
+                    'description' => $line->description ?: $line->header_description,
+                    'coa_code' => $accountCode,
+                    'coa_name' => $accountName,
+                    'coa' => trim(($accountCode ? $accountCode . ' - ' : '') . ($accountName ?? '-')),
+                    'cost_center_code' => $costCenterCode,
+                    'cost_center_name' => $costCenterName,
+                    'item_code' => $line->item_code,
+                    'item_name' => $line->item_name,
+                    'quantity' => $line->quantity !== null ? (float) $line->quantity : null,
+                    'quantity_uom' => $line->quantity_uom,
                 ];
             })
         );
