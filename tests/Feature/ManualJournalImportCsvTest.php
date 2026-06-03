@@ -192,3 +192,52 @@ it('imports universal header and item fields from expanded manual journal csv', 
         ->and((float) $line->quantity)->toBe(10.0)
         ->and($line->quantity_uom)->toBe('PCS');
 });
+
+it('imports cost center columns from expanded manual journal csv into dimension details', function () {
+    $ctx = createManualJournalImportContext();
+
+    $csv = implode("\n", [
+        'journal_no,entry_date,posting_date,reference_no,description,currency_code,exchange_rate,status,branch_code,source_module,source_module_name,source_event,counterparty_type,counterparty_code,counterparty_name,salesperson_code,salesperson_name,account_code,line_description,item_code,item_name,quantity,quantity_uom,cost_center_code,cost_center_name,debit,credit',
+        'JRN-050125,2025-01-05,2025-01-05,SI-005,Penjualan Cost Center,IDR,1,posted,,sales,Modul Penjualan,sales_invoice_posted,customer,CUST-002,Customer B,SLS-002,Sari Sales,1101,Kas Masuk,BRG-002,Barang Cost Center,5,PCS,CJR-ARTHA,CJR Artha,1500,0',
+        'JRN-050125,2025-01-05,2025-01-05,SI-005,Penjualan Cost Center,IDR,1,posted,,sales,Modul Penjualan,sales_invoice_posted,customer,CUST-002,Customer B,SLS-002,Sari Sales,4101,Pendapatan,BRG-002,Barang Cost Center,5,PCS,CJR-ARTHA,CJR Artha,0,1500',
+    ]);
+
+    $file = UploadedFile::fake()->createWithContent('manual-journal-import-cost-center.csv', $csv);
+
+    $response = $this
+        ->actingAs($ctx['user'])
+        ->post(route('apps.manual-journals.import'), [
+            'file' => $file,
+        ]);
+
+    $response
+        ->assertRedirect()
+        ->assertSessionHasNoErrors()
+        ->assertSessionHas('success');
+
+    $journal = JournalEntry::query()->where('journal_no', 'JRN-050125')->firstOrFail();
+    $line = $journal->lines()->orderBy('line_no')->firstOrFail();
+
+    expect($line->dimension_details_json)->toBe([
+        'cost_center' => [
+            'code' => 'CJR-ARTHA',
+            'name' => 'CJR Artha',
+        ],
+    ]);
+});
+
+it('downloads manual journal import template with cost center columns', function () {
+    $ctx = createManualJournalImportContext();
+
+    $response = $this
+        ->actingAs($ctx['user'])
+        ->get(route('apps.manual-journals.import-template'));
+
+    $response->assertOk();
+
+    $csv = $response->baseResponse->getContent();
+    $firstLine = strtok(str_replace("\xEF\xBB\xBF", '', $csv), "\n");
+
+    expect(str_getcsv($firstLine))->toContain('cost_center_code')
+        ->and(str_getcsv($firstLine))->toContain('cost_center_name');
+});
