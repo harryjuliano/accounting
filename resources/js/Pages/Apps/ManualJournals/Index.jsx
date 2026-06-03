@@ -6,7 +6,7 @@ import Modal from '@/Components/Modal';
 import Input from '@/Components/Input';
 import Table from '@/Components/Table';
 import Pagination from '@/Components/Pagination';
-import { IconArrowsSort, IconCirclePlus, IconDatabaseOff, IconFileImport, IconFileSpreadsheet, IconNotes, IconPencilCheck, IconPencilCog, IconPlus, IconSearch, IconTrash } from '@tabler/icons-react';
+import { IconAlertCircle, IconArrowsSort, IconCircleCheck, IconCirclePlus, IconDatabaseOff, IconFileImport, IconFileSpreadsheet, IconNotes, IconPencilCheck, IconPencilCog, IconPlus, IconSearch, IconTrash, IconX } from '@tabler/icons-react';
 
 const emptyLine = { account_id: '', description: '', debit: 0, credit: 0, dimension_details: [] };
 const getTodayDate = () => new Date().toISOString().split('T')[0];
@@ -109,7 +109,7 @@ const formatDateByTimezone = (dateValue, timezone = 'UTC') => {
 };
 
 export default function Index() {
-    const { manualJournals, deepLinkJournal, companies, branches, accountingPeriods, currencies, accounts, defaultEntryDate, errors, filters, sort, yearOptions, monthOptions } = usePage().props;
+    const { manualJournals, deepLinkJournal, companies, branches, accountingPeriods, currencies, accounts, defaultEntryDate, errors, flash, filters, sort, yearOptions, monthOptions } = usePage().props;
     const fallbackEntryDate = defaultEntryDate || getTodayDate();
     const initialDecimalPlaces = Number(currencies[0]?.decimal_places ?? 2);
 
@@ -117,7 +117,7 @@ export default function Index() {
         id: '', company_id: companies[0]?.id ?? '', branch_id: '', accounting_period_id: '', journal_no: '', entry_date: fallbackEntryDate, posting_date: '', reference_no: '', description: '',
         currency_code: currencies[0]?.code ?? 'IDR', exchange_rate: 1, status: 'draft', lines: [{ ...emptyLine }, { ...emptyLine }], isUpdate: false, isOpen: false,
     });
-    const { data: importData, setData: setImportData, post: postImport, processing: importProcessing } = useForm({
+    const { data: importData, setData: setImportData, post: postImport, processing: importProcessing, errors: importErrors, clearErrors: clearImportErrors } = useForm({
         file: null,
         isOpen: false,
     });
@@ -135,6 +135,7 @@ export default function Index() {
         status: filters?.status ?? 'all',
     });
     const [selectedJournalIds, setSelectedJournalIds] = React.useState([]);
+    const [importNotice, setImportNotice] = React.useState(null);
     const openedDeepLinkJournalId = React.useRef(null);
     const filteredPeriods = accountingPeriods.filter((period) => period.company_id === Number(data.company_id));
     const filteredBranches = branches.filter((branch) => branch.company_id === Number(data.company_id));
@@ -192,6 +193,27 @@ export default function Index() {
         openJournalEditor(deepLinkJournal);
         openedDeepLinkJournalId.current = deepLinkJournal.id;
     }, [deepLinkJournal, openJournalEditor]);
+    React.useEffect(() => {
+        const successMessage = flash?.success ?? '';
+        const errorMessage = flash?.error ?? '';
+
+        if (successMessage.toLowerCase().includes('import')) {
+            setImportNotice({ type: 'success', message: successMessage });
+        } else if (errorMessage.toLowerCase().includes('import')) {
+            setImportNotice({ type: 'error', message: errorMessage });
+        }
+    }, [flash?.success, flash?.error]);
+
+    React.useEffect(() => {
+        if (!importNotice) {
+            return undefined;
+        }
+
+        const timeout = window.setTimeout(() => setImportNotice(null), 8000);
+
+        return () => window.clearTimeout(timeout);
+    }, [importNotice]);
+
 
     const updateLine = (index, field, value) => {
         const newLines = [...data.lines];
@@ -400,6 +422,8 @@ export default function Index() {
     };
 
     const openImportModal = () => {
+        clearImportErrors();
+        setImportNotice(null);
         setImportData({
             file: null,
             isOpen: true,
@@ -407,6 +431,7 @@ export default function Index() {
     };
 
     const closeImportModal = () => {
+        clearImportErrors();
         setImportData({
             file: null,
             isOpen: false,
@@ -418,6 +443,10 @@ export default function Index() {
         postImport(route('apps.manual-journals.import'), {
             forceFormData: true,
             onSuccess: closeImportModal,
+            onError: (formErrors) => {
+                const message = formErrors?.file || Object.values(formErrors || {})[0] || 'Import manual jurnal gagal diproses. Periksa format file lalu coba lagi.';
+                setImportNotice({ type: 'error', message });
+            },
         });
     };
 
@@ -428,6 +457,24 @@ export default function Index() {
     return (
         <>
             <Head title='Manual Journal' />
+            {importNotice && (
+                <div className='fixed right-6 top-6 z-[120] max-w-lg rounded-xl border bg-white p-4 shadow-2xl dark:bg-gray-950 dark:border-gray-800' role='alert'>
+                    <div className='flex items-start gap-3'>
+                        <div className={`mt-0.5 ${importNotice.type === 'success' ? 'text-emerald-600' : 'text-red-600'}`}>
+                            {importNotice.type === 'success' ? <IconCircleCheck size={22} strokeWidth={1.8} /> : <IconAlertCircle size={22} strokeWidth={1.8} />}
+                        </div>
+                        <div className='min-w-0 flex-1'>
+                            <div className={`text-sm font-semibold ${importNotice.type === 'success' ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300'}`}>
+                                {importNotice.type === 'success' ? 'Import Berhasil' : 'Import Gagal'}
+                            </div>
+                            <div className='mt-1 text-sm text-gray-600 dark:text-gray-300'>{importNotice.message}</div>
+                        </div>
+                        <button type='button' className='rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-900 dark:hover:text-gray-200' onClick={() => setImportNotice(null)} aria-label='Tutup pesan import'>
+                            <IconX size={18} strokeWidth={1.8} />
+                        </button>
+                    </div>
+                </div>
+            )}
             <div className='mb-2 flex justify-between items-center gap-2'>
                 <div className='flex items-center gap-2'>
                     <Button type='button' icon={<IconCirclePlus size={20} strokeWidth={1.5} />} variant='gray' label='Tambah Manual Jurnal' onClick={() => setData('isOpen', true)} />
@@ -635,6 +682,11 @@ export default function Index() {
                             className='w-full px-3 py-2 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800'
                         />
                         <p className='text-xs text-gray-500'>Gunakan tombol download template agar format import sesuai.</p>
+                        {importErrors.file && (
+                            <div className='rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300'>
+                                {importErrors.file}
+                            </div>
+                        )}
                     </div>
                     <div className='flex justify-end gap-2'>
                         <Button type='button' variant='gray' label='Batal' onClick={closeImportModal} />

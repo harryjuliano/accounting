@@ -479,6 +479,7 @@ class ManualJournalController extends Controller
                         'quantity_uom' => $row['quantity_uom'] ?: null,
                         'debit' => $row['debit'],
                         'credit' => $row['credit'],
+                        'dimension_details' => $this->buildImportDimensionDetails($row),
                     ];
                 })->values();
 
@@ -624,8 +625,47 @@ class ManualJournalController extends Controller
             'branch_code',
             'account_code',
             'line_description',
+            'item_code',
+            'item_name',
+            'quantity',
+            'quantity_uom',
+            'cost_center_code',
+            'cost_center_name',
             'debit',
             'credit',
+        ];
+    }
+
+    private function requiredManualJournalHeaders(): array
+    {
+        return [
+            'journal_no',
+            'entry_date',
+            'posting_date',
+            'reference_no',
+            'description',
+            'currency_code',
+            'exchange_rate',
+            'status',
+            'branch_code',
+            'account_code',
+            'line_description',
+            'debit',
+            'credit',
+        ];
+    }
+
+    private function buildImportDimensionDetails(array $row): ?array
+    {
+        if ($row['cost_center_code'] === '' && $row['cost_center_name'] === '') {
+            return null;
+        }
+
+        return [
+            'cost_center' => [
+                'code' => $row['cost_center_code'] ?: null,
+                'name' => $row['cost_center_name'] ?: null,
+            ],
         ];
     }
 
