@@ -153,3 +153,42 @@ it('imports edited excel csv format with non-padded date and scientific number',
     expect((float) $journal->lines()->sum('debit'))->toBe(1066000000.0);
     expect((float) $journal->lines()->sum('credit'))->toBe(1066000000.0);
 });
+
+it('imports universal header and item fields from expanded manual journal csv', function () {
+    $ctx = createManualJournalImportContext();
+
+    $csv = implode("\n", [
+        'journal_no,entry_date,posting_date,reference_no,description,currency_code,exchange_rate,status,branch_code,source_module,source_module_name,source_event,counterparty_type,counterparty_code,counterparty_name,salesperson_code,salesperson_name,account_code,line_description,item_code,item_name,quantity,quantity_uom,debit,credit',
+        'JRN-040125,2025-01-04,2025-01-04,SI-004,Penjualan Barang,IDR,1,posted,,sales,Modul Penjualan,sales_invoice_posted,customer,CUST-001,Customer A,SLS-001,Budi Sales,1101,Kas Masuk,BRG-001,Barang Contoh,10,PCS,1000,0',
+        'JRN-040125,2025-01-04,2025-01-04,SI-004,Penjualan Barang,IDR,1,posted,,sales,Modul Penjualan,sales_invoice_posted,customer,CUST-001,Customer A,SLS-001,Budi Sales,4101,Pendapatan,BRG-001,Barang Contoh,10,PCS,0,1000',
+    ]);
+
+    $file = UploadedFile::fake()->createWithContent('manual-journal-import-universal.csv', $csv);
+
+    $response = $this
+        ->actingAs($ctx['user'])
+        ->post(route('apps.manual-journals.import'), [
+            'file' => $file,
+        ]);
+
+    $response
+        ->assertRedirect()
+        ->assertSessionHasNoErrors()
+        ->assertSessionHas('success');
+
+    $journal = JournalEntry::query()->where('journal_no', 'JRN-040125')->firstOrFail();
+    $line = $journal->lines()->orderBy('line_no')->firstOrFail();
+
+    expect($journal->source_module)->toBe('sales')
+        ->and($journal->source_module_name)->toBe('Modul Penjualan')
+        ->and($journal->source_event)->toBe('sales_invoice_posted')
+        ->and($journal->counterparty_type)->toBe('customer')
+        ->and($journal->counterparty_code)->toBe('CUST-001')
+        ->and($journal->counterparty_name)->toBe('Customer A')
+        ->and($journal->salesperson_code)->toBe('SLS-001')
+        ->and($journal->salesperson_name)->toBe('Budi Sales')
+        ->and($line->item_code)->toBe('BRG-001')
+        ->and($line->item_name)->toBe('Barang Contoh')
+        ->and((float) $line->quantity)->toBe(10.0)
+        ->and($line->quantity_uom)->toBe('PCS');
+});
