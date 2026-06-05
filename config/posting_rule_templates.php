@@ -3,6 +3,212 @@
 return [
 
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | CASH MANAGEMENT PRESETS
+    |--------------------------------------------------------------------------
+    */
+    'cash_receipt_standard' => [
+        'lines' => [
+            [
+                'line_no' => 1,
+                'side' => 'debit',
+                'account_source_type' => 'dynamic',
+                'mapping_key' => 'cash.receipt.debit.cash_bank',
+                'amount_source' => 'formula',
+                'formula_json' => ['type' => 'path', 'path' => 'amounts.receipt_total'],
+                'description' => 'Cash/bank receipt from Cash Management',
+            ],
+            [
+                'line_no' => 2,
+                'side' => 'credit',
+                'mapping_key' => 'cash.receipt.credit.clearing',
+                'amount_source' => 'formula',
+                'formula_json' => ['type' => 'path', 'path' => 'amounts.receipt_total'],
+                'description' => 'Receipt clearing account',
+            ],
+        ],
+    ],
+
+    'cash_payment_standard' => [
+        'lines' => [
+            [
+                'line_no' => 1,
+                'side' => 'debit',
+                'mapping_key' => 'cash.payment.debit.clearing',
+                'amount_source' => 'formula',
+                'formula_json' => ['type' => 'path', 'path' => 'amounts.payment_total'],
+                'description' => 'Cash payment clearing/expense/AP side',
+            ],
+            [
+                'line_no' => 2,
+                'side' => 'debit',
+                'mapping_key' => 'cash.payment.debit.bank_charge',
+                'amount_source' => 'formula',
+                'formula_json' => ['type' => 'path', 'path' => 'amounts.bank_charge'],
+                'description' => 'Bank charge from cash payment',
+            ],
+            [
+                'line_no' => 3,
+                'side' => 'credit',
+                'account_source_type' => 'dynamic',
+                'mapping_key' => 'cash.payment.credit.cash_bank',
+                'amount_source' => 'formula',
+                'formula_json' => ['type' => 'sum_paths', 'paths' => ['amounts.payment_total', 'amounts.bank_charge']],
+                'description' => 'Cash/bank out from Cash Management',
+            ],
+        ],
+    ],
+
+    'cash_transfer_bank_to_bank' => [
+        'lines' => [
+            [
+                'line_no' => 1,
+                'side' => 'debit',
+                'account_source_type' => 'dynamic',
+                'mapping_key' => 'cash.transfer.debit.target_cash_bank',
+                'amount_source' => 'formula',
+                'formula_json' => ['type' => 'path', 'path' => 'amounts.transfer_total'],
+                'description' => 'Destination cash/bank account',
+            ],
+            [
+                'line_no' => 2,
+                'side' => 'debit',
+                'mapping_key' => 'cash.transfer.debit.bank_charge',
+                'amount_source' => 'formula',
+                'formula_json' => ['type' => 'path', 'path' => 'amounts.bank_charge'],
+                'description' => 'Bank charge on internal transfer',
+            ],
+            [
+                'line_no' => 3,
+                'side' => 'credit',
+                'account_source_type' => 'dynamic',
+                'mapping_key' => 'cash.transfer.credit.source_cash_bank',
+                'amount_source' => 'formula',
+                'formula_json' => ['type' => 'sum_paths', 'paths' => ['amounts.transfer_total', 'amounts.bank_charge']],
+                'description' => 'Source cash/bank account',
+            ],
+        ],
+    ],
+
+    'petty_cash_expense_standard' => [
+        'lines' => [
+            [
+                'line_no' => 1,
+                'side' => 'debit',
+                'mapping_key' => 'petty_cash.expense.debit.expense',
+                'amount_source' => 'formula',
+                'formula_json' => ['type' => 'path', 'path' => 'amounts.expense_total'],
+                'description' => 'Petty cash expense',
+            ],
+            [
+                'line_no' => 2,
+                'side' => 'credit',
+                'account_source_type' => 'dynamic',
+                'mapping_key' => 'petty_cash.expense.credit.petty_cash',
+                'amount_source' => 'formula',
+                'formula_json' => ['type' => 'path', 'path' => 'amounts.expense_total'],
+                'description' => 'Petty cash out',
+            ],
+        ],
+    ],
+
+    'cash_advance_disbursement_standard' => [
+        'lines' => [
+            [
+                'line_no' => 1,
+                'side' => 'debit',
+                'mapping_key' => 'cash_advance.disbursement.debit.employee_advance',
+                'amount_source' => 'formula',
+                'formula_json' => ['type' => 'path', 'path' => 'amounts.disbursement_total'],
+                'description' => 'Employee cash advance asset',
+            ],
+            [
+                'line_no' => 2,
+                'side' => 'credit',
+                'account_source_type' => 'dynamic',
+                'mapping_key' => 'cash_advance.disbursement.credit.cash_bank',
+                'amount_source' => 'formula',
+                'formula_json' => ['type' => 'path', 'path' => 'amounts.disbursement_total'],
+                'description' => 'Cash/bank out for employee advance',
+            ],
+        ],
+    ],
+
+    'cash_advance_settlement_standard' => [
+        'lines' => [
+            [
+                'line_no' => 1,
+                'side' => 'debit',
+                'mapping_key' => 'cash_advance.settlement.debit.expense',
+                'amount_source' => 'formula',
+                'formula_json' => ['type' => 'path', 'path' => 'amounts.expense_total'],
+                'description' => 'Advance settlement expense',
+            ],
+            [
+                'line_no' => 2,
+                'side' => 'debit',
+                'account_source_type' => 'dynamic',
+                'mapping_key' => 'cash_advance.settlement.debit.cash_return',
+                'amount_source' => 'formula',
+                'formula_json' => ['type' => 'path', 'path' => 'amounts.amount_returned'],
+                'description' => 'Cash returned by employee',
+            ],
+            [
+                'line_no' => 3,
+                'side' => 'credit',
+                'mapping_key' => 'cash_advance.settlement.credit.employee_advance',
+                'amount_source' => 'formula',
+                'formula_json' => ['type' => 'sum_paths', 'paths' => ['amounts.expense_total', 'amounts.amount_returned']],
+                'description' => 'Clear employee advance',
+            ],
+        ],
+    ],
+
+    'reimbursement_payment_standard' => [
+        'lines' => [
+            [
+                'line_no' => 1,
+                'side' => 'debit',
+                'mapping_key' => 'reimbursement.payment.debit.employee_payable',
+                'amount_source' => 'formula',
+                'formula_json' => ['type' => 'path', 'path' => 'amounts.payment_total'],
+                'description' => 'Employee reimbursement payable/expense',
+            ],
+            [
+                'line_no' => 2,
+                'side' => 'credit',
+                'account_source_type' => 'dynamic',
+                'mapping_key' => 'reimbursement.payment.credit.cash_bank',
+                'amount_source' => 'formula',
+                'formula_json' => ['type' => 'path', 'path' => 'amounts.payment_total'],
+                'description' => 'Cash/bank reimbursement payment',
+            ],
+        ],
+    ],
+
+    'bank_reconciliation_adjustment_standard' => [
+        'lines' => [
+            [
+                'line_no' => 1,
+                'side' => 'debit',
+                'mapping_key' => 'bank_reconciliation.adjustment.debit.expense_or_cash',
+                'amount_source' => 'formula',
+                'formula_json' => ['type' => 'path', 'path' => 'amounts.adjustment_total'],
+                'description' => 'Bank reconciliation adjustment debit',
+            ],
+            [
+                'line_no' => 2,
+                'side' => 'credit',
+                'mapping_key' => 'bank_reconciliation.adjustment.credit.expense_or_cash',
+                'amount_source' => 'formula',
+                'formula_json' => ['type' => 'path', 'path' => 'amounts.adjustment_total'],
+                'description' => 'Bank reconciliation adjustment credit',
+            ],
+        ],
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | SALES INVOICE POSTED (COMBINED SALES + COGS)

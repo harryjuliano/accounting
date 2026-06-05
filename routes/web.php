@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Apps\BalanceSheetReportController;
 use App\Http\Controllers\Apps\BranchController;
+use App\Http\Controllers\Apps\CashManagement\CashManagementPageController;
 use App\Http\Controllers\Apps\CompanyController;
 use App\Http\Controllers\Apps\ChartOfAccountController;
 use App\Http\Controllers\Apps\CurrencyController;
@@ -69,6 +70,8 @@ Route::group(['prefix' => 'apps', 'as' => 'apps.' , 'middleware' => ['auth']], f
     // manual journals route
     Route::resource('/manual-journals', ManualJournalController::class)->except(['create', 'edit', 'show'])->parameters(['manual-journals' => 'manual_journal']);
     Route::get('/manual-journals/integration-journal', IntegrationJournalController::class)->name('manual-journals.integration-journal');
+    Route::get('/cash-management', [CashManagementPageController::class, '__invoke'])->name('cash-management.index');
+    Route::get('/cash-management/{page}', CashManagementPageController::class)->name('cash-management.page');
     Route::get('/integration-events', IntegrationEventController::class)->name('integration-events.index');
     Route::post('/integration-events/{integrationEvent}/validate', [IntegrationEventController::class, 'validateEvent'])->name('integration-events.validate');
     Route::post('/integration-events/{integrationEvent}/post', [IntegrationEventController::class, 'postEvent'])->name('integration-events.post');
