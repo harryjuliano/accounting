@@ -80,6 +80,73 @@ const normalizeDimensionDetails = (details = []) => {
     }));
 };
 
+
+const manualJournalImportTemplateHeaders = [
+    'journal_no',
+    'entry_date',
+    'posting_date',
+    'reference_no',
+    'description',
+    'currency_code',
+    'exchange_rate',
+    'status',
+    'branch_code',
+    'source_module',
+    'source_module_name',
+    'source_event',
+    'counterparty_type',
+    'counterparty_code',
+    'counterparty_name',
+    'salesperson_code',
+    'salesperson_name',
+    'account_code',
+    'line_description',
+    'item_code',
+    'item_name',
+    'quantity',
+    'quantity_uom',
+    'cost_center_code',
+    'cost_center_name',
+    'debit',
+    'credit',
+];
+
+const manualJournalImportTemplateRows = [
+    ['JRN-0001', '2026-03-01', '2026-03-01', 'REF-001', 'Penjualan tunai', 'IDR', '1', 'draft', 'JKT', 'sales', 'Modul Penjualan', 'sales_invoice_posted', 'customer', 'CUST-001', 'Customer A', 'SLS-001', 'Budi Sales', '1101', 'Kas', 'BRG-001', 'Barang Contoh', '10', 'PCS', '', '', '1000000', '0'],
+    ['JRN-0001', '2026-03-01', '2026-03-01', 'REF-001', 'Penjualan tunai', 'IDR', '1', 'draft', 'JKT', 'sales', 'Modul Penjualan', 'sales_invoice_posted', 'customer', 'CUST-001', 'Customer A', 'SLS-001', 'Budi Sales', '4101', 'Pendapatan penjualan', 'BRG-001', 'Barang Contoh', '10', 'PCS', '', '', '0', '1000000'],
+];
+
+const escapeCsvCell = (value) => {
+    const text = `${value ?? ''}`;
+
+    if (/[",\n\r]/.test(text)) {
+        return `"${text.replace(/"/g, '""')}"`;
+    }
+
+    return text;
+};
+
+const buildManualJournalImportTemplateCsv = () => {
+    const csvRows = [manualJournalImportTemplateHeaders, ...manualJournalImportTemplateRows]
+        .map((row) => row.map(escapeCsvCell).join(','));
+
+    return `\uFEFF${csvRows.join('\r\n')}\r\n`;
+};
+
+const saveCsvFile = (csv, filename) => {
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = filename;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+};
+
 const formatDateByTimezone = (dateValue, timezone = 'UTC') => {
     if (!dateValue) {
         return '-';
@@ -448,6 +515,10 @@ export default function Index() {
                 setImportNotice({ type: 'error', message });
             },
         });
+    };
+
+    const downloadImportTemplate = () => {
+        saveCsvFile(buildManualJournalImportTemplateCsv(), 'manual-journal-import-template.csv');
     };
 
     return (
