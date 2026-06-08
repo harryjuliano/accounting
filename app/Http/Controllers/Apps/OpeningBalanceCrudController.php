@@ -623,7 +623,13 @@ class OpeningBalanceCrudController extends Controller
         }
 
         if (str_contains($normalized, ',')) {
-            if (preg_match('/,\d{1,2}$/', $normalized) === 1) {
+            $commaPosition = strrpos($normalized, ',');
+            $integerDigits = preg_replace('/\D/', '', substr($normalized, 0, $commaPosition));
+            $fractionDigits = preg_replace('/\D/', '', substr($normalized, $commaPosition + 1));
+            $fractionLength = strlen($fractionDigits);
+            $looksLikeThousandsGroup = $fractionLength === 3 && strlen((string) $integerDigits) <= 3;
+
+            if ($fractionLength > 0 && ! $looksLikeThousandsGroup) {
                 $normalized = str_replace(',', '.', $normalized);
             } else {
                 $normalized = str_replace(',', '', $normalized);
