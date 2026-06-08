@@ -165,6 +165,34 @@ it('imports edited excel csv format with non-padded date and scientific number',
     expect((float) $journal->lines()->sum('credit'))->toBe(1066000000.0);
 });
 
+it('imports tab-delimited manual journals with comma decimal amounts from excel', function () {
+    $ctx = createManualJournalImportContext();
+
+    $csv = implode("\n", [
+        "journal_no\tentry_date\tposting_date\treference_no\tdescription\tcurrency_code\texchange_rate\tstatus\tbranch_code\taccount_code\tline_description\tdebit\tcredit",
+        "JRN-060125\t2025-01-06\t2025-01-06\tSIS-006\tSaldo Awal Decimal Koma\tIDR\t1\tposted\t\t1101\tDebit decimal koma\t64419,0054\t0",
+        "JRN-060125\t2025-01-06\t2025-01-06\tSIS-006\tSaldo Awal Decimal Koma\tIDR\t1\tposted\t\t4101\tCredit decimal koma\t0\t64419,0054",
+    ]);
+
+    $file = UploadedFile::fake()->createWithContent('manual-journal-import-decimal-comma.txt', $csv);
+
+    $response = $this
+        ->actingAs($ctx['user'])
+        ->post(route('apps.manual-journals.import'), [
+            'file' => $file,
+        ]);
+
+    $response
+        ->assertRedirect()
+        ->assertSessionHasNoErrors()
+        ->assertSessionHas('success');
+
+    $journal = JournalEntry::query()->where('journal_no', 'JRN-060125')->firstOrFail();
+    expect((float) $journal->lines()->sum('debit'))->toBe(64419.0054);
+    expect((float) $journal->lines()->sum('credit'))->toBe(64419.0054);
+    expect((float) $journal->lines()->sum('debit'))->not->toBe(644190054.0);
+});
+
 it('imports universal header and item fields from expanded manual journal csv', function () {
     $ctx = createManualJournalImportContext();
 
