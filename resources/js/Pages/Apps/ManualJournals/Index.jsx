@@ -80,6 +80,20 @@ const normalizeDimensionDetails = (details = []) => {
     }));
 };
 
+
+const saveBlobFile = (blob, filename) => {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = filename;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+};
+
 const formatDateByTimezone = (dateValue, timezone = 'UTC') => {
     if (!dateValue) {
         return '-';
@@ -450,8 +464,24 @@ export default function Index() {
         });
     };
 
-    const downloadImportTemplate = () => {
-        window.location.href = route('apps.manual-journals.import-template');
+    const downloadImportTemplate = async () => {
+        const response = await fetch(route('apps.manual-journals.import-template'), {
+            credentials: 'same-origin',
+            headers: {
+                Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            },
+        });
+        const contentType = response.headers.get('content-type') || '';
+
+        if (!response.ok || contentType.includes('text/html')) {
+            setImportNotice({
+                type: 'error',
+                message: 'Download template Excel gagal. Refresh halaman, pastikan masih login, lalu coba lagi.',
+            });
+            return;
+        }
+
+        saveBlobFile(await response.blob(), 'manual-journal-import-template.xlsx');
     };
 
     return (
@@ -674,10 +704,10 @@ export default function Index() {
             >
                 <form onSubmit={submitImport} className='space-y-4'>
                     <div className='space-y-2'>
-                        <label className='text-gray-600 text-sm'>File template import (.csv)</label>
+                        <label className='text-gray-600 text-sm'>File template import (.xlsx/.csv)</label>
                         <input
                             type='file'
-                            accept='.csv,text/csv'
+                            accept='.xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv'
                             onChange={(event) => setImportData('file', event.target.files?.[0] ?? null)}
                             className='w-full px-3 py-2 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800'
                         />

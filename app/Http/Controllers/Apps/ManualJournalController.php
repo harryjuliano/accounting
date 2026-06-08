@@ -16,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use ZipArchive;
 
 class ManualJournalController extends Controller
 {
@@ -358,11 +359,11 @@ class ManualJournalController extends Controller
         $maxRows = max(2, (int) config('imports.manual_journals.max_rows', 50000));
 
         $payload = $request->validate([
-            'file' => ['required', 'file', 'mimes:csv,txt', "max:{$maxUploadKb}"],
+            'file' => ['required', 'file', 'mimes:csv,txt,xlsx', "max:{$maxUploadKb}"],
         ]);
         $companyId = $this->resolveLoggedInCompanyId($request);
 
-        $rows = $this->parseManualJournalCsv($payload['file']);
+        $rows = $this->parseManualJournalImportFile($payload['file']);
 
         if (count($rows) > $maxRows) {
             throw ValidationException::withMessages([
@@ -555,28 +556,16 @@ class ManualJournalController extends Controller
 
     public function downloadImportTemplate(Request $request)
     {
-        $headers = $this->manualJournalTemplateHeaders();
         $this->resolveLoggedInCompanyId($request);
-        $sampleRows = [
-            ['JRN-0001', '2026-03-01', '2026-03-01', 'REF-001', 'Penjualan tunai', 'IDR', '1', 'draft', 'JKT', 'sales', 'Modul Penjualan', 'sales_invoice_posted', 'customer', 'CUST-001', 'Customer A', 'SLS-001', 'Budi Sales', '1101', 'Kas', 'BRG-001', 'Barang Contoh', '10', 'PCS', '', '', '1000000', '0'],
-            ['JRN-0001', '2026-03-01', '2026-03-01', 'REF-001', 'Penjualan tunai', 'IDR', '1', 'draft', 'JKT', 'sales', 'Modul Penjualan', 'sales_invoice_posted', 'customer', 'CUST-001', 'Customer A', 'SLS-001', 'Budi Sales', '4101', 'Pendapatan penjualan', 'BRG-001', 'Barang Contoh', '10', 'PCS', '', '', '0', '1000000'],
-        ];
 
-        $stream = fopen('php://temp', 'wb+');
-        fwrite($stream, "\xEF\xBB\xBF");
-        fputcsv($stream, $headers);
+        $xlsx = $this->buildSimpleXlsx(
+            [$this->manualJournalTemplateHeaders(), ...$this->manualJournalTemplateRows()],
+            'manual-journal-import-template'
+        );
 
-        foreach ($sampleRows as $row) {
-            fputcsv($stream, $row);
-        }
-
-        rewind($stream);
-        $csv = stream_get_contents($stream);
-        fclose($stream);
-
-        return response($csv, 200, [
-            'Content-Type' => 'text/csv; charset=UTF-8',
-            'Content-Disposition' => 'attachment; filename="manual-journal-import-template.csv"',
+        return response($xlsx, 200, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition' => 'attachment; filename="manual-journal-import-template.xlsx"',
         ]);
     }
 
@@ -613,6 +602,14 @@ class ManualJournalController extends Controller
         ];
     }
 
+    private function manualJournalTemplateRows(): array
+    {
+        return [
+            ['JRN-0001', '2026-03-01', '2026-03-01', 'REF-001', 'Penjualan tunai', 'IDR', '1', 'draft', 'JKT', 'sales', 'Modul Penjualan', 'sales_invoice_posted', 'customer', 'CUST-001', 'Customer A', 'SLS-001', 'Budi Sales', '1101', 'Kas', 'BRG-001', 'Barang Contoh', '10', 'PCS', '', '', '1000000', '0'],
+            ['JRN-0001', '2026-03-01', '2026-03-01', 'REF-001', 'Penjualan tunai', 'IDR', '1', 'draft', 'JKT', 'sales', 'Modul Penjualan', 'sales_invoice_posted', 'customer', 'CUST-001', 'Customer A', 'SLS-001', 'Budi Sales', '4101', 'Pendapatan penjualan', 'BRG-001', 'Barang Contoh', '10', 'PCS', '', '', '0', '1000000'],
+        ];
+    }
+
     private function requiredManualJournalHeaders(): array
     {
         return [
@@ -632,6 +629,134 @@ class ManualJournalController extends Controller
         ];
     }
 
+    private function buildSimpleXlsx(array $rows, string $sheetName): string
+    {
+        $tempFile = tempnam(sys_get_temp_dir(), 'manual-journal-template-');
+        $zip = new ZipArchive();
+
+        if ($tempFile === false || $zip->open($tempFile, ZipArchive::OVERWRITE) !== true) {
+            throw ValidationException::withMessages([
+                'file' => 'Template Excel gagal dibuat. Coba ulangi download template.',
+            ]);
+        }
+
+        $zip->addFromString('[Content_Types].xml', $this->xlsxContentTypesXml());
+        $zip->addFromString('_rels/.rels', $this->xlsxRootRelationshipsXml());
+        $zip->addFromString('xl/workbook.xml', $this->xlsxWorkbookXml($sheetName));
+        $zip->addFromString('xl/_rels/workbook.xml.rels', $this->xlsxWorkbookRelationshipsXml());
+        $zip->addFromString('xl/styles.xml', $this->xlsxStylesXml());
+        $zip->addFromString('xl/worksheets/sheet1.xml', $this->xlsxWorksheetXml($rows));
+        $zip->close();
+
+        $contents = file_get_contents($tempFile);
+        @unlink($tempFile);
+
+        if ($contents === false) {
+            throw ValidationException::withMessages([
+                'file' => 'Template Excel gagal dibaca. Coba ulangi download template.',
+            ]);
+        }
+
+        return $contents;
+    }
+
+    private function xlsxWorksheetXml(array $rows): string
+    {
+        $sheetData = '';
+
+        foreach ($rows as $rowIndex => $row) {
+            $excelRowNumber = $rowIndex + 1;
+            $cells = '';
+
+            foreach (array_values($row) as $columnIndex => $value) {
+                $cellReference = $this->xlsxCellReference($columnIndex, $excelRowNumber);
+                $escapedValue = $this->escapeXml((string) $value);
+                $cells .= "<c r=\"{$cellReference}\" t=\"inlineStr\"><is><t>{$escapedValue}</t></is></c>";
+            }
+
+            $sheetData .= "<row r=\"{$excelRowNumber}\">{$cells}</row>";
+        }
+
+        return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            . '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            . '<sheetViews><sheetView workbookViewId="0"/></sheetViews>'
+            . '<sheetFormatPr defaultRowHeight="15"/>'
+            . "<sheetData>{$sheetData}</sheetData>"
+            . '</worksheet>';
+    }
+
+    private function xlsxCellReference(int $columnIndex, int $rowNumber): string
+    {
+        $columnName = '';
+        $index = $columnIndex + 1;
+
+        while ($index > 0) {
+            $modulo = ($index - 1) % 26;
+            $columnName = chr(65 + $modulo) . $columnName;
+            $index = intdiv($index - $modulo, 26);
+        }
+
+        return $columnName . $rowNumber;
+    }
+
+    private function xlsxContentTypesXml(): string
+    {
+        return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            . '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+            . '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+            . '<Default Extension="xml" ContentType="application/xml"/>'
+            . '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+            . '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+            . '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+            . '</Types>';
+    }
+
+    private function xlsxRootRelationshipsXml(): string
+    {
+        return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+            . '</Relationships>';
+    }
+
+    private function xlsxWorkbookXml(string $sheetName): string
+    {
+        $escapedSheetName = $this->escapeXml($sheetName);
+
+        return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            . '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+            . '<sheets>'
+            . "<sheet name=\"{$escapedSheetName}\" sheetId=\"1\" r:id=\"rId1\"/>"
+            . '</sheets>'
+            . '</workbook>';
+    }
+
+    private function xlsxWorkbookRelationshipsXml(): string
+    {
+        return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+            . '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+            . '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
+            . '</Relationships>';
+    }
+
+    private function xlsxStylesXml(): string
+    {
+        return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+            . '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+            . '<fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts>'
+            . '<fills count="1"><fill><patternFill patternType="none"/></fill></fills>'
+            . '<borders count="1"><border/></borders>'
+            . '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
+            . '<cellXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/></cellXfs>'
+            . '</styleSheet>';
+    }
+
+    private function escapeXml(string $value): string
+    {
+        return htmlspecialchars($value, ENT_QUOTES | ENT_XML1, 'UTF-8');
+    }
+
     private function buildImportDimensionDetails(array $row): ?array
     {
         $costCenterCode = $row['cost_center_code'] ?? '';
@@ -647,6 +772,174 @@ class ManualJournalController extends Controller
                 'name' => $costCenterName ?: null,
             ],
         ];
+    }
+
+    private function parseManualJournalImportFile(UploadedFile $file): array
+    {
+        $extension = strtolower((string) $file->getClientOriginalExtension());
+
+        if ($extension === 'xlsx') {
+            return $this->parseManualJournalXlsx($file);
+        }
+
+        return $this->parseManualJournalCsv($file);
+    }
+
+    private function parseManualJournalXlsx(UploadedFile $file): array
+    {
+        $zip = new ZipArchive();
+
+        if ($zip->open($file->getRealPath()) !== true) {
+            throw ValidationException::withMessages([
+                'file' => 'File Excel tidak bisa dibuka. Download ulang template lalu coba lagi.',
+            ]);
+        }
+
+        $sheetXml = $zip->getFromName('xl/worksheets/sheet1.xml');
+
+        if ($sheetXml === false) {
+            $zip->close();
+
+            throw ValidationException::withMessages([
+                'file' => 'Worksheet template Excel tidak ditemukan.',
+            ]);
+        }
+
+        $sharedStrings = $this->parseXlsxSharedStrings($zip);
+        $zip->close();
+
+        $sheet = simplexml_load_string($sheetXml);
+
+        if (! $sheet || ! isset($sheet->sheetData)) {
+            throw ValidationException::withMessages([
+                'file' => 'Format worksheet Excel tidak sesuai template import manual jurnal.',
+            ]);
+        }
+
+        $rawRows = [];
+
+        foreach ($sheet->sheetData->row as $sheetRow) {
+            $rowValues = [];
+
+            foreach ($sheetRow->c as $cell) {
+                $cellReference = (string) ($cell['r'] ?? '');
+                $columnIndex = $cellReference !== ''
+                    ? $this->xlsxColumnIndex((string) preg_replace('/\d+/', '', $cellReference))
+                    : count($rowValues);
+
+                $rowValues[$columnIndex] = $this->xlsxCellValue($cell, $sharedStrings);
+            }
+
+            if (count(array_filter($rowValues, fn ($value) => trim((string) $value) !== '')) === 0) {
+                continue;
+            }
+
+            ksort($rowValues);
+            $rawRows[] = $rowValues;
+        }
+
+        if ($rawRows === []) {
+            throw ValidationException::withMessages([
+                'file' => 'File template Excel kosong.',
+            ]);
+        }
+
+        $requiredHeaders = $this->requiredManualJournalHeaders();
+        $headerValues = $this->denseXlsxRowValues($rawRows[0], max(array_keys($rawRows[0] ?? [0])) + 1);
+        $headers = $this->normalizeCsvHeaders($headerValues);
+
+        if (array_diff($requiredHeaders, $headers) !== []) {
+            throw ValidationException::withMessages([
+                'file' => 'Format file tidak sesuai template import manual jurnal.',
+            ]);
+        }
+
+        $rows = [];
+
+        foreach (array_slice($rawRows, 1) as $index => $line) {
+            $rowNumber = $index + 2;
+            $row = array_combine($headers, $this->denseXlsxRowValues($line, count($headers)));
+            $rows[] = $this->normalizeManualJournalRow($row, $rowNumber);
+        }
+
+        return $rows;
+    }
+
+    private function denseXlsxRowValues(array $rowValues, int $columnCount): array
+    {
+        $values = [];
+
+        for ($index = 0; $index < $columnCount; $index++) {
+            $values[] = $rowValues[$index] ?? '';
+        }
+
+        return $values;
+    }
+
+    private function parseXlsxSharedStrings(ZipArchive $zip): array
+    {
+        $sharedStringsXml = $zip->getFromName('xl/sharedStrings.xml');
+
+        if ($sharedStringsXml === false) {
+            return [];
+        }
+
+        $sharedStrings = simplexml_load_string($sharedStringsXml);
+
+        if (! $sharedStrings) {
+            return [];
+        }
+
+        $values = [];
+
+        foreach ($sharedStrings->si as $stringItem) {
+            $values[] = $this->xlsxStringItemText($stringItem);
+        }
+
+        return $values;
+    }
+
+    private function xlsxCellValue(\SimpleXMLElement $cell, array $sharedStrings): string
+    {
+        $type = (string) ($cell['t'] ?? '');
+
+        if ($type === 'inlineStr') {
+            return $this->xlsxStringItemText($cell->is);
+        }
+
+        $value = (string) ($cell->v ?? '');
+
+        if ($type === 's') {
+            return $sharedStrings[(int) $value] ?? '';
+        }
+
+        return $value;
+    }
+
+    private function xlsxStringItemText(\SimpleXMLElement $stringItem): string
+    {
+        if (isset($stringItem->t)) {
+            return (string) $stringItem->t;
+        }
+
+        $text = '';
+
+        foreach ($stringItem->r as $run) {
+            $text .= (string) ($run->t ?? '');
+        }
+
+        return $text;
+    }
+
+    private function xlsxColumnIndex(string $column): int
+    {
+        $index = 0;
+
+        foreach (str_split(strtoupper($column)) as $letter) {
+            $index = ($index * 26) + (ord($letter) - 64);
+        }
+
+        return max(0, $index - 1);
     }
 
     private function parseManualJournalCsv(UploadedFile $file): array
