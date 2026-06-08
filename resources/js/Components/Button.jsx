@@ -54,6 +54,11 @@ export default function Button({className, icon, label, type, href, url, id, var
                     {icon} <span className="hidden lg:block">{label}</span>
                 </Link>
             }
+            {type === 'download' &&
+                <a href={href} className={clsx(styleButton, className, variants)} {...props}>
+                    {icon} <span className="hidden md:block">{label}</span>
+                </a>
+            }
             {type === 'button' &&
                 <button type='button' className={clsx(styleButton, className, variants)} {...props}>
                     {icon} <span className="hidden md:block">{label}</span>
