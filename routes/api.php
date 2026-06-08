@@ -1,11 +1,14 @@
 <?php
 
+use App\Http\Controllers\Api\Auth\LoginController;
 use App\Http\Controllers\Api\Integrations\IntegrationEventController;
 use App\Http\Controllers\Api\Integrations\UniversalJournalController;
 use App\Http\Controllers\Api\Integrations\InventoryEventController;
 use App\Http\Controllers\Api\Integrations\VendorInvoiceEventController;
 use App\Http\Controllers\Api\Integrations\VendorPaymentEventController;
 use Illuminate\Support\Facades\Route;
+
+Route::post('/login', [LoginController::class, 'store'])->middleware('throttle:5,1')->name('api.login');
 
 Route::prefix('integrations')->group(function () {
     Route::post('/events', [IntegrationEventController::class, 'store'])->name('api.integrations.events.store');
