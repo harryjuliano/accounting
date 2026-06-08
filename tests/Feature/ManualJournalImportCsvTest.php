@@ -79,6 +79,25 @@ function createManualJournalImportContext(): array
 
     return compact('user', 'company');
 }
+it('downloads manual journal import template as csv attachment', function () {
+    $company = Company::create([
+        'code' => 'CMP-TPL-MJ',
+        'name' => 'PT Template Manual Journal',
+        'base_currency_code' => 'IDR',
+        'country_code' => 'ID',
+    ]);
+    $user = User::factory()->create([
+        'company_id' => $company->id,
+    ]);
+
+    $response = $this->actingAs($user)->get(route('apps.manual-journals.import-template'));
+
+    $response->assertOk();
+    $response->assertHeader('Content-Type', 'text/csv; charset=UTF-8');
+    $response->assertHeader('Content-Disposition', 'attachment; filename="manual-journal-import-template.csv"');
+    expect($response->getContent())->toContain('journal_no,entry_date,posting_date,reference_no,description,currency_code,exchange_rate,status,branch_code,source_module,source_module_name,source_event,counterparty_type,counterparty_code,counterparty_name,salesperson_code,salesperson_name,account_code,line_description,item_code,item_name,quantity,quantity_uom,cost_center_code,cost_center_name,debit,credit');
+});
+
 
 it('imports manual journals from semicolon csv with DD/MM/YYYY dates', function () {
     $ctx = createManualJournalImportContext();

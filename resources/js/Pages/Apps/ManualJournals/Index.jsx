@@ -450,10 +450,6 @@ export default function Index() {
         });
     };
 
-    const downloadImportTemplate = () => {
-        window.location.href = route('apps.manual-journals.import-template');
-    };
-
     return (
         <>
             <Head title='Manual Journal' />
@@ -479,7 +475,7 @@ export default function Index() {
                 <div className='flex items-center gap-2'>
                     <Button type='button' icon={<IconCirclePlus size={20} strokeWidth={1.5} />} variant='gray' label='Tambah Manual Jurnal' onClick={() => setData('isOpen', true)} />
                     <Button type='button' icon={<IconFileImport size={20} strokeWidth={1.5} />} variant='gray' label='Import Excel/CSV' onClick={openImportModal} />
-                    <Button type='button' icon={<IconFileSpreadsheet size={20} strokeWidth={1.5} />} variant='gray' label='Download Template Import' onClick={downloadImportTemplate} />
+                    <Button type='download' href={route('apps.manual-journals.import-template')} download='manual-journal-import-template.csv' icon={<IconFileSpreadsheet size={20} strokeWidth={1.5} />} variant='gray' label='Download Template Import' />
                 </div>
                 <form onSubmit={submitSearch} className='w-full md:w-10/12 grid grid-cols-1 md:grid-cols-4 gap-2'>
                     <div className='relative md:col-span-2'>
