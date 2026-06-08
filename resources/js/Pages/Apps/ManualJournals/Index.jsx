@@ -465,18 +465,21 @@ export default function Index() {
     };
 
     const downloadImportTemplate = async () => {
-        const response = await fetch(route('apps.manual-journals.import-template'), {
+        const response = await fetch(`${route('apps.manual-journals.import-template')}?downloaded_at=${Date.now()}`, {
+            cache: 'no-store',
             credentials: 'same-origin',
             headers: {
                 Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             },
         });
         const contentType = response.headers.get('content-type') || '';
+        const isExcelResponse = contentType.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            || contentType.includes('application/octet-stream');
 
-        if (!response.ok || contentType.includes('text/html')) {
+        if (!response.ok || !isExcelResponse) {
             setImportNotice({
                 type: 'error',
-                message: 'Download template Excel gagal. Refresh halaman, pastikan masih login, lalu coba lagi.',
+                message: 'Download template Excel gagal atau masih menerima HTML/cache lama. Hard refresh halaman (Ctrl+F5), pastikan masih login, lalu coba lagi.',
             });
             return;
         }
@@ -509,7 +512,7 @@ export default function Index() {
                 <div className='flex items-center gap-2'>
                     <Button type='button' icon={<IconCirclePlus size={20} strokeWidth={1.5} />} variant='gray' label='Tambah Manual Jurnal' onClick={() => setData('isOpen', true)} />
                     <Button type='button' icon={<IconFileImport size={20} strokeWidth={1.5} />} variant='gray' label='Import Excel/CSV' onClick={openImportModal} />
-                    <Button type='download' href={route('apps.manual-journals.import-template')} download='manual-journal-import-template.csv' icon={<IconFileSpreadsheet size={20} strokeWidth={1.5} />} variant='gray' label='Download Template Import' />
+                    <Button type='button' icon={<IconFileSpreadsheet size={20} strokeWidth={1.5} />} variant='gray' label='Download Template Excel (.xlsx)' onClick={downloadImportTemplate} />
                 </div>
                 <form onSubmit={submitSearch} className='w-full md:w-10/12 grid grid-cols-1 md:grid-cols-4 gap-2'>
                     <div className='relative md:col-span-2'>

@@ -96,6 +96,7 @@ it('downloads manual journal import template as xlsx attachment', function () {
     $response->assertOk();
     $response->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     $response->assertHeader('Content-Disposition', 'attachment; filename="manual-journal-import-template.xlsx"');
+    $response->assertHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
 
     $tempFile = tempnam(sys_get_temp_dir(), 'manual-journal-template-test-');
     file_put_contents($tempFile, $response->getContent());
