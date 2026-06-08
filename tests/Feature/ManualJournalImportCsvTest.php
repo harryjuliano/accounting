@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Apps\ManualJournalController;
 use App\Models\AccountingPeriod;
 use App\Models\ChartOfAccount;
 use App\Models\Company;
@@ -79,6 +80,38 @@ function createManualJournalImportContext(): array
 
     return compact('user', 'company');
 }
+it('downloads manual journal import template as xlsx attachment', function () {
+    $company = Company::create([
+        'code' => 'CMP-TPL-MJ',
+        'name' => 'PT Template Manual Journal',
+        'base_currency_code' => 'IDR',
+        'country_code' => 'ID',
+    ]);
+    $user = User::factory()->create([
+        'company_id' => $company->id,
+    ]);
+
+    $response = $this->actingAs($user)->get(route('apps.manual-journals.import-template'));
+
+    $response->assertOk();
+    $response->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    $response->assertHeader('Content-Disposition', 'attachment; filename="manual-journal-import-template.xlsx"');
+    $response->assertHeader('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+
+    $tempFile = tempnam(sys_get_temp_dir(), 'manual-journal-template-test-');
+    file_put_contents($tempFile, $response->getContent());
+
+    $zip = new ZipArchive();
+    expect($zip->open($tempFile))->toBeTrue();
+    $sheetXml = $zip->getFromName('xl/worksheets/sheet1.xml');
+    $zip->close();
+    @unlink($tempFile);
+
+    expect($sheetXml)->toContain('journal_no')
+        ->and($sheetXml)->toContain('entry_date')
+        ->and($sheetXml)->toContain('credit');
+});
+
 
 it('imports manual journals from semicolon csv with DD/MM/YYYY dates', function () {
     $ctx = createManualJournalImportContext();
@@ -112,6 +145,38 @@ it('imports manual journals from semicolon csv with DD/MM/YYYY dates', function 
 
     $journal = JournalEntry::query()->where('journal_no', 'JRN-010125')->firstOrFail();
     expect($journal->lines()->count())->toBe(2);
+});
+
+it('imports manual journals from xlsx template', function () {
+    $ctx = createManualJournalImportContext();
+    $rows = [
+        ['journal_no', 'entry_date', 'posting_date', 'reference_no', 'description', 'currency_code', 'exchange_rate', 'status', 'branch_code', 'source_module', 'source_module_name', 'source_event', 'counterparty_type', 'counterparty_code', 'counterparty_name', 'salesperson_code', 'salesperson_name', 'account_code', 'line_description', 'item_code', 'item_name', 'quantity', 'quantity_uom', 'cost_center_code', 'cost_center_name', 'debit', 'credit'],
+        ['JRN-XLSX-010125', '2025-01-01', '2025-01-01', 'XLSX-001', 'Import dari template Excel', 'IDR', '1', 'posted', '', '', '', '', '', '', '', '', '', '1101', 'Kas', '', '', '', '', '', '', '1000', '0'],
+        ['JRN-XLSX-010125', '2025-01-01', '2025-01-01', 'XLSX-001', 'Import dari template Excel', 'IDR', '1', 'posted', '', '', '', '', '', '', '', '', '', '4101', 'Pendapatan', '', '', '', '', '', '', '0', '1000'],
+    ];
+    $method = new ReflectionMethod(ManualJournalController::class, 'buildSimpleXlsx');
+    $method->setAccessible(true);
+    $xlsx = $method->invoke(new ManualJournalController(), $rows, 'manual-journal-import-template');
+    $file = UploadedFile::fake()->createWithContent('manual-journal-import-template.xlsx', $xlsx);
+
+    $response = $this
+        ->actingAs($ctx['user'])
+        ->post(route('apps.manual-journals.import'), [
+            'file' => $file,
+        ]);
+
+    $response
+        ->assertRedirect()
+        ->assertSessionHasNoErrors()
+        ->assertSessionHas('success');
+
+    $this->assertDatabaseHas('journal_entries', [
+        'company_id' => $ctx['company']->id,
+        'journal_no' => 'JRN-XLSX-010125',
+        'entry_date' => '2025-01-01',
+        'posting_date' => '2025-01-01',
+        'status' => 'posted',
+    ]);
 });
 
 it('returns success message with posting period filter hint after import', function () {
