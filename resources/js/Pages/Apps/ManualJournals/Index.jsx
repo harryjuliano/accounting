@@ -81,60 +81,7 @@ const normalizeDimensionDetails = (details = []) => {
 };
 
 
-const manualJournalImportTemplateHeaders = [
-    'journal_no',
-    'entry_date',
-    'posting_date',
-    'reference_no',
-    'description',
-    'currency_code',
-    'exchange_rate',
-    'status',
-    'branch_code',
-    'source_module',
-    'source_module_name',
-    'source_event',
-    'counterparty_type',
-    'counterparty_code',
-    'counterparty_name',
-    'salesperson_code',
-    'salesperson_name',
-    'account_code',
-    'line_description',
-    'item_code',
-    'item_name',
-    'quantity',
-    'quantity_uom',
-    'cost_center_code',
-    'cost_center_name',
-    'debit',
-    'credit',
-];
-
-const manualJournalImportTemplateRows = [
-    ['JRN-0001', '2026-03-01', '2026-03-01', 'REF-001', 'Penjualan tunai', 'IDR', '1', 'draft', 'JKT', 'sales', 'Modul Penjualan', 'sales_invoice_posted', 'customer', 'CUST-001', 'Customer A', 'SLS-001', 'Budi Sales', '1101', 'Kas', 'BRG-001', 'Barang Contoh', '10', 'PCS', '', '', '1000000', '0'],
-    ['JRN-0001', '2026-03-01', '2026-03-01', 'REF-001', 'Penjualan tunai', 'IDR', '1', 'draft', 'JKT', 'sales', 'Modul Penjualan', 'sales_invoice_posted', 'customer', 'CUST-001', 'Customer A', 'SLS-001', 'Budi Sales', '4101', 'Pendapatan penjualan', 'BRG-001', 'Barang Contoh', '10', 'PCS', '', '', '0', '1000000'],
-];
-
-const escapeCsvCell = (value) => {
-    const text = `${value ?? ''}`;
-
-    if (/[",\n\r]/.test(text)) {
-        return `"${text.replace(/"/g, '""')}"`;
-    }
-
-    return text;
-};
-
-const buildManualJournalImportTemplateCsv = () => {
-    const csvRows = [manualJournalImportTemplateHeaders, ...manualJournalImportTemplateRows]
-        .map((row) => row.map(escapeCsvCell).join(','));
-
-    return `\uFEFF${csvRows.join('\r\n')}\r\n`;
-};
-
-const saveCsvFile = (csv, filename) => {
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+const saveBlobFile = (blob, filename) => {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
 
@@ -517,8 +464,24 @@ export default function Index() {
         });
     };
 
-    const downloadImportTemplate = () => {
-        saveCsvFile(buildManualJournalImportTemplateCsv(), 'manual-journal-import-template.csv');
+    const downloadImportTemplate = async () => {
+        const response = await fetch(route('apps.manual-journals.import-template'), {
+            credentials: 'same-origin',
+            headers: {
+                Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            },
+        });
+        const contentType = response.headers.get('content-type') || '';
+
+        if (!response.ok || contentType.includes('text/html')) {
+            setImportNotice({
+                type: 'error',
+                message: 'Download template Excel gagal. Refresh halaman, pastikan masih login, lalu coba lagi.',
+            });
+            return;
+        }
+
+        saveBlobFile(await response.blob(), 'manual-journal-import-template.xlsx');
     };
 
     return (
@@ -741,10 +704,10 @@ export default function Index() {
             >
                 <form onSubmit={submitImport} className='space-y-4'>
                     <div className='space-y-2'>
-                        <label className='text-gray-600 text-sm'>File template import (.csv)</label>
+                        <label className='text-gray-600 text-sm'>File template import (.xlsx/.csv)</label>
                         <input
                             type='file'
-                            accept='.csv,text/csv'
+                            accept='.xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv'
                             onChange={(event) => setImportData('file', event.target.files?.[0] ?? null)}
                             className='w-full px-3 py-2 border text-sm rounded-md bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 border-gray-200 dark:border-gray-800'
                         />
