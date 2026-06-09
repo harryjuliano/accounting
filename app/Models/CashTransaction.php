@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CashTransaction extends Model
 {
@@ -65,6 +66,11 @@ class CashTransaction extends Model
     public function cashAccount(): BelongsTo
     {
         return $this->belongsTo(CashManagementAccount::class, 'cash_management_account_id');
+    }
+
+    public function paymentLines(): HasMany
+    {
+        return $this->hasMany(CashPaymentLine::class);
     }
 
     public function targetCashAccount(): BelongsTo

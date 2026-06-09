@@ -35,7 +35,7 @@ export default function Index({ page, modules, kpis, statusSummary, integrationS
         {
             title: 'Cash Payment',
             subtitle: 'Pembayaran kas/bank',
-            href: route('apps.cash-management.page', 'cash-payments'),
+            href: route('apps.cash-management.cash-payments.index'),
             icon: <IconArrowUpCircle size={20} strokeWidth={1.5} />,
         },
         {

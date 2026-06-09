@@ -105,7 +105,7 @@ class CashManagementPageController extends Controller
     {
         return [
             ['title' => 'Cash Receipt', 'route' => route('apps.cash-management.page', 'cash-receipts'), 'event' => 'cash.receipt.posted'],
-            ['title' => 'Cash Payment', 'route' => route('apps.cash-management.page', 'cash-payments'), 'event' => 'cash.payment.posted'],
+            ['title' => 'Cash Payment', 'route' => route('apps.cash-management.cash-payments.index'), 'event' => 'cash.payment.posted'],
             ['title' => 'Bank Transfer', 'route' => route('apps.cash-management.page', 'bank-transfers'), 'event' => 'cash.transfer.posted'],
             ['title' => 'Petty Cash', 'route' => route('apps.cash-management.page', 'petty-cash'), 'event' => 'petty_cash.expense.posted'],
             ['title' => 'Cash Advance', 'route' => route('apps.cash-management.page', 'cash-advances'), 'event' => 'cash_advance.disbursement.posted'],
